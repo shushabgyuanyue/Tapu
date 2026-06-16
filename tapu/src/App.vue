@@ -1,19 +1,19 @@
-<script setup>
+﻿<script setup>
 import { ref, onMounted } from 'vue';
 
 const isLoaded = ref(false);
-const videoSrc = ref('/video.mp4');
+const videoSrc = ref('/test.mp4');
 const videoRef = ref(null);
 
 onMounted(() => {
-  // 从 URL 参数获取可能的情绪视频，若无则使用默认
+  // �?URL 参数获取可能的情绪视频，若无则使用默�?
   const urlParams = new URLSearchParams(window.location.search);
   const vParam = urlParams.get('v');
   if (vParam) {
     videoSrc.value = `/${vParam}.mp4`;
   }
 
-  // 模拟极简的Loading情绪过渡（1.5秒），消除加载感
+  // 模拟极简的Loading情绪过渡�?.5秒），消除加载感
   setTimeout(() => {
     isLoaded.value = true;
     if (videoRef.value) {
@@ -30,7 +30,7 @@ onMounted(() => {
 
 <template>
   <div class="tapu-container">
-    <!-- 情绪触发阶段（Loading） -->
+    <!-- 情绪触发阶段（Loading�?-->
     <transition name="fade">
       <div v-if="!isLoaded" class="loading-screen">
         <div class="breathing-circle"></div>
@@ -63,7 +63,7 @@ onMounted(() => {
   position: relative;
 }
 
-/* 情绪触发阶段（极简Loading） */
+/* 情绪触发阶段（极简Loading�?*/
 .loading-screen {
   position: absolute;
   top: 0;
@@ -77,7 +77,7 @@ onMounted(() => {
   z-index: 10;
 }
 
-/* 呼吸灯效果，非信息表达，用于进入情绪切换状态 */
+/* 呼吸灯效果，非信息表达，用于进入情绪切换状�?*/
 .breathing-circle {
   width: 40px;
   height: 40px;
