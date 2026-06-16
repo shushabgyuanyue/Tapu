@@ -1,28 +1,27 @@
-﻿# 文档索引与项目总览（待填写）
+# 文档索引与项目总览
 
-> **填写说明**：登记本仓库文档路径、阅读顺序、与协议域 **rcho evo/** 的分工。  
-> 协议仓产品讨论登记若存在，勿与 **docs/DOCUMENT_INDEX.md** 混用——二者可分工为「登记簿 vs 地图」（按需删改本节）。
+> 协议仓产品讨论登记若存在，勿与 **docs/DOCUMENT_INDEX.md** 混用——二者可分工为「登记簿 vs 地图」。
 
 ---
 
 ## 1. 本项目是什么（一段话）
 
-<!-- 待填写 -->
+tapU 是一个通过NFC触发的情绪摆件H5呈现系统。用户触碰实体摆件后，打开极简的H5页面，在无加载感的情况下直接自动播放一个3–7秒的单情绪视频，带来一次瞬间的情绪回应感受，播放完毕后平滑退出或循环。
 
-## 2. 权威优先级（§8 占位）
+## 2. 权威优先级
 
 | 层次 | 文档 | 承担 |
 |------|------|------|
-| 条文/需求全文 | <!-- 待填写路径，如 main.md --> | <!-- 待填写 --> |
-| 阶段与验收 | [develop.md](develop.md) | <!-- 待填写 --> |
-| 模块进度 | [DOMAINS.md](DOMAINS.md) | <!-- 待填写 --> |
-| 协作协议 | [rcho evo/README.md](archo%20evo/README.md) | 协议域流程 |
+| 条文/需求全文 | [需求.txt](需求.txt) | 整体产品定义与产品目标 |
+| 阶段与验收 | [develop.md](develop.md) | 研发节奏、里程碑与前端实现验收 |
+| 模块进度 | [DOMAINS.md](DOMAINS.md) | 域划分（前端域、资源域）与进度追踪 |
+| 协作协议 | [archo evo/README.md](archo%20evo/README.md) | 协议域流程、Archo-Evo 规范 |
 
-## 3. 登记簿（可选）
+## 3. 登记簿
 
-<!-- 待填写：docs 下新增文档在此登记一行 -->
+- 暂无附加讨论文档。
 
 ## 4. 协议子模块
 
-- 路径：rcho evo/（pin 到 [archo-evo](https://github.com/shushabgyuanyue/archo-evo) 某提交）
+- 路径：`archo evo/`
 - 四锚点备忘：[PROTOCOL-ANCHORS.md](PROTOCOL-ANCHORS.md)

@@ -1,0 +1,13 @@
+domain: frontend
+pack_status: packed
+packed_by: gemini
+packed_at: 2026-06-16T23:50:00Z
+entrypoint: npm run dev
+
+## Skill
+- 项目域四大基础文档初始化 (SPEC.md, DOMAINS.md, DOCUMENT_INDEX.md, develop.md)
+- 基础前端 Vue 展示框架与视频无感循环播放逻辑搭建
+
+## TODO
+
+## Post-Mortem
