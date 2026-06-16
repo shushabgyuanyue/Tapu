@@ -1,4 +1,4 @@
-﻿<script setup>
+<script setup>
 import { ref, onMounted } from 'vue';
 
 const isLoaded = ref(false);
@@ -6,31 +6,32 @@ const videoSrc = ref('/test.mp4');
 const videoRef = ref(null);
 
 onMounted(() => {
-  // �?URL 参数获取可能的情绪视频，若无则使用默�?
+  // 从URL参数获取可能的情绪视频，若无则使用默认
   const urlParams = new URLSearchParams(window.location.search);
   const vParam = urlParams.get('v');
   if (vParam) {
     videoSrc.value = `/${vParam}.mp4`;
   }
+});
 
-  // 模拟极简的Loading情绪过渡�?.5秒），消除加载感
-  setTimeout(() => {
+// 当视频加载到足够播放的数据时立即触发（干掉人为的延迟）
+const onVideoReady = () => {
+  if (!isLoaded.value) {
     isLoaded.value = true;
     if (videoRef.value) {
       videoRef.value.play().catch(e => {
-        console.log("Auto-play was prevented by the browser. Interaction may be required.", e);
-        // 如果被阻止，可以静音尝试
+        console.log("Auto-play was prevented by the browser.", e);
         videoRef.value.muted = true;
         videoRef.value.play().catch(e2 => console.error("Muted auto-play also failed", e2));
       });
     }
-  }, 1500);
-});
+  }
+};
 </script>
 
 <template>
   <div class="tapu-container">
-    <!-- 情绪触发阶段（Loading�?-->
+    <!-- 情绪触发阶段（极简Loading） -->
     <transition name="fade">
       <div v-if="!isLoaded" class="loading-screen">
         <div class="breathing-circle"></div>
@@ -38,14 +39,21 @@ onMounted(() => {
     </transition>
 
     <!-- 情绪核心阶段（视频） -->
+    <!-- 增加 preload="auto" 提前拉取资源；增加 x5-* 属性适配国内移动端浏览器 -->
     <video
       ref="videoRef"
       class="emotion-video"
       :src="videoSrc"
+      preload="auto"
       loop
       muted
       playsinline
       webkit-playsinline
+      x5-video-player-type="h5"
+      x5-video-player-fullscreen="true"
+      x5-video-orientation="portrait"
+      @canplay="onVideoReady"
+      @loadeddata="onVideoReady"
       :class="{ 'is-visible': isLoaded }"
     ></video>
   </div>
@@ -53,17 +61,19 @@ onMounted(() => {
 
 <style scoped>
 .tapu-container {
+  /* 使用 fixed 和 dvh 彻底解决移动端滚动条、半屏和底部导航栏遮挡问题 */
+  position: fixed;
+  top: 0;
+  left: 0;
   width: 100vw;
   height: 100vh;
+  height: 100dvh; /* 优先使用 dvh 适配现代移动端动态视口 */
   background-color: #000;
-  display: flex;
-  justify-content: center;
-  align-items: center;
   overflow: hidden;
-  position: relative;
+  z-index: 1;
 }
 
-/* 情绪触发阶段（极简Loading�?*/
+/* 情绪触发阶段 */
 .loading-screen {
   position: absolute;
   top: 0;
@@ -77,7 +87,7 @@ onMounted(() => {
   z-index: 10;
 }
 
-/* 呼吸灯效果，非信息表达，用于进入情绪切换状�?*/
+/* 呼吸灯效果 */
 .breathing-circle {
   width: 40px;
   height: 40px;
@@ -92,9 +102,9 @@ onMounted(() => {
   100% { transform: scale(0.8); opacity: 0.5; }
 }
 
-/* Loading 淡出过渡 */
+/* Loading 淡出提速，减少等待感 */
 .fade-leave-active {
-  transition: opacity 1s ease;
+  transition: opacity 0.3s ease;
 }
 .fade-leave-to {
   opacity: 0;
@@ -102,11 +112,15 @@ onMounted(() => {
 
 /* 视频全屏展示 */
 .emotion-video {
+  position: absolute;
+  top: 0;
+  left: 0;
   width: 100%;
   height: 100%;
   object-fit: cover; /* 保证充满屏幕，无留白 */
   opacity: 0;
-  transition: opacity 2s ease; /* 缓慢浮现 */
+  /* 浮现过渡时间从原先的 2s 降为 0.5s，消除视觉上的卡顿感 */
+  transition: opacity 0.5s ease; 
 }
 
 .emotion-video.is-visible {
