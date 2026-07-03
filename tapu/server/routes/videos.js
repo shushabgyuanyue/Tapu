@@ -76,6 +76,27 @@ router.get('/:id', async (req, res) => {
   res.json(videos[0]);
 });
 
+// Get sibling videos in the same group (for swipe feed)
+router.get('/:id/siblings', async (req, res) => {
+  const db = await getDb();
+  const results = db.exec('SELECT group_id FROM videos WHERE id = ?', [req.params.id]);
+  const current = resultToObjects(results);
+  if (current.length === 0) {
+    return res.status(404).json({ error: 'Video not found' });
+  }
+
+  const groupId = current[0].group_id;
+  if (!groupId) {
+    return res.json([]);
+  }
+
+  const siblings = db.exec(
+    'SELECT id, title, file_path, poster_url, duration FROM videos WHERE group_id = ? AND status = ? AND id != ? ORDER BY created_at DESC',
+    [groupId, 'ready', req.params.id]
+  );
+  res.json(resultToObjects(siblings));
+});
+
 // Delete video
 router.delete('/:id', async (req, res) => {
   const db = await getDb();

@@ -3,12 +3,18 @@ import { createRouter, createWebHistory } from 'vue-router';
 const routes = [
   {
     path: '/',
-    redirect: '/play',
+    name: 'landing',
+    component: () => import('../views/LandingPage.vue'),
   },
   {
     path: '/play',
     name: 'player',
     component: () => import('../views/PlayerView.vue'),
+  },
+  {
+    path: '/community',
+    name: 'community',
+    component: () => import('../views/CommunityPage.vue'),
   },
   {
     path: '/play/:id',
@@ -20,7 +26,6 @@ const routes = [
     component: () => import('../views/admin/AdminLayout.vue'),
     children: [
       { path: '', name: 'admin-videos', component: () => import('../views/admin/VideoList.vue') },
-      { path: 'groups', name: 'admin-groups', component: () => import('../views/admin/GroupManage.vue') },
       { path: 'stats', name: 'admin-stats', component: () => import('../views/admin/Stats.vue') },
     ],
   },

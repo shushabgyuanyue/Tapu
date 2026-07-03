@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS videos (
   group_id TEXT,
   original_filename TEXT,
   file_path TEXT NOT NULL,
+  poster_url TEXT,
   status TEXT DEFAULT 'processing',
   duration REAL,
   file_size INTEGER,
@@ -22,5 +23,22 @@ CREATE TABLE IF NOT EXISTS play_events (
   video_id TEXT NOT NULL,
   played_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   user_agent TEXT,
+  FOREIGN KEY (video_id) REFERENCES videos(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS interactions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  video_id TEXT NOT NULL,
+  type TEXT NOT NULL,
+  fingerprint TEXT,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (video_id) REFERENCES videos(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS defaults (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  video_id TEXT NOT NULL,
+  fingerprint TEXT,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (video_id) REFERENCES videos(id) ON DELETE CASCADE
 );

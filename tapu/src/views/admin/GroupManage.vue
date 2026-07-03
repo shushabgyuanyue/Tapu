@@ -1,16 +1,13 @@
-<script setup>
+<script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { fetchGroups, createGroup, updateGroup, deleteGroup } from '../../api';
 
-const groups = ref([]);
+const groups = ref<any[]>([]);
 const newName = ref('');
 const editingId = ref('');
 const editingName = ref('');
 
-const loadGroups = async () => {
-  groups.value = await fetchGroups();
-};
-
+const loadGroups = async () => { groups.value = await fetchGroups(); };
 onMounted(loadGroups);
 
 const handleCreate = async () => {
@@ -20,26 +17,18 @@ const handleCreate = async () => {
   await loadGroups();
 };
 
-const startEdit = (group) => {
-  editingId.value = group.id;
-  editingName.value = group.name;
-};
+const startEdit = (g: any) => { editingId.value = g.id; editingName.value = g.name; };
+const cancelEdit = () => { editingId.value = ''; editingName.value = ''; };
 
 const handleUpdate = async () => {
   if (!editingName.value.trim()) return;
   await updateGroup(editingId.value, editingName.value.trim());
-  editingId.value = '';
-  editingName.value = '';
+  cancelEdit();
   await loadGroups();
 };
 
-const cancelEdit = () => {
-  editingId.value = '';
-  editingName.value = '';
-};
-
-const handleDelete = async (id) => {
-  if (!confirm('删除分组后，该分组下的视频不会被删除，仅取消分组关联。确定？')) return;
+const handleDelete = async (id: string) => {
+  if (!confirm('删除分组后，视频不会被删除，仅取消分组关联。确定？')) return;
   await deleteGroup(id);
   await loadGroups();
 };
@@ -47,27 +36,29 @@ const handleDelete = async (id) => {
 
 <template>
   <div>
-    <h2>分组管理</h2>
-
-    <!-- Create form -->
-    <div class="create-form">
-      <input v-model="newName" placeholder="新分组名称" class="input" @keyup.enter="handleCreate" />
-      <button @click="handleCreate" class="btn btn-primary">添加</button>
+    <div class="page-top">
+      <h1>分组管理</h1>
     </div>
 
-    <!-- Groups list -->
-    <div class="group-list">
-      <div v-for="g in groups" :key="g.id" class="group-item">
+    <div class="create-row">
+      <input v-model="newName" placeholder="新分组名称" class="inp" @keyup.enter="handleCreate" />
+      <button @click="handleCreate" class="btn-primary">添加</button>
+    </div>
+
+    <div class="list-wrap">
+      <div v-for="g in groups" :key="g.id" class="list-item">
         <template v-if="editingId === g.id">
-          <input v-model="editingName" class="input" @keyup.enter="handleUpdate" />
-          <button @click="handleUpdate" class="btn btn-primary btn-sm">保存</button>
-          <button @click="cancelEdit" class="btn btn-sm">取消</button>
+          <input v-model="editingName" class="inp inp-edit" @keyup.enter="handleUpdate" @keyup.escape="cancelEdit" autofocus />
+          <div class="item-actions">
+            <button @click="handleUpdate" class="btn-ghost">保存</button>
+            <button @click="cancelEdit" class="btn-ghost">取消</button>
+          </div>
         </template>
         <template v-else>
-          <span class="group-name">{{ g.name }}</span>
-          <div class="group-actions">
-            <button @click="startEdit(g)" class="btn btn-sm">编辑</button>
-            <button @click="handleDelete(g.id)" class="btn btn-sm btn-danger">删除</button>
+          <span class="item-name">{{ g.name }}</span>
+          <div class="item-actions">
+            <button @click="startEdit(g)" class="btn-ghost">编辑</button>
+            <button @click="handleDelete(g.id)" class="btn-ghost btn-ghost-danger">删除</button>
           </div>
         </template>
       </div>
@@ -77,56 +68,74 @@ const handleDelete = async (id) => {
 </template>
 
 <style scoped>
-h2 { margin: 0 0 16px; font-size: 20px; }
+.page-top { margin-bottom: 16px; }
+.page-top h1 { font-size: 16px; font-weight: 600; margin: 0; }
 
-.create-form {
+.create-row {
   display: flex;
   gap: 8px;
   margin-bottom: 16px;
+  max-width: 360px;
 }
 
-.input {
+.inp {
+  flex: 1;
   padding: 6px 10px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 14px;
-}
-
-.btn {
-  padding: 6px 12px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  cursor: pointer;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
   font-size: 13px;
-  background: #fff;
+  background: var(--bg-input);
+  color: var(--text-primary);
+  outline: none;
 }
-.btn-primary { background: #1a73e8; color: #fff; border-color: #1a73e8; }
-.btn-danger { color: #d93025; border-color: #d93025; }
-.btn-sm { padding: 4px 8px; font-size: 12px; }
+.inp:focus { border-color: var(--text-muted); }
+.inp-edit { max-width: 200px; }
 
-.group-list {
-  background: #fff;
-  border-radius: 8px;
+.btn-primary {
+  padding: 6px 14px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.btn-primary:hover { background: var(--accent-hover); }
+
+.list-wrap {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
   overflow: hidden;
 }
 
-.group-item {
+.list-item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 12px 16px;
-  border-bottom: 1px solid #f0f0f0;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border-light);
+  gap: 10px;
 }
+.list-item:last-child { border-bottom: none; }
 
-.group-name {
-  flex: 1;
-  font-size: 14px;
+.item-name { font-size: 13px; font-weight: 500; color: var(--text-primary); }
+
+.item-actions { display: flex; gap: 4px; }
+
+.btn-ghost {
+  background: none;
+  border: none;
+  padding: 4px 8px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  border-radius: 4px;
 }
+.btn-ghost:hover { background: var(--bg-hover); color: var(--text-primary); }
+.btn-ghost-danger:hover { background: #fef2f2; color: #dc2626; }
 
-.group-actions {
-  display: flex;
-  gap: 6px;
-}
-
-.empty { padding: 24px; text-align: center; color: #999; }
+.empty { text-align: center; color: var(--text-muted); padding: 32px; font-size: 13px; }
 </style>

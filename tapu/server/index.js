@@ -6,12 +6,17 @@ import { getDb } from './db/index.js';
 import videosRouter from './routes/videos.js';
 import groupsRouter from './routes/groups.js';
 import statsRouter from './routes/stats.js';
+import interactionsRouter from './routes/interactions.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-app.use(cors());
+// CORS configuration from environment
+const corsOrigin = process.env.CORS_ORIGIN
+  ? process.env.CORS_ORIGIN.split(',').map(s => s.trim())
+  : true;
+app.use(cors({ origin: corsOrigin }));
 app.use(express.json());
 
 // Serve uploaded videos
@@ -21,6 +26,7 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use('/api/videos', videosRouter);
 app.use('/api/groups', groupsRouter);
 app.use('/api/stats', statsRouter);
+app.use('/api/interactions', interactionsRouter);
 
 // Initialize DB and start server
 getDb().then(() => {

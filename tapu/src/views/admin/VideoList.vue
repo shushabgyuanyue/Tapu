@@ -1,187 +1,350 @@
-<script setup>
-import { ref, onMounted, computed } from 'vue';
-import { fetchVideos, uploadVideo, deleteVideo, fetchGroups } from '../../api';
+<script setup lang="ts">
+import { ref, onMounted, computed, onUnmounted } from 'vue';
+import { fetchVideos, uploadVideo, deleteVideo, fetchGroups, createGroup, deleteGroup } from '../../api';
 
-const videos = ref([]);
-const groups = ref([]);
+const videos = ref<any[]>([]);
+const groups = ref<any[]>([]);
 const filterGroup = ref('');
 const uploading = ref(false);
 const uploadTitle = ref('');
 const uploadGroupId = ref('');
-const fileInput = ref(null);
+const selectedFile = ref<File | null>(null);
+const dragOver = ref(false);
+const showGroupModal = ref(false);
+const newGroupName = ref('');
+let pollTimer: any = null;
+
+// 分页
+const page = ref(1);
+const pageSize = 15;
+const totalPages = computed(() => Math.ceil(videos.value.length / pageSize));
+const pagedVideos = computed(() => {
+  const start = (page.value - 1) * pageSize;
+  return videos.value.slice(start, start + pageSize);
+});
+
+const hasProcessing = computed(() => videos.value.some(v => v.status === 'processing'));
 
 const loadData = async () => {
   videos.value = await fetchVideos(filterGroup.value || undefined);
   groups.value = await fetchGroups();
 };
 
-onMounted(loadData);
+// 轮询：有转码中的视频时每3秒刷新
+const startPolling = () => {
+  stopPolling();
+  pollTimer = setInterval(async () => {
+    if (hasProcessing.value) {
+      await loadData();
+    } else {
+      stopPolling();
+    }
+  }, 3000);
+};
 
-const handleUpload = async () => {
-  const file = fileInput.value?.files?.[0];
-  if (!file) return;
+const stopPolling = () => {
+  if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+};
+
+onMounted(async () => {
+  await loadData();
+  if (hasProcessing.value) startPolling();
+});
+
+onUnmounted(stopPolling);
+
+const onDrop = (e: DragEvent) => {
+  dragOver.value = false;
+  const file = e.dataTransfer?.files?.[0];
+  if (file && file.type.startsWith('video/')) selectedFile.value = file;
+};
+
+const onFileSelect = (e: Event) => {
+  const input = e.target as HTMLInputElement;
+  selectedFile.value = input.files?.[0] || null;
+};
+
+const clearFile = () => { selectedFile.value = null; };
+
+const handleSubmit = async () => {
+  if (!selectedFile.value) return;
   uploading.value = true;
-  await uploadVideo(file, uploadTitle.value || file.name, uploadGroupId.value || undefined);
+  await uploadVideo(selectedFile.value, uploadTitle.value || selectedFile.value.name, uploadGroupId.value || undefined);
   uploading.value = false;
   uploadTitle.value = '';
   uploadGroupId.value = '';
-  if (fileInput.value) fileInput.value.value = '';
+  selectedFile.value = null;
   await loadData();
+  startPolling();
 };
 
-const handleDelete = async (id) => {
-  if (!confirm('确定删除此视频？')) return;
+const handleDelete = async (id: string) => {
+  if (!confirm('确定删除？')) return;
   await deleteVideo(id);
   await loadData();
 };
 
-const handleFilter = () => {
-  loadData();
+const goPlay = (id: string) => { window.open(`/play/${id}`, '_blank'); };
+const copyLink = (id: string) => { navigator.clipboard.writeText(`${window.location.origin}/play/${id}`); };
+
+// 分组管理
+const handleCreateGroup = async () => {
+  const name = newGroupName.value.trim();
+  if (!name) return;
+  await createGroup(name);
+  newGroupName.value = '';
+  groups.value = await fetchGroups();
 };
 
-const getPlayUrl = (id) => {
-  return `${window.location.origin}/play/${id}`;
+const handleDeleteGroup = async (id: string) => {
+  await deleteGroup(id);
+  if (filterGroup.value === id) filterGroup.value = '';
+  groups.value = await fetchGroups();
 };
 
-const copyLink = (id) => {
-  navigator.clipboard.writeText(getPlayUrl(id));
-};
-
-const statusLabel = (status) => {
-  const map = { processing: '转码中', ready: '就绪', error: '失败' };
-  return map[status] || status;
+const fmtSize = (b: number) => b ? (b / 1048576).toFixed(1) + ' MB' : '-';
+const fmtDur = (s: number) => {
+  if (!s) return '-';
+  const m = Math.floor(s / 60);
+  const sec = Math.floor(s % 60);
+  return m ? `${m}:${String(sec).padStart(2, '0')}` : `${sec}s`;
 };
 </script>
 
 <template>
   <div>
-    <h2>视频管理</h2>
+    <!-- Upload area -->
+    <section class="upload-section">
+      <div
+        class="drop-zone"
+        :class="{ active: dragOver, 'has-file': selectedFile }"
+        @dragover.prevent="dragOver = true"
+        @dragleave="dragOver = false"
+        @drop.prevent="onDrop"
+      >
+        <template v-if="!selectedFile && !uploading">
+          <div class="drop-icon">
+            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+              <path d="M12 16V4M12 4l4 4M12 4L8 8"/>
+              <path d="M2 17l.621 2.485A2 2 0 004.561 21h14.878a2 2 0 001.94-1.515L22 17"/>
+            </svg>
+          </div>
+          <p class="drop-text">将视频拖放到这里</p>
+          <label class="drop-browse">
+            或选择文件
+            <input type="file" accept="video/*" @change="onFileSelect" hidden />
+          </label>
+        </template>
+        <template v-else-if="selectedFile && !uploading">
+          <div class="file-preview">
+            <span class="file-icon">🎬</span>
+            <div class="file-detail">
+              <span class="file-name">{{ selectedFile.name }}</span>
+              <span class="file-size">{{ fmtSize(selectedFile.size) }}</span>
+            </div>
+            <button @click.stop="clearFile" class="file-remove">&times;</button>
+          </div>
+          <div class="upload-options">
+            <input v-model="uploadTitle" placeholder="视频标题（可选）" class="inp" />
+            <select v-model="uploadGroupId" class="sel">
+              <option value="">不分组</option>
+              <option v-for="g in groups" :key="g.id" :value="g.id">{{ g.name }}</option>
+            </select>
+            <button @click="handleSubmit" class="btn-upload">上传</button>
+          </div>
+        </template>
+        <template v-else>
+          <div class="uploading-state">
+            <div class="upload-spinner"></div>
+            <span>正在上传...</span>
+          </div>
+        </template>
+      </div>
+    </section>
 
-    <!-- Upload form -->
-    <div class="upload-form">
-      <h3>上传视频</h3>
-      <div class="form-row">
-        <input type="file" ref="fileInput" accept="video/*" />
-        <input v-model="uploadTitle" placeholder="视频标题（可选）" class="input" />
-        <select v-model="uploadGroupId" class="input">
-          <option value="">不分组</option>
+    <!-- Filter -->
+    <div class="list-toolbar">
+      <h2 class="toolbar-title">全部内容 <span class="count">{{ videos.length }}</span></h2>
+      <div class="toolbar-right">
+        <select v-model="filterGroup" @change="page = 1; loadData()" class="sel sel-sm">
+          <option value="">全部分组</option>
           <option v-for="g in groups" :key="g.id" :value="g.id">{{ g.name }}</option>
         </select>
-        <button @click="handleUpload" :disabled="uploading" class="btn btn-primary">
-          {{ uploading ? '上传中...' : '上传' }}
-        </button>
+        <button @click="showGroupModal = true" class="btn-ghost-sm">管理分组</button>
       </div>
     </div>
 
-    <!-- Filter -->
-    <div class="filter-row">
-      <select v-model="filterGroup" @change="handleFilter" class="input">
-        <option value="">全部分组</option>
-        <option v-for="g in groups" :key="g.id" :value="g.id">{{ g.name }}</option>
-      </select>
+    <!-- List -->
+    <div class="video-list">
+      <div
+        v-for="v in pagedVideos"
+        :key="v.id"
+        class="video-item"
+        @click="v.status === 'ready' && goPlay(v.id)"
+      >
+        <div class="item-thumb">
+          <img v-if="v.poster_url" :src="v.poster_url" />
+          <div v-else class="thumb-placeholder"></div>
+        </div>
+        <div class="item-body">
+          <div class="item-title">{{ v.title }}</div>
+          <div class="item-meta">{{ v.group_name || '未分组' }} · {{ fmtDur(v.duration) }} · {{ fmtSize(v.file_size) }}</div>
+        </div>
+        <span class="item-badge" :class="'badge-' + v.status">
+          {{ v.status === 'ready' ? '就绪' : v.status === 'processing' ? '转码中' : '失败' }}
+        </span>
+        <div class="item-actions" @click.stop>
+          <button v-if="v.status === 'ready'" @click="copyLink(v.id)" class="act-btn">复制链接</button>
+          <button @click="handleDelete(v.id)" class="act-btn act-danger">删除</button>
+        </div>
+      </div>
+      <div v-if="videos.length === 0" class="empty-state">
+        <p>还没有内容，上传第一个试试</p>
+      </div>
     </div>
 
-    <!-- Video list -->
-    <table class="data-table">
-      <thead>
-        <tr>
-          <th>标题</th>
-          <th>分组</th>
-          <th>状态</th>
-          <th>时长</th>
-          <th>大小</th>
-          <th>操作</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr v-for="v in videos" :key="v.id">
-          <td>{{ v.title }}</td>
-          <td>{{ v.group_name || '-' }}</td>
-          <td>
-            <span :class="'status-' + v.status">{{ statusLabel(v.status) }}</span>
-          </td>
-          <td>{{ v.duration ? v.duration.toFixed(1) + 's' : '-' }}</td>
-          <td>{{ v.file_size ? (v.file_size / 1024 / 1024).toFixed(1) + 'MB' : '-' }}</td>
-          <td class="actions">
-            <button v-if="v.status === 'ready'" @click="copyLink(v.id)" class="btn btn-sm">复制链接</button>
-            <button @click="handleDelete(v.id)" class="btn btn-sm btn-danger">删除</button>
-          </td>
-        </tr>
-        <tr v-if="videos.length === 0">
-          <td colspan="6" class="empty">暂无视频</td>
-        </tr>
-      </tbody>
-    </table>
+    <!-- Pagination -->
+    <div class="pager" v-if="totalPages > 1">
+      <button class="act-btn" :disabled="page <= 1" @click="page--">上一页</button>
+      <span class="pager-num">{{ page }} / {{ totalPages }}</span>
+      <button class="act-btn" :disabled="page >= totalPages" @click="page++">下一页</button>
+    </div>
+
+    <!-- Group Modal -->
+    <Teleport to="body">
+      <div v-if="showGroupModal" class="modal-mask" @click.self="showGroupModal = false">
+        <div class="modal">
+          <div class="modal-header">
+            <h3>管理分组</h3>
+            <button @click="showGroupModal = false" class="modal-close">&times;</button>
+          </div>
+          <div class="modal-body">
+            <div class="modal-create">
+              <input v-model="newGroupName" placeholder="输入分组名称" class="inp" @keyup.enter="handleCreateGroup" />
+              <button @click="handleCreateGroup" class="btn-upload btn-sm">添加</button>
+            </div>
+            <div class="modal-list">
+              <div v-for="g in groups" :key="g.id" class="modal-item">
+                <span>{{ g.name }}</span>
+                <button @click="handleDeleteGroup(g.id)" class="act-btn act-danger">删除</button>
+              </div>
+              <div v-if="groups.length === 0" class="modal-empty">暂无分组，创建一个来整理内容</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
 <style scoped>
-h2 { margin: 0 0 16px; font-size: 20px; }
-h3 { margin: 0 0 12px; font-size: 16px; }
+.upload-section { margin-bottom: 32px; }
 
-.upload-form {
+.drop-zone {
   background: #fff;
-  padding: 16px;
-  border-radius: 8px;
-  margin-bottom: 16px;
+  border: 2px dashed #e0e0e0;
+  border-radius: 16px;
+  padding: 44px 24px;
+  text-align: center;
+  transition: all 0.2s;
 }
+.drop-zone.active { border-color: var(--accent); background: #f8f5ff; }
+.drop-zone.has-file { border-style: solid; border-color: #e0e0e0; padding: 24px; }
 
-.form-row {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  flex-wrap: wrap;
+.drop-icon { color: #ccc; margin-bottom: 12px; }
+.drop-text { font-size: 15px; color: #999; margin: 0 0 8px; }
+.drop-browse { font-size: 13px; color: var(--accent); font-weight: 600; cursor: pointer; }
+.drop-browse:hover { text-decoration: underline; }
+
+.file-preview {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 16px; background: #f9f9f9; border-radius: 10px; margin-bottom: 14px;
 }
+.file-icon { font-size: 24px; }
+.file-detail { flex: 1; text-align: left; }
+.file-name { display: block; font-size: 13px; font-weight: 500; }
+.file-size { font-size: 11px; color: var(--text-muted); }
+.file-remove { background: none; border: none; font-size: 20px; color: #ccc; cursor: pointer; }
 
-.filter-row {
-  margin-bottom: 12px;
+.upload-options { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+.btn-upload {
+  padding: 8px 20px; background: var(--accent); color: #fff; border: none;
+  border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer;
+  transition: background 0.12s, transform 0.1s;
+  box-shadow: 0 2px 8px rgba(124, 77, 255, 0.2);
 }
+.btn-upload:hover { background: var(--accent-hover); transform: translateY(-1px); }
+.btn-sm { padding: 6px 12px; }
 
-.input {
-  padding: 6px 10px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 14px;
+.uploading-state { display: flex; align-items: center; justify-content: center; gap: 12px; color: #888; font-size: 14px; padding: 20px; }
+.upload-spinner { width: 20px; height: 20px; border: 2px solid #eee; border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.list-toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+.toolbar-title { font-size: 15px; font-weight: 600; margin: 0; }
+.toolbar-title .count { font-size: 12px; color: var(--text-muted); font-weight: 400; }
+.toolbar-right { display: flex; gap: 8px; align-items: center; }
+
+.video-list { background: #fff; border: 1px solid var(--border); border-radius: 14px; overflow: hidden; }
+
+.video-item {
+  display: flex; align-items: center; gap: 14px;
+  padding: 12px 18px; border-bottom: 1px solid var(--border-light);
+  cursor: pointer; transition: background 0.1s;
 }
+.video-item:last-child { border-bottom: none; }
+.video-item:hover { background: #fafafa; }
 
-.btn {
-  padding: 6px 12px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 13px;
-  background: #fff;
+.item-thumb { width: 48px; height: 64px; border-radius: 8px; overflow: hidden; background: #f0f0f0; flex-shrink: 0; }
+.item-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.thumb-placeholder { width: 100%; height: 100%; background: linear-gradient(135deg, #f0f0f0, #e8e8e8); }
+
+.item-body { flex: 1; min-width: 0; }
+.item-title { font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.item-meta { font-size: 12px; color: var(--text-muted); margin-top: 3px; }
+
+.item-badge { padding: 3px 10px; border-radius: 99px; font-size: 11px; font-weight: 500; flex-shrink: 0; }
+.badge-ready { background: #ecfdf5; color: #059669; }
+.badge-processing { background: #fef9c3; color: #a16207; }
+.badge-error { background: #fef2f2; color: #dc2626; }
+
+.item-actions { display: flex; gap: 6px; flex-shrink: 0; }
+
+.act-btn { background: #f5f5f5; border: none; padding: 5px 10px; font-size: 11px; color: #666; cursor: pointer; border-radius: 6px; }
+.act-btn:hover { background: #eee; color: #333; }
+.act-btn:disabled { opacity: 0.4; }
+.act-danger:hover { background: #fef2f2; color: #dc2626; }
+
+.btn-ghost-sm { background: none; border: 1px solid var(--border); padding: 5px 10px; font-size: 12px; color: #888; cursor: pointer; border-radius: 6px; }
+.btn-ghost-sm:hover { background: #f5f5f5; color: #333; }
+
+.inp { padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 13px; background: #fff; color: #1a1a1a; outline: none; flex: 1; min-width: 100px; }
+.inp:focus { border-color: #ccc; }
+.sel { padding: 7px 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 13px; background: #fff; color: #666; outline: none; }
+.sel-sm { font-size: 12px; }
+
+.empty-state { text-align: center; padding: 48px 20px; color: var(--text-muted); font-size: 14px; }
+.pager { display: flex; align-items: center; justify-content: center; gap: 12px; margin-top: 16px; }
+.pager-num { font-size: 12px; color: var(--text-muted); }
+
+/* Modal */
+.modal-mask { position: fixed; inset: 0; background: rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 20px; }
+.modal { background: #fff; border-radius: 16px; width: 100%; max-width: 360px; box-shadow: 0 20px 60px rgba(0,0,0,0.15); }
+.modal-header { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; border-bottom: 1px solid #f0f0f0; }
+.modal-header h3 { margin: 0; font-size: 15px; font-weight: 600; }
+.modal-close { background: none; border: none; font-size: 22px; color: #999; cursor: pointer; }
+.modal-body { padding: 16px 20px 20px; }
+.modal-create { display: flex; gap: 8px; margin-bottom: 14px; }
+.modal-list { max-height: 240px; overflow-y: auto; }
+.modal-item { display: flex; align-items: center; justify-content: space-between; padding: 8px 0; font-size: 13px; border-bottom: 1px solid #f5f5f5; }
+.modal-item:last-child { border-bottom: none; }
+.modal-empty { text-align: center; color: #aaa; font-size: 13px; padding: 20px 0; }
+
+@media (max-width: 640px) {
+  .upload-options { flex-direction: column; align-items: stretch; }
+  .video-item { gap: 10px; padding: 10px 12px; }
+  .item-actions { flex-direction: column; gap: 3px; }
+  .list-toolbar { flex-direction: column; gap: 8px; align-items: flex-start; }
 }
-
-.btn-primary { background: #1a73e8; color: #fff; border-color: #1a73e8; }
-.btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
-.btn-danger { color: #d93025; border-color: #d93025; }
-.btn-sm { padding: 4px 8px; font-size: 12px; }
-
-.data-table {
-  width: 100%;
-  background: #fff;
-  border-radius: 8px;
-  border-collapse: collapse;
-  overflow: hidden;
-}
-
-.data-table th, .data-table td {
-  padding: 10px 12px;
-  text-align: left;
-  font-size: 14px;
-  border-bottom: 1px solid #f0f0f0;
-}
-
-.data-table th {
-  background: #fafafa;
-  font-weight: 500;
-}
-
-.actions { display: flex; gap: 6px; }
-.empty { text-align: center; color: #999; padding: 24px; }
-
-.status-processing { color: #f59e0b; }
-.status-ready { color: #10b981; }
-.status-error { color: #ef4444; }
 </style>

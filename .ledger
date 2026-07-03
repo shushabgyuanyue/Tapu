@@ -1,12 +1,34 @@
-domain: assets
+domain: frontend, backend, storage
 pack_status: packed
-packed_by: gemini
-packed_at: 2026-06-16T23:55:00Z
-entrypoint: npm run build
+branch: evo/fe-admin-upgrade
+base: tapu-master
+description: 前端重构 + 管理端升级 + 存储上云 + 社区落地 + 播放器滑动交互
 
-## Skill
-- 调整并接入真实视频资源，修改默认视频路径映射。
+## TODO (closure)
 
-## TODO
+- [x] R2 存储服务（server/services/r2.js）
+- [x] 9:16 转码 + 封面帧提取（transcode.js）
+- [x] Stats API 筛选增强（daily + group + date）
+- [x] 官网首页 LandingPage（whatmint 品牌 + 永远系列）
+- [x] 管理端样式重写（顶部导航 + 拖拽上传 + 分组弹窗）
+- [x] SVG 图表 + 日期筛选组件
+- [x] 播放页性能优化（critical CSS + poster + code-split）
+- [x] 播放页滑动切换同组视频 + 双击设为默认
+- [x] 社区页（卡片网格 + 点赞/收藏/分享 + 二创入口）
+- [x] 社交互动后端（interactions + defaults 表）
+- [x] 热门统计机制（popular API）
+- [x] 部署配置（vercel.json + CORS）
+- [ ] R2 实际对接（需 Cloudflare 账号配置环境变量）
+- [ ] 二创视频生成（仅前端界面，后端 AI 能力待接入）
+- [ ] 移动端真机 NFC 全链路测试
 
 ## Post-Mortem
+
+- interactions.js 误用 TypeScript 语法导致后端启动报错 → 后端 .js 文件不经过 tsc 编译，须保持纯 JS
+- body overflow:hidden 全局锁死滚动 → 播放页应自行 position:fixed 隔离
+- Vite 8 manualChunks 必须为函数形式而非对象
+- fluent-ffmpeg .outputOptions('-vf ...') 与 .videoFilter() 冲突 → 用 API 方法
+
+packed_by: claude-opus
+packed_at: 2026-07-04
+entrypoint: tapu/src/main.ts

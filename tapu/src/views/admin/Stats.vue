@@ -1,121 +1,192 @@
-<script setup>
+<script setup lang="ts">
 import { ref, onMounted } from 'vue';
-import { fetchStats } from '../../api';
+import { fetchStats, fetchDailyStats, fetchGroups } from '../../api';
+import BarChart from '../../components/BarChart.vue';
+import DateRangePicker from '../../components/DateRangePicker.vue';
 
-const stats = ref({ totalPlays: 0, totalVideos: 0, topVideos: [], recentPlays: [] });
+const stats = ref<any>({ totalPlays: 0, totalVideos: 0, topVideos: [], recentPlays: [] });
+const dailyData = ref<Array<{ label: string; value: number }>>([]);
+const groups = ref<any[]>([]);
+const filterGroup = ref('');
+const filterFrom = ref('');
+const filterTo = ref('');
 
-onMounted(async () => {
-  stats.value = await fetchStats();
-});
+const loadData = async () => {
+  const params: any = {};
+  if (filterGroup.value) params.group_id = filterGroup.value;
+  if (filterFrom.value) params.from = filterFrom.value;
+  if (filterTo.value) params.to = filterTo.value;
+
+  const [overview, daily, groupList] = await Promise.all([
+    fetchStats(params),
+    fetchDailyStats(params),
+    fetchGroups(),
+  ]);
+
+  stats.value = overview;
+  groups.value = groupList;
+  dailyData.value = daily.map((d: any) => ({
+    label: d.date?.slice(5) || '',
+    value: d.count,
+  }));
+};
+
+onMounted(loadData);
+
+const onDateChange = (from: string, to: string) => {
+  filterFrom.value = from;
+  filterTo.value = to;
+  loadData();
+};
+
+const onGroupChange = () => { loadData(); };
 </script>
 
 <template>
   <div>
-    <h2>数据统计</h2>
+    <div class="page-top">
+      <h1>数据统计</h1>
+    </div>
 
-    <!-- Overview cards -->
-    <div class="stat-cards">
-      <div class="stat-card">
-        <div class="stat-value">{{ stats.totalVideos }}</div>
-        <div class="stat-label">视频总数</div>
+    <!-- Filters -->
+    <div class="filters">
+      <select v-model="filterGroup" @change="onGroupChange" class="sel">
+        <option value="">全部分组</option>
+        <option v-for="g in groups" :key="g.id" :value="g.id">{{ g.name }}</option>
+      </select>
+      <DateRangePicker @change="onDateChange" />
+    </div>
+
+    <!-- Cards -->
+    <div class="cards">
+      <div class="card">
+        <div class="card-val">{{ stats.totalVideos }}</div>
+        <div class="card-label">视频总数</div>
       </div>
-      <div class="stat-card">
-        <div class="stat-value">{{ stats.totalPlays }}</div>
-        <div class="stat-label">总播放次数</div>
+      <div class="card">
+        <div class="card-val">{{ stats.totalPlays }}</div>
+        <div class="card-label">累计播放</div>
       </div>
     </div>
 
-    <!-- Top videos -->
+    <!-- Chart -->
     <div class="section">
-      <h3>播放排行</h3>
-      <table class="data-table">
-        <thead>
-          <tr><th>视频</th><th>播放次数</th></tr>
-        </thead>
-        <tbody>
-          <tr v-for="v in stats.topVideos" :key="v.id">
-            <td>{{ v.title }}</td>
-            <td>{{ v.play_count }}</td>
-          </tr>
-          <tr v-if="stats.topVideos.length === 0">
-            <td colspan="2" class="empty">暂无数据</td>
-          </tr>
-        </tbody>
-      </table>
+      <h2>每日播放量</h2>
+      <div class="chart-box">
+        <BarChart v-if="dailyData.length" :data="dailyData" :height="160" />
+        <p v-else class="empty-hint">暂无播放数据</p>
+      </div>
     </div>
 
-    <!-- Recent plays -->
+    <!-- Top -->
     <div class="section">
-      <h3>最近播放</h3>
-      <table class="data-table">
-        <thead>
-          <tr><th>视频</th><th>时间</th><th>设备</th></tr>
-        </thead>
-        <tbody>
-          <tr v-for="(p, i) in stats.recentPlays" :key="i">
-            <td>{{ p.title }}</td>
-            <td>{{ p.played_at }}</td>
-            <td class="ua">{{ p.user_agent?.slice(0, 50) }}</td>
-          </tr>
-          <tr v-if="stats.recentPlays.length === 0">
-            <td colspan="3" class="empty">暂无数据</td>
-          </tr>
-        </tbody>
-      </table>
+      <h2>播放排行</h2>
+      <div class="table-wrap">
+        <table class="tbl">
+          <thead><tr><th>视频</th><th>播放次数</th></tr></thead>
+          <tbody>
+            <tr v-for="v in stats.topVideos" :key="v.id">
+              <td>{{ v.title }}</td>
+              <td class="td-num">{{ v.play_count }}</td>
+            </tr>
+            <tr v-if="!stats.topVideos.length"><td colspan="2" class="empty">暂无数据</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Recent -->
+    <div class="section">
+      <h2>最近播放</h2>
+      <div class="table-wrap">
+        <table class="tbl">
+          <thead><tr><th>视频</th><th>时间</th><th>设备</th></tr></thead>
+          <tbody>
+            <tr v-for="(p, i) in stats.recentPlays" :key="i">
+              <td>{{ p.title }}</td>
+              <td class="td-dim">{{ p.played_at }}</td>
+              <td class="td-ua">{{ p.user_agent?.slice(0, 40) }}</td>
+            </tr>
+            <tr v-if="!stats.recentPlays.length"><td colspan="3" class="empty">暂无数据</td></tr>
+          </tbody>
+        </table>
+      </div>
     </div>
   </div>
 </template>
 
 <style scoped>
-h2 { margin: 0 0 16px; font-size: 20px; }
-h3 { margin: 0 0 12px; font-size: 16px; }
+.page-top { margin-bottom: 16px; }
+.page-top h1 { font-size: 16px; font-weight: 600; margin: 0; }
 
-.stat-cards {
+.filters {
   display: flex;
-  gap: 16px;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.sel {
+  padding: 5px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  outline: none;
+}
+
+.cards {
+  display: flex;
+  gap: 12px;
   margin-bottom: 24px;
 }
 
-.stat-card {
-  background: #fff;
-  padding: 20px 24px;
-  border-radius: 8px;
-  min-width: 140px;
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 20px;
+  min-width: 120px;
 }
-
-.stat-value {
-  font-size: 28px;
-  font-weight: 600;
-  color: #111;
-}
-
-.stat-label {
-  font-size: 13px;
-  color: #666;
-  margin-top: 4px;
-}
+.card-val { font-size: 24px; font-weight: 700; color: var(--text-primary); letter-spacing: -0.5px; }
+.card-label { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
 
 .section { margin-bottom: 24px; }
+.section h2 { font-size: 13px; font-weight: 600; margin: 0 0 10px; color: var(--text-secondary); }
 
-.data-table {
-  width: 100%;
-  background: #fff;
-  border-radius: 8px;
-  border-collapse: collapse;
+.chart-box {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
 }
 
-.data-table th, .data-table td {
-  padding: 10px 12px;
+.table-wrap {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
+.tbl th {
+  padding: 7px 12px;
   text-align: left;
-  font-size: 14px;
-  border-bottom: 1px solid #f0f0f0;
-}
-
-.data-table th {
-  background: #fafafa;
+  font-size: 11px;
   font-weight: 500;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-page);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
 }
+.tbl td { padding: 7px 12px; border-bottom: 1px solid var(--border-light); }
 
-.ua { font-size: 12px; color: #999; max-width: 200px; overflow: hidden; text-overflow: ellipsis; }
-.empty { text-align: center; color: #999; padding: 24px; }
+.td-num { font-weight: 600; font-variant-numeric: tabular-nums; }
+.td-dim { color: var(--text-muted); font-size: 12px; }
+.td-ua { color: var(--text-muted); font-size: 11px; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.empty { text-align: center; color: var(--text-muted); padding: 24px; }
+.empty-hint { text-align: center; color: var(--text-muted); font-size: 13px; padding: 24px 0; margin: 0; }
 </style>

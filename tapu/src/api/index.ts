@@ -11,6 +11,11 @@ export async function fetchVideo(id: string) {
   return res.json();
 }
 
+export async function fetchSiblings(id: string) {
+  const res = await fetch(`${BASE}/videos/${id}/siblings`);
+  return res.json();
+}
+
 export async function uploadVideo(file: File, title: string, groupId?: string) {
   const form = new FormData();
   form.append('video', file);
@@ -61,7 +66,58 @@ export async function recordPlay(videoId: string) {
   });
 }
 
-export async function fetchStats() {
-  const res = await fetch(`${BASE}/stats/overview`);
+export async function fetchStats(params?: { group_id?: string; from?: string; to?: string }) {
+  const query = new URLSearchParams();
+  if (params?.group_id) query.set('group_id', params.group_id);
+  if (params?.from) query.set('from', params.from);
+  if (params?.to) query.set('to', params.to);
+  const qs = query.toString();
+  const res = await fetch(`${BASE}/stats/overview${qs ? '?' + qs : ''}`);
+  return res.json();
+}
+
+export async function fetchDailyStats(params?: { group_id?: string; from?: string; to?: string }) {
+  const query = new URLSearchParams();
+  if (params?.group_id) query.set('group_id', params.group_id);
+  if (params?.from) query.set('from', params.from);
+  if (params?.to) query.set('to', params.to);
+  const qs = query.toString();
+  const res = await fetch(`${BASE}/stats/daily${qs ? '?' + qs : ''}`);
+  return res.json();
+}
+
+// Interactions
+export async function interact(videoId: string, type: 'like' | 'favorite' | 'share') {
+  const res = await fetch(`${BASE}/interactions/${videoId}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ type }),
+  });
+  return res.json();
+}
+
+export async function getInteractions(videoId: string) {
+  const res = await fetch(`${BASE}/interactions/${videoId}`);
+  return res.json();
+}
+
+export async function batchInteractions(ids: string[]) {
+  const res = await fetch(`${BASE}/interactions/batch`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ids }),
+  });
+  return res.json();
+}
+
+export async function setDefault(videoId: string) {
+  await fetch(`${BASE}/interactions/${videoId}/default`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+  });
+}
+
+export async function getPopular(groupId: string) {
+  const res = await fetch(`${BASE}/interactions/popular/${groupId}`);
   return res.json();
 }

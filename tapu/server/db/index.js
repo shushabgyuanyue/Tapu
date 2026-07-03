@@ -24,6 +24,14 @@ export async function getDb() {
   // Run schema
   const schema = fs.readFileSync(SCHEMA_PATH, 'utf-8');
   db.run(schema);
+
+  // Migrations: add poster_url column if missing
+  try {
+    db.run('ALTER TABLE videos ADD COLUMN poster_url TEXT');
+  } catch (e) {
+    // Column already exists, ignore
+  }
+
   saveDb();
 
   return db;

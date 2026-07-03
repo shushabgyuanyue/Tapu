@@ -3,11 +3,49 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>tapu</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>whatmint — 将情绪铸造成社交货币</title>
+    <!-- Preconnect to CDN for video delivery -->
+    <link rel="preconnect" href="https://cdn.tapu.app" crossorigin />
+    <!-- Critical CSS: loading animation visible before JS loads -->
+    <style>
+      body { margin: 0; background: #000; }
+      #app-loading {
+        position: fixed;
+        inset: 0;
+        background: #000;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 9999;
+      }
+      #app-loading .pulse {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        background: rgba(255,255,255,0.8);
+        animation: breathe 2s ease-in-out infinite;
+      }
+      @keyframes breathe {
+        0% { transform: scale(0.8); opacity: 0.5; }
+        50% { transform: scale(1.2); opacity: 1; }
+        100% { transform: scale(0.8); opacity: 0.5; }
+      }
+    </style>
   </head>
   <body>
+    <!-- Instant visual feedback before Vue mounts -->
+    <div id="app-loading"><div class="pulse"></div></div>
     <div id="app"></div>
     <script type="module" src="/src/main.ts"></script>
+    <script>
+      // Remove loading screen once Vue app is ready
+      window.addEventListener('DOMContentLoaded', () => {
+        setTimeout(() => {
+          const el = document.getElementById('app-loading');
+          if (el) el.style.display = 'none';
+        }, 300);
+      });
+    </script>
   </body>
 </html>
