@@ -4,7 +4,9 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const DB_PATH = path.join(__dirname, '..', 'data.db');
+
+// Support Railway Volume: DB_PATH env var overrides default location
+const DB_PATH = process.env.DB_PATH || path.join(__dirname, '..', 'data.db');
 const SCHEMA_PATH = path.join(__dirname, 'schema.sql');
 
 let db;

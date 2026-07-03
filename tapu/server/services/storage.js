@@ -3,7 +3,9 @@ import fs from 'fs';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const UPLOADS_DIR = path.join(__dirname, '..', 'uploads');
+
+// Support Railway Volume: UPLOADS_DIR env var overrides default location
+const UPLOADS_DIR = process.env.UPLOADS_DIR || path.join(__dirname, '..', 'uploads');
 const TEMP_DIR = path.join(UPLOADS_DIR, 'temp');
 
 // Ensure directories exist
