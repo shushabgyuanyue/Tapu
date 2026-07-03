@@ -1,0 +1,17 @@
+node_modules
+.vite
+dist
+src
+*.vue
+*.ts
+*.css
+server/data.db
+server/uploads
+.git
+.gitignore
+README.md
+vite.config.js
+tsconfig.json
+index.html
+vercel.json
+railway.json
