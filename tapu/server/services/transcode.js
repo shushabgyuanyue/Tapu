@@ -1,7 +1,12 @@
 import ffmpeg from 'fluent-ffmpeg';
+import ffmpegInstaller from '@ffmpeg-installer/ffmpeg';
 import path from 'path';
+import fs from 'fs';
 import { getUploadsDir } from './storage.js';
 import { getDb, saveDb } from '../db/index.js';
+
+// Point fluent-ffmpeg to the installed binary
+ffmpeg.setFfmpegPath(ffmpegInstaller.path);
 
 export function transcodeVideo(inputPath, videoId) {
   const outputFilename = `${videoId}.mp4`;
@@ -22,8 +27,7 @@ export function transcodeVideo(inputPath, videoId) {
       .on('end', async () => {
         // Update video status
         const db = await getDb();
-        // Get file info
-        const { size } = await import('fs').then(fs => fs.statSync(outputPath));
+        const { size } = fs.statSync(outputPath);
 
         // Get duration via ffprobe
         ffmpeg.ffprobe(outputPath, (err, metadata) => {
@@ -35,9 +39,7 @@ export function transcodeVideo(inputPath, videoId) {
           saveDb();
 
           // Remove original temp file
-          import('fs').then(fs => {
-            if (fs.existsSync(inputPath)) fs.unlinkSync(inputPath);
-          });
+          if (fs.existsSync(inputPath)) fs.unlinkSync(inputPath);
 
           resolve(outputPath);
         });
