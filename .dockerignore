@@ -1,0 +1,14 @@
+node_modules
+.vite
+dist
+tapu/node_modules
+tapu/.vite
+tapu/dist
+tapu/src
+tapu/server/data.db
+tapu/server/uploads
+.git
+docs
+archo evo
+*.txt
+*.md
