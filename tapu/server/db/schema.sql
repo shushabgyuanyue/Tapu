@@ -1,0 +1,26 @@
+CREATE TABLE IF NOT EXISTS groups (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS videos (
+  id TEXT PRIMARY KEY,
+  title TEXT,
+  group_id TEXT,
+  original_filename TEXT,
+  file_path TEXT NOT NULL,
+  status TEXT DEFAULT 'processing',
+  duration REAL,
+  file_size INTEGER,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (group_id) REFERENCES groups(id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS play_events (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  video_id TEXT NOT NULL,
+  played_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  user_agent TEXT,
+  FOREIGN KEY (video_id) REFERENCES videos(id) ON DELETE CASCADE
+);
