@@ -72,15 +72,37 @@ onMounted(async () => {
 
 onUnmounted(stopPolling);
 
+const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB
+const ALLOWED_TYPES = ['video/mp4', 'video/quicktime', 'video/webm', 'video/x-m4v'];
+
+const validateFile = (file: File): boolean => {
+  if (file.size > MAX_FILE_SIZE) {
+    alert('文件过大，上传限制为 20MB');
+    return false;
+  }
+  if (!ALLOWED_TYPES.includes(file.type)) {
+    alert('不支持的格式，仅允许 mp4/mov/webm/m4v');
+    return false;
+  }
+  return true;
+};
+
 const onDrop = (e: DragEvent) => {
   dragOver.value = false;
   const file = e.dataTransfer?.files?.[0];
-  if (file && file.type.startsWith('video/')) selectedFile.value = file;
+  if (file && file.type.startsWith('video/')) {
+    if (validateFile(file)) selectedFile.value = file;
+  }
 };
 
 const onFileSelect = (e: Event) => {
   const input = e.target as HTMLInputElement;
-  selectedFile.value = input.files?.[0] || null;
+  const file = input.files?.[0] || null;
+  if (file && validateFile(file)) {
+    selectedFile.value = file;
+  } else {
+    selectedFile.value = null;
+  }
 };
 
 const clearFile = () => { selectedFile.value = null; };

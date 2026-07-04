@@ -65,12 +65,16 @@ defineExpose({ openLogin });
     <div class="navbar-inner">
       <router-link to="/" class="navbar-brand">whatmint</router-link>
       <nav class="navbar-links">
-        <router-link to="/community" class="nav-link">社区</router-link>
-        <router-link to="/wishlist" class="nav-link nav-link--wishlist" aria-label="心愿单">
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13"/><path d="M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7"/><path d="M7.5 8a2.5 2.5 0 0 1 0-5A4.8 8 0 0 1 12 8a4.8 8 0 0 1 4.5-5 2.5 2.5 0 0 1 0 5"/></svg>
+        <router-link to="/community" class="nav-link" title="社区">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21l1.9-5.7a8.5 8.5 0 1 1 3.8 3.8z"/></svg>
         </router-link>
-        <router-link to="/admin" class="nav-link nav-link--creator">创作者</router-link>
-        <router-link v-if="username === 'admin'" to="/official" class="nav-link nav-link--official">官方管理</router-link>
+        <router-link to="/admin" class="nav-link nav-link--creator" title="创作者">
+          <span class="nav-label">创作者</span>
+        </router-link>
+        <router-link v-if="username === 'admin'" to="/official" class="nav-link nav-link--official" title="官方管理">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+          <span class="nav-label">官方</span>
+        </router-link>
       </nav>
       <div class="navbar-auth">
         <div v-if="username" class="nav-avatar-wrap" @click.stop="toggleDropdown">
@@ -123,10 +127,11 @@ defineExpose({ openLogin });
   font-size: 13px; color: #666; text-decoration: none;
   padding: 6px 12px; border-radius: 8px;
   transition: background 0.12s, color 0.12s;
+  display: flex; align-items: center; gap: 5px;
 }
+.nav-label { font-size: 12px; }
 .nav-link:hover { background: #f5f5f5; color: #333; }
 .nav-link.router-link-active { color: #7c4dff; background: #f8f5ff; }
-.nav-link--wishlist { display: flex; align-items: center; padding: 6px 10px; }
 .nav-link--creator { color: #7c4dff; border: 1px solid #ede7ff; }
 .nav-link--creator:hover { background: #f8f5ff; }
 .nav-link--official { color: #e69c00; border: 1px solid #fff0d4; }

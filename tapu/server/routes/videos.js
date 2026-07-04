@@ -10,9 +10,17 @@ import { authRequired, verifyEntityKey } from '../middleware/auth.js';
 const router = Router();
 
 // Configure multer for temp uploads
+const ALLOWED_MIMETYPES = ['video/mp4', 'video/quicktime', 'video/webm', 'video/x-m4v'];
 const upload = multer({
   dest: path.join(getUploadsDir(), 'temp'),
-  limits: { fileSize: 500 * 1024 * 1024 }, // 500MB max
+  limits: { fileSize: 20 * 1024 * 1024 }, // 20MB max
+  fileFilter: (req, file, cb) => {
+    if (ALLOWED_MIMETYPES.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('不支持的视频格式，仅允许 mp4/mov/webm/m4v'));
+    }
+  },
 });
 
 function getEntityId(req) {
@@ -88,9 +96,10 @@ router.get('/', async (req, res) => {
     ) DESC, v.created_at DESC`;
   }
 
-  const sql = `SELECT v.*, g.name as group_name
+  const sql = `SELECT v.*, g.name as group_name, s.name as series_name
     FROM videos v
     LEFT JOIN groups g ON v.group_id = g.id
+    LEFT JOIN series s ON g.series_id = s.id
     ${where}
     ${orderBy}
     LIMIT ${limit} OFFSET ${offset}`;

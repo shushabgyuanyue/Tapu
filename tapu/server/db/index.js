@@ -34,8 +34,13 @@ export async function getDb() {
     'ALTER TABLE videos ADD COLUMN entity_id TEXT',
     'ALTER TABLE groups ADD COLUMN series_id TEXT',
     'ALTER TABLE groups ADD COLUMN official_default_video_id TEXT',
+    'ALTER TABLE groups ADD COLUMN crowdfund_goal INTEGER DEFAULT 0',
+    'ALTER TABLE groups ADD COLUMN crowdfund_deadline TEXT',
+    'ALTER TABLE groups ADD COLUMN price REAL DEFAULT 0',
+    'ALTER TABLE groups ADD COLUMN stock_limit INTEGER DEFAULT 0',
     'ALTER TABLE entities ADD COLUMN entity_key TEXT',
     'ALTER TABLE users ADD COLUMN is_creator INTEGER DEFAULT 0',
+    'ALTER TABLE wishlist ADD COLUMN fingerprint TEXT',
     `CREATE TABLE IF NOT EXISTS crowdfund_pledges (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id TEXT NOT NULL,
@@ -46,6 +51,24 @@ export async function getDb() {
     `CREATE TABLE IF NOT EXISTS site_config (
       key TEXT PRIMARY KEY,
       value TEXT
+    )`,
+    `CREATE TABLE IF NOT EXISTS orders (
+      id TEXT PRIMARY KEY,
+      buyer_user_id TEXT NOT NULL,
+      group_id TEXT NOT NULL,
+      entity_id TEXT NOT NULL,
+      entity_key TEXT NOT NULL,
+      recipient_name TEXT NOT NULL,
+      phone TEXT NOT NULL,
+      province TEXT,
+      city TEXT,
+      district TEXT,
+      address TEXT NOT NULL,
+      status TEXT DEFAULT 'pending',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (buyer_user_id) REFERENCES users(id),
+      FOREIGN KEY (group_id) REFERENCES groups(id),
+      FOREIGN KEY (entity_id) REFERENCES entities(id)
     )`,
   ];
   for (const sql of migrations) {

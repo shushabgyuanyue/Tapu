@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { getDb } from './db/index.js';
 import videosRouter from './routes/videos.js';
@@ -11,6 +12,7 @@ import interactionsRouter from './routes/interactions.js';
 import wishlistRouter from './routes/wishlist.js';
 import authRouter from './routes/auth.js';
 import purchasesRouter from './routes/purchases.js';
+import ordersRouter from './routes/orders.js';
 import entitiesRouter from './routes/entities.js';
 import configRouter from './routes/config.js';
 
@@ -25,15 +27,41 @@ const corsOrigin = process.env.CORS_ORIGIN
 app.use(cors({ origin: corsOrigin }));
 app.use(express.json());
 
-// Serve uploaded videos with proper MIME types for cross-browser support
-app.use('/uploads', express.static(path.join(__dirname, 'uploads'), {
-  setHeaders: (res, filePath) => {
-    if (filePath.endsWith('.mp4')) {
-      res.setHeader('Content-Type', 'video/mp4');
-      res.setHeader('Accept-Ranges', 'bytes');
-    }
+// Serve uploaded videos with Range request support (required by Safari)
+app.use('/uploads', (req, res, next) => {
+  const filePath = path.join(__dirname, 'uploads', req.path);
+  if (!filePath.endsWith('.mp4')) {
+    return express.static(path.join(__dirname, 'uploads'))(req, res, next);
   }
-}));
+
+  fs.stat(filePath, (err, stat) => {
+    if (err) return next();
+    const fileSize = stat.size;
+    const range = req.headers.range;
+
+    if (range) {
+      const parts = range.replace(/bytes=/, '').split('-');
+      const start = parseInt(parts[0], 10);
+      const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
+      const chunkSize = end - start + 1;
+
+      res.writeHead(206, {
+        'Content-Range': `bytes ${start}-${end}/${fileSize}`,
+        'Accept-Ranges': 'bytes',
+        'Content-Length': chunkSize,
+        'Content-Type': 'video/mp4',
+      });
+      fs.createReadStream(filePath, { start, end }).pipe(res);
+    } else {
+      res.writeHead(200, {
+        'Content-Length': fileSize,
+        'Content-Type': 'video/mp4',
+        'Accept-Ranges': 'bytes',
+      });
+      fs.createReadStream(filePath).pipe(res);
+    }
+  });
+});
 
 // API routes
 app.use('/api/videos', videosRouter);
@@ -44,6 +72,7 @@ app.use('/api/interactions', interactionsRouter);
 app.use('/api/wishlist', wishlistRouter);
 app.use('/api/auth', authRouter);
 app.use('/api/purchases', purchasesRouter);
+app.use('/api/orders', ordersRouter);
 app.use('/api/entities', entitiesRouter);
 app.use('/api/config', configRouter);
 

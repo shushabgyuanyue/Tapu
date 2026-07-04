@@ -7,6 +7,7 @@ const route = useRoute();
 
 const nav = [
   { path: '/official', label: '分组管理', exact: true },
+  { path: '/official/orders', label: '订单管理' },
   { path: '/official/stats', label: '统计' },
   { path: '/official/settings', label: '系统设置' },
 ];

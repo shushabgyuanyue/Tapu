@@ -62,15 +62,31 @@ export function verifyEntityKey(key) {
     let decrypted = decipher.update(encryptedText, 'hex', 'utf8');
     decrypted += decipher.final('utf8');
 
-    return JSON.parse(decrypted);
+    const payload = JSON.parse(decrypted);
+
+    // Validate HMAC checksum if present
+    if (payload.checksum) {
+      const expected = crypto.createHmac('sha256', SECRET_KEY)
+        .update(payload.entity_id + payload.group_id)
+        .digest('hex')
+        .slice(0, 16);
+      if (payload.checksum !== expected) return null;
+    }
+
+    return payload;
   } catch {
     return null;
   }
 }
 
-// Generate entity key from payload
+// Generate entity key from payload with HMAC checksum for tamper-proofing
 export function generateEntityKey(payload) {
-  const data = JSON.stringify(payload);
+  const { entity_id, group_id } = payload;
+  const checksum = crypto.createHmac('sha256', SECRET_KEY)
+    .update(entity_id + group_id)
+    .digest('hex')
+    .slice(0, 16);
+  const data = JSON.stringify({ ...payload, checksum });
   const iv = crypto.randomBytes(16);
   const cipher = crypto.createCipheriv(ALGORITHM, Buffer.from(SECRET_KEY), iv);
   let encrypted = cipher.update(data, 'utf8', 'hex');

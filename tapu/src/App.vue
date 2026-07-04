@@ -4,7 +4,7 @@ import AppToast from './components/AppToast.vue';
 
 const toastRef = ref();
 provide('toast', {
-  show: (text: string) => toastRef.value?.show(text),
+  show: (text: string, duration?: number, type?: 'default' | 'heart' | 'success' | 'error') => toastRef.value?.show(text, duration, type),
 });
 </script>
 

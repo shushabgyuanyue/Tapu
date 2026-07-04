@@ -4,7 +4,7 @@ import {
   fetchGroups, createGroup, updateGroup, deleteGroup,
   fetchSeries, createSeries, deleteSeries,
   fetchVideos, setOfficialDefault,
-  fetchEntitiesByGroup, createEntity, deleteEntity
+  fetchEntitiesByGroup
 } from '../../api';
 
 const groups = ref<any[]>([]);
@@ -17,6 +17,10 @@ const showForm = ref(false);
 const editingId = ref('');
 const formName = ref('');
 const formSeriesId = ref('');
+const formCrowdfundGoal = ref(0);
+const formCrowdfundDeadline = ref('');
+const formPrice = ref(0);
+const formStockLimit = ref(0);
 const showSeriesForm = ref(false);
 const seriesFormName = ref('');
 
@@ -47,6 +51,10 @@ const openCreate = () => {
   editingId.value = '';
   formName.value = '';
   formSeriesId.value = activeSeries.value;
+  formCrowdfundGoal.value = 0;
+  formCrowdfundDeadline.value = '';
+  formPrice.value = 0;
+  formStockLimit.value = 0;
   showForm.value = true;
 };
 
@@ -54,14 +62,24 @@ const openEdit = (g: any) => {
   editingId.value = g.id;
   formName.value = g.name;
   formSeriesId.value = g.series_id || '';
+  formCrowdfundGoal.value = g.crowdfund_goal || 0;
+  formCrowdfundDeadline.value = g.crowdfund_deadline || '';
+  formPrice.value = g.price || 0;
+  formStockLimit.value = g.stock_limit || 0;
   showForm.value = true;
 };
 
 const submitForm = async () => {
   if (!formName.value.trim()) return;
+  const opts = {
+    crowdfund_goal: formCrowdfundGoal.value,
+    crowdfund_deadline: formCrowdfundDeadline.value || undefined,
+    price: formPrice.value,
+    stock_limit: formStockLimit.value,
+  };
   let result;
   if (editingId.value) {
-    result = await updateGroup(editingId.value, formName.value.trim(), formSeriesId.value || undefined);
+    result = await updateGroup(editingId.value, formName.value.trim(), formSeriesId.value || undefined, opts);
   } else {
     result = await createGroup(formName.value.trim(), formSeriesId.value || undefined);
   }
@@ -124,22 +142,6 @@ const openEntityPanel = async (groupId: string) => {
   loadingEntities.value = false;
 };
 
-const handleCreateEntity = async (groupId: string) => {
-  await createEntity(groupId);
-  entityList.value = await fetchEntitiesByGroup(groupId);
-  // Update entity_count in groups
-  const g = groups.value.find(x => x.id === groupId);
-  if (g) g.entity_count = (g.entity_count || 0) + 1;
-};
-
-const handleDeleteEntity = async (entityId: string, groupId: string) => {
-  if (!confirm('确定删除该实体？')) return;
-  await deleteEntity(entityId);
-  entityList.value = await fetchEntitiesByGroup(groupId);
-  const g = groups.value.find(x => x.id === groupId);
-  if (g && g.entity_count > 0) g.entity_count--;
-};
-
 onMounted(loadData);
 </script>
 
@@ -185,33 +187,31 @@ onMounted(loadData);
             <span class="gm-item-name">{{ g.name }}</span>
             <span class="gm-item-series" v-if="g.series_name">{{ g.series_name }}</span>
             <span class="gm-item-default" v-if="g.official_default_video_id">官方默认已设</span>
-            <span class="gm-entity-badge" :class="g.entity_count > 0 ? 'has-stock' : 'no-stock'">
-              {{ g.entity_count > 0 ? `${g.entity_count}个实体` : '众筹阶段' }}
+            <span class="gm-entity-badge" :class="g.stock_limit > 0 ? (g.stock_limit - (g.entity_count || 0) > 0 ? 'has-stock' : 'no-stock') : 'no-stock'">
+              {{ g.stock_limit > 0 ? `剩余 ${g.stock_limit - (g.entity_count || 0)} / ${g.stock_limit}` : '众筹阶段' }}
             </span>
           </div>
           <div class="gm-item-actions">
-            <button class="gm-act" @click="openEntityPanel(g.id)">管理实体</button>
+            <button class="gm-act" @click="openEntityPanel(g.id)">查看已售</button>
             <button class="gm-act" @click="openDefaultPicker(g.id)">设默认</button>
             <button class="gm-act" @click="openEdit(g)">编辑</button>
             <button class="gm-act gm-act--del" @click="handleDelete(g.id)">删除</button>
           </div>
 
-          <!-- Entity Panel -->
+          <!-- Entity Panel (read-only) -->
           <div v-if="showEntityPanel === g.id" class="gm-entity-panel">
             <div class="gm-entity-header">
-              <span class="gm-entity-title">实体列表</span>
-              <button class="gm-add-btn" @click="handleCreateEntity(g.id)">+ 新建实体</button>
+              <span class="gm-entity-title">已售实体 ({{ entityList.length }}{{ g.stock_limit ? ` / ${g.stock_limit}` : '' }})</span>
             </div>
             <div class="gm-entity-loading" v-if="loadingEntities">加载中...</div>
             <div class="gm-entity-list" v-else-if="entityList.length > 0">
               <div v-for="ent in entityList" :key="ent.id" class="gm-entity-item">
                 <span class="gm-entity-key">{{ ent.id.slice(0, 8) }}...</span>
                 <span class="gm-entity-status" v-if="ent.user_id">已绑定</span>
-                <span class="gm-entity-status gm-entity-free" v-else>可用</span>
-                <button class="gm-act gm-act--del" @click="handleDeleteEntity(ent.id, g.id)">删除</button>
+                <span class="gm-entity-status gm-entity-free" v-else>未绑定</span>
               </div>
             </div>
-            <p v-else class="gm-entity-empty">暂无实体，点击上方新建</p>
+            <p v-else class="gm-entity-empty">暂无已售实体</p>
           </div>
 
           <div v-if="showDefaultPicker === g.id" class="gm-default-picker">
@@ -249,6 +249,19 @@ onMounted(loadData);
                 <option value="">不属于任何系列</option>
                 <option v-for="s in seriesList" :key="s.id" :value="s.id">{{ s.name }}</option>
               </select>
+              <template v-if="editingId">
+                <label class="gm-form-label">价格 (元)</label>
+                <input v-model.number="formPrice" type="number" min="0" step="0.01" placeholder="价格" />
+                <label class="gm-form-label">库存上限 (0 = 仅众筹)</label>
+                <input v-model.number="formStockLimit" type="number" min="0" placeholder="0 表示仅众筹不直售" />
+                <p class="gm-form-hint" v-if="formStockLimit > 0">
+                  已售 {{ groups.find(x => x.id === editingId)?.entity_count || 0 }}，剩余 {{ formStockLimit - (groups.find(x => x.id === editingId)?.entity_count || 0) }}
+                </p>
+                <label class="gm-form-label">众筹目标人数</label>
+                <input v-model.number="formCrowdfundGoal" type="number" min="0" placeholder="0 表示不开启众筹" />
+                <label class="gm-form-label">众筹截止时间</label>
+                <input v-model="formCrowdfundDeadline" type="datetime-local" />
+              </template>
               <div class="gm-form-actions">
                 <button class="gm-submit" @click="submitForm">保存</button>
                 <button class="gm-cancel" @click="showForm = false">取消</button>
@@ -391,6 +404,8 @@ onMounted(loadData);
 }
 .gm-modal h3 { margin: 0 0 16px; font-size: 16px; font-weight: 700; }
 .gm-form { display: flex; flex-direction: column; gap: 12px; }
+.gm-form-label { font-size: 12px; font-weight: 600; color: #666; margin-bottom: -8px; }
+.gm-form-hint { font-size: 12px; color: #888; margin: -8px 0 0; }
 .gm-form input, .gm-form select {
   padding: 10px 14px; border: 1px solid #e8e8e8; border-radius: 8px;
   font-size: 14px; outline: none;

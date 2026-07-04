@@ -41,7 +41,9 @@ const fmtDur = (s: number) => {
     </div>
     <div class="card-info">
       <h3 class="card-title">{{ video.title }}</h3>
-      <span class="card-group">{{ video.group_name || 'whatmint' }}</span>
+      <span class="card-group">
+        <template v-if="video.series_name">{{ video.series_name }} > </template>{{ video.group_name || 'whatmint' }}
+      </span>
     </div>
     <!-- Actions -->
     <div class="card-actions">
@@ -62,11 +64,11 @@ const fmtDur = (s: number) => {
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><path d="M22 2L15 22L11 13L2 9L22 2Z"/></svg>
         </span>
       </button>
-      <button v-if="video.group_id" class="action-btn action-wish" :class="{ 'is-wished': wishlistStatus }" @click.stop="emit('wishlist', $event, video.group_id)">
+      <button v-if="video.group_id" class="action-btn action-wish" :class="{ 'is-wished': wishlistStatus }" :disabled="wishlistStatus" @click.stop="!wishlistStatus && emit('wishlist', $event, video.group_id)">
         <span class="action-icon wish-icon">
           <svg viewBox="0 0 24 24" width="16" height="16" :fill="wishlistStatus ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13"/><path d="M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7"/><path d="M7.5 8a2.5 2.5 0 0 1 0-5A4.8 8 0 0 1 12 8a4.8 8 0 0 1 4.5-5 2.5 2.5 0 0 1 0 5"/></svg>
         </span>
-        <span class="action-count">{{ wishlistStatus ? '已心愿' : '心愿' }}</span>
+        <span class="action-count">{{ wishlistStatus ? '已在心愿单' : '心愿' }}</span>
       </button>
       <button class="action-btn action-remix" @click.stop="emit('remix', $event, video)">
         <span class="action-icon">
@@ -83,6 +85,7 @@ const fmtDur = (s: number) => {
   cursor: pointer; border-radius: 16px; overflow: hidden;
   background: #fff; border: 1px solid #f0f0f0;
   transition: transform 0.2s, box-shadow 0.2s;
+  min-width: 0;
 }
 .c-card:hover { transform: translateY(-3px); box-shadow: 0 8px 28px rgba(0,0,0,0.06); }
 
@@ -111,12 +114,19 @@ const fmtDur = (s: number) => {
   background: rgba(0,0,0,0.6); color: #fff;
   font-size: 11px; padding: 2px 6px; border-radius: 4px;
 }
-.card-info { padding: 10px 12px 6px; }
+.card-info { padding: 10px 12px 6px; min-width: 0; }
 .card-title {
   font-size: 14px; font-weight: 600; margin: 0 0 3px;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  overflow: hidden; text-overflow: ellipsis;
+  min-height: 1.2em; line-height: 1.3;
+  word-break: break-all;
 }
-.card-group { font-size: 11px; color: #aaa; }
+.card-group {
+  font-size: 11px; color: #aaa;
+  display: block; white-space: nowrap; overflow: hidden;
+  text-overflow: ellipsis; max-width: 100%;
+}
 .card-actions { display: flex; gap: 2px; padding: 4px 8px 10px; }
 .action-btn {
   display: flex; align-items: center; gap: 3px;
@@ -142,7 +152,9 @@ const fmtDur = (s: number) => {
   100% { transform: rotate(360deg) scale(1); }
 }
 /* Wishlist */
-.action-wish.is-wished .wish-icon { color: #ff4d6a; }
+.action-wish.is-wished { opacity: 0.6; cursor: default; }
+.action-wish.is-wished .wish-icon { color: #999; }
+.action-wish.is-wished:hover { background: none; color: #999; }
 
 @media (max-width: 640px) {
   .card-info { padding: 8px 10px 4px; }

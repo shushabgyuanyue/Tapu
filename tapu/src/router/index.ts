@@ -38,6 +38,11 @@ const routes = [
     component: () => import('../views/PlayerView.vue'),
   },
   {
+    path: '/assets',
+    name: 'assets',
+    component: () => import('../views/AssetsPage.vue'),
+  },
+  {
     path: '/account',
     name: 'account',
     component: () => import('../views/AccountPage.vue'),
@@ -72,6 +77,7 @@ const routes = [
     },
     children: [
       { path: '', name: 'official-groups', component: () => import('../views/admin/GroupManage.vue') },
+      { path: 'orders', name: 'official-orders', component: () => import('../views/official/OrderManage.vue') },
       { path: 'stats', name: 'official-stats', component: () => import('../views/admin/Stats.vue') },
       { path: 'settings', name: 'official-settings', component: () => import('../views/official/SiteSettings.vue') },
     ],
@@ -86,10 +92,17 @@ const router = createRouter({
 // Auto-login via URL key parameter
 router.beforeEach(async (to, _from, next) => {
   const key = to.query.key as string | undefined;
+  if (key && to.path === '/play') {
+    // /play?key=xxx: login silently, keep key for PlayerView to resolve
+    try { await loginByKey(key); } catch {}
+    return next();
+  }
+  if (key && to.path === '/assets') {
+    // /assets?key=xxx: keep key for AssetsPage to use for binding (don't auto-login)
+    return next();
+  }
   if (key) {
-    try {
-      await loginByKey(key);
-    } catch { /* ignore login failure */ }
+    try { await loginByKey(key); } catch {}
     const query = { ...to.query };
     delete query.key;
     return next({ path: to.path, query, replace: true });

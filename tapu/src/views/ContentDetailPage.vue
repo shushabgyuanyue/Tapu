@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, inject, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { fetchVideo, interact, addToWishlist, getWishlistStatus, batchInteractions } from '../api';
+import { fetchVideo, fetchGroups, interact, addToWishlist, getWishlistStatus, batchInteractions } from '../api';
 import NavBar from '../components/NavBar.vue';
 
 const route = useRoute();
@@ -71,6 +71,14 @@ const handleShare = async () => {
 
 const handleWishlist = async () => {
   if (!video.value?.group_id || wishlistActive.value) return;
+  // Check purchasability by fetching group info
+  try {
+    const groups = await fetchGroups();
+    const group = groups.find((g: any) => g.id === video.value.group_id);
+    if (group && group.sale_status === 'sold_out') {
+      toast?.show('该IP暂时无法购买，已加入心愿单等待补货');
+    }
+  } catch {}
   await addToWishlist(video.value.group_id, video.value.id);
   wishlistActive.value = true;
   toast?.show(`已将「${video.value.group_name || 'IP'}」加入心愿单 ♥`);

@@ -117,22 +117,22 @@ export function transcodeVideo(inputPath, videoId) {
 
       const vf = getVideoFilter(width, height);
 
-      // Use two-pass-like approach: CRF 23 with medium preset for good compression
-      // Profile main + level 4.0 for maximum browser compatibility (Safari, Firefox, Edge)
+      // CRF 23 with medium preset for good compression
+      // Profile high + level 4.0 for Safari 12+ compatibility and better compression
       const outputOptions = [
-        '-c:v libx264',
-        '-profile:v main',
-        '-level 4.0',
-        '-preset medium',
-        '-crf 23',
-        '-movflags +faststart',
-        '-pix_fmt yuv420p',
-        `-vf ${vf}`,
+        '-c:v', 'libx264',
+        '-profile:v', 'high',
+        '-level', '4.0',
+        '-preset', 'medium',
+        '-crf', '23',
+        '-movflags', '+faststart',
+        '-pix_fmt', 'yuv420p',
+        '-vf', vf,
       ];
 
       // Handle audio
       if (probe.hasAudio) {
-        outputOptions.push('-c:a aac', '-b:a 128k', '-ac 2');
+        outputOptions.push('-c:a', 'aac', '-b:a', '128k', '-ac', '2');
       } else {
         outputOptions.push('-an');
       }
@@ -151,15 +151,15 @@ export function transcodeVideo(inputPath, videoId) {
               await new Promise((res2, rej2) => {
                 ffmpeg(inputPath)
                   .outputOptions([
-                    '-c:v libx264',
-                    '-profile:v main',
-                    '-level 4.0',
-                    '-preset medium',
-                    '-crf 30',
-                    '-movflags +faststart',
-                    '-pix_fmt yuv420p',
-                    `-vf ${vf}`,
-                    ...(probe.hasAudio ? ['-c:a aac', '-b:a 96k', '-ac 2'] : ['-an']),
+                    '-c:v', 'libx264',
+                    '-profile:v', 'high',
+                    '-level', '4.0',
+                    '-preset', 'medium',
+                    '-crf', '30',
+                    '-movflags', '+faststart',
+                    '-pix_fmt', 'yuv420p',
+                    '-vf', vf,
+                    ...(probe.hasAudio ? ['-c:a', 'aac', '-b:a', '96k', '-ac', '2'] : ['-an']),
                   ])
                   .output(retryPath)
                   .on('end', res2)

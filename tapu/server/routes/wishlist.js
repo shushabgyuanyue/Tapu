@@ -30,6 +30,25 @@ router.get('/', async (req, res) => {
     columns.forEach((col, i) => { obj[col] = row[i]; });
     return obj;
   });
+
+  // Attach preview_videos for each group (top 6 ready videos)
+  for (const item of items) {
+    const vidResults = db.exec(
+      `SELECT id, title, poster_url FROM videos WHERE group_id = ? AND status = 'ready' ORDER BY created_at DESC LIMIT 6`,
+      [item.group_id]
+    );
+    if (vidResults && vidResults.length > 0) {
+      const { columns: vc, values: vv } = vidResults[0];
+      item.preview_videos = vv.map(row => {
+        const obj = {};
+        vc.forEach((col, i) => { obj[col] = row[i]; });
+        return obj;
+      });
+    } else {
+      item.preview_videos = [];
+    }
+  }
+
   res.json(items);
 });
 

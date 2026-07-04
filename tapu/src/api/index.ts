@@ -152,11 +152,11 @@ export async function createGroup(name: string, seriesId?: string) {
   return res.json();
 }
 
-export async function updateGroup(id: string, name: string, seriesId?: string) {
+export async function updateGroup(id: string, name: string, seriesId?: string, opts?: { crowdfund_goal?: number; crowdfund_deadline?: string; price?: number; stock_limit?: number }) {
   const res = await fetch(`${BASE}/groups/${id}`, {
     method: 'PUT',
     headers: authHeaders(),
-    body: JSON.stringify({ name, series_id: seriesId }),
+    body: JSON.stringify({ name, series_id: seriesId, ...opts }),
   });
   return res.json();
 }
@@ -321,7 +321,7 @@ export async function addToWishlist(groupId: string, defaultVideoId?: string) {
   const res = await fetch(`${BASE}/wishlist/${groupId}`, {
     method: 'POST',
     headers: fpHeaders(),
-    body: defaultVideoId ? JSON.stringify({ default_video_id: defaultVideoId }) : undefined,
+    body: JSON.stringify(defaultVideoId ? { default_video_id: defaultVideoId } : {}),
   });
   return res.json();
 }
@@ -390,11 +390,26 @@ export async function getPledgeStatus(groupId: string) {
   return res.json();
 }
 
-export async function purchaseByGroup(groupId: string) {
+export async function purchaseByGroup(groupId: string, addressInfo?: { recipient_name: string; phone: string; province?: string; city?: string; district?: string; address: string }) {
   const res = await fetch(`${BASE}/purchases/by-group`, {
     method: 'POST',
     headers: authHeaders(),
-    body: JSON.stringify({ group_id: groupId }),
+    body: JSON.stringify({ group_id: groupId, ...addressInfo }),
+  });
+  return res.json();
+}
+
+// ===== Orders (Official Management) =====
+export async function fetchOrders() {
+  const res = await fetch(`${BASE}/orders`, { headers: authHeaders() });
+  return res.json();
+}
+
+export async function updateOrderStatus(orderId: string, status: string) {
+  const res = await fetch(`${BASE}/orders/${orderId}/status`, {
+    method: 'PUT',
+    headers: authHeaders(),
+    body: JSON.stringify({ status }),
   });
   return res.json();
 }
