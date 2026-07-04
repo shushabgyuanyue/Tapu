@@ -1,23 +1,26 @@
-domain: frontend, backend, storage
+domain: frontend, backend, storage, ecommerce
 pack_status: packed
-branch: evo/fe-admin-upgrade
+branch: tapu-master
 base: tapu-master
-description: 前端重构 + 管理端升级 + 存储上云 + 社区落地 + 播放器滑动交互
+description: 前端重构 + 交互防抖与全局动效 + 双轨账号认证 + 实体选购架构 + 转码兼容性修复
 
 ## TODO (closure)
 
 - [x] R2 存储服务（server/services/r2.js）
 - [x] 9:16 转码 + 封面帧提取（transcode.js）
 - [x] Stats API 筛选增强（daily + group + date）
-- [x] 官网首页 LandingPage（whatmint 品牌 + 永远系列）
+- [x] 官网首页 LandingPage（横向滑动大图窗 + 共情文案重构）
 - [x] 管理端样式重写（顶部导航 + 拖拽上传 + 分组弹窗）
 - [x] SVG 图表 + 日期筛选组件
 - [x] 播放页性能优化（critical CSS + poster + code-split）
-- [x] 播放页滑动切换同组视频 + 双击设为默认
-- [x] 社区页（卡片网格 + 点赞/收藏/分享 + 二创入口）
-- [x] 社交互动后端（interactions + defaults 表）
-- [x] 热门统计机制（popular API）
-- [x] 部署配置（vercel.json + CORS）
+- [x] 播放页滑动动效重构（Slide动效 + 250ms防误触/双击分离）
+- [x] 社区页（卡片网格 + 全站高定 SVG 图标替换）
+- [x] 社交互动后端（interactions + defaults 表 + 私有视频拦截）
+- [x] 双轨账户与加密层（users/entities 表 + auth.js 对称加密登录）
+- [x] 实体心愿单选购流（支持绑定默认自选）
+- [x] 热门统计机制与心愿单排行（popular / default-ranking）
+- [x] Vercel / Railway 部署配置
+- [x] 转码兼容性与极致压缩（-pix_fmt yuv420p + -crf 28 + fast）
 - [ ] R2 实际对接（需 Cloudflare 账号配置环境变量）
 - [ ] 二创视频生成（仅前端界面，后端 AI 能力待接入）
 - [ ] 移动端真机 NFC 全链路测试
@@ -28,7 +31,10 @@ description: 前端重构 + 管理端升级 + 存储上云 + 社区落地 + 播�
 - body overflow:hidden 全局锁死滚动 → 播放页应自行 position:fixed 隔离
 - Vite 8 manualChunks 必须为函数形式而非对象
 - fluent-ffmpeg .outputOptions('-vf ...') 与 .videoFilter() 冲突 → 用 API 方法
+- Vue transition 中的 v-if / v-else 规则导致 Vite 编译阻断 → v-else 必须紧邻 v-if（或直接改用独立判断的 v-if="!expr"）
+- Windows PowerShell 环境下执行 npm run dev (&) 导致后台启动进程失效/残留挂起 → 需依赖 node 专门异步脚本或确保存活
+- 数据库连接模块无 default 导出时（`export async function getDb`）使用 `import db from` 会触发后端启动崩溃 → 严格保持析构式 `import { getDb }` 并正确 await 异步初始化
 
-packed_by: claude-opus
+packed_by: gemini-cli
 packed_at: 2026-07-04
 entrypoint: tapu/src/main.ts
