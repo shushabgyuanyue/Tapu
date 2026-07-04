@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, inject } from 'vue';
-import { getWishlist, removeFromWishlist, setWishlistDefault, fetchVideos, purchase, isLoggedIn } from '../api';
+import { getWishlist, removeFromWishlist, setWishlistDefault, fetchVideos, purchaseByGroup, isLoggedIn } from '../api';
 import NavBar from '../components/NavBar.vue';
 
 const toast = inject<{ show: (text: string) => void }>('toast');
@@ -55,8 +55,7 @@ const handlePurchase = async (item: any) => {
     toast?.show('请先登录再购买');
     return;
   }
-  const entityId = item.entity_id || item.group_id;
-  const data = await purchase(entityId, item.group_id);
+  const data = await purchaseByGroup(item.group_id);
   if (data.success) {
     // Auto-remove from wishlist after purchase
     await removeFromWishlist(item.group_id);

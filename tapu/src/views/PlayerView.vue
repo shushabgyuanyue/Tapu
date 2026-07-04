@@ -10,6 +10,7 @@ const router = useRouter();
 const feed = ref<any[]>([]);
 const currentIndex = ref(0);
 const isLoaded = ref(false);
+const loadFailed = ref(false);
 const showTapHint = ref(true); // Show unmute hint by default (autoplay is muted)
 const userHasUnmuted = ref(false); // Track if user explicitly unmuted
 
@@ -74,9 +75,14 @@ onMounted(async () => {
         feed.value = data.videos;
         recordPlay(data.videos[0].id);
         return;
+      } else {
+        loadFailed.value = true;
+        return;
       }
     } catch (e) {
       console.error('Key resolve failed:', e);
+      loadFailed.value = true;
+      return;
     }
   }
 
@@ -92,13 +98,15 @@ onMounted(async () => {
         if (sibs && sibs.length > 0) {
           feed.value = [video, ...sibs];
         }
-      } else if (video.error) {
-        // 403 or not found - show error state
-        console.error('Video access denied:', video.error);
+      } else {
+        loadFailed.value = true;
       }
     } catch (e) {
       console.error('Failed to load video:', e);
+      loadFailed.value = true;
     }
+  } else if (!key) {
+    loadFailed.value = true;
   }
 });
 
@@ -295,10 +303,17 @@ const onDoubleTap = () => {
   >
     <!-- Loading -->
     <transition name="fade">
-      <div v-if="!isLoaded" class="loading-screen">
+      <div v-if="!isLoaded && !loadFailed" class="loading-screen">
         <div class="breathing-circle"></div>
       </div>
     </transition>
+
+    <!-- Error state -->
+    <div v-if="loadFailed" class="error-screen">
+      <p class="error-text">无法加载内容</p>
+      <p class="error-hint">链接可能已失效或内容暂不可用</p>
+      <button class="error-btn" @click="router.push('/community')">去社区看看</button>
+    </div>
 
     <!-- Video feed stack -->
     <div
@@ -432,6 +447,19 @@ const onDoubleTap = () => {
   0% { transform: scale(0.8); opacity: 0.5; }
   50% { transform: scale(1.2); opacity: 1; }
   100% { transform: scale(0.8); opacity: 0.5; }
+}
+
+.error-screen {
+  position: absolute; inset: 0;
+  background: #000;
+  display: flex; flex-direction: column; justify-content: center; align-items: center;
+  z-index: 10; color: #fff; text-align: center; padding: 24px;
+}
+.error-text { font-size: 18px; font-weight: 600; margin: 0 0 8px; }
+.error-hint { font-size: 14px; color: #999; margin: 0 0 24px; }
+.error-btn {
+  padding: 12px 28px; background: #7c4dff; color: #fff; border: none;
+  border-radius: 10px; font-size: 14px; font-weight: 600; cursor: pointer;
 }
 
 .tap-hint {

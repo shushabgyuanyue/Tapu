@@ -47,6 +47,21 @@ app.use('/api/purchases', purchasesRouter);
 app.use('/api/entities', entitiesRouter);
 app.use('/api/config', configRouter);
 
+// Serve frontend static files (production build)
+const distPath = path.join(__dirname, '..', 'dist');
+app.use(express.static(distPath));
+
+// SPA fallback: serve index.html for all non-API routes
+app.use((req, res, next) => {
+  if (req.method === 'GET' && !req.path.startsWith('/api/') && !req.path.startsWith('/uploads/')) {
+    res.sendFile(path.join(distPath, 'index.html'), (err) => {
+      if (err) next();
+    });
+  } else {
+    next();
+  }
+});
+
 // Initialize DB and start server
 getDb().then(() => {
   app.listen(PORT, () => {
