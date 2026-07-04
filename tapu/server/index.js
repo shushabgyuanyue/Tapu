@@ -8,6 +8,7 @@ import groupsRouter from './routes/groups.js';
 import statsRouter from './routes/stats.js';
 import interactionsRouter from './routes/interactions.js';
 import wishlistRouter from './routes/wishlist.js';
+import authRouter from './routes/auth.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -29,6 +30,7 @@ app.use('/api/groups', groupsRouter);
 app.use('/api/stats', statsRouter);
 app.use('/api/interactions', interactionsRouter);
 app.use('/api/wishlist', wishlistRouter);
+app.use('/api/auth', authRouter);
 
 // Initialize DB and start server
 getDb().then(() => {

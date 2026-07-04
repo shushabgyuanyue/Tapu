@@ -76,11 +76,12 @@ export function transcodeVideo(inputPath, videoId) {
       ffmpeg(inputPath)
         .outputOptions([
           '-c:v libx264',
-          '-preset medium',
-          '-crf 23',
+          '-preset fast',
+          '-crf 28',
           '-c:a aac',
-          '-b:a 128k',
+          '-b:a 96k',
           '-movflags +faststart',
+          '-pix_fmt yuv420p',
           `-vf ${vf}`,
         ])
         .output(outputPath)

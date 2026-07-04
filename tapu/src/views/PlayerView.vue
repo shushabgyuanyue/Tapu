@@ -157,21 +157,28 @@ const navigateToVideo = (index: number) => {
 };
 
 // Double-tap to set default
+let tapTimeout: number | null = null;
 const onTap = () => {
-  const now = Date.now();
-  const timeDiff = now - lastTapTime.value;
-  lastTapTime.value = now;
-
-  if (timeDiff < 300 && timeDiff > 0) {
-    // Double tap
+  if (tapTimeout !== null) {
+    clearTimeout(tapTimeout);
+    tapTimeout = null;
     onDoubleTap();
   } else {
-    // Single tap — handle mute
-    if (showTapHint.value && videoRef.value) {
-      videoRef.value.muted = false;
-      videoRef.value.volume = 1.0;
-      showTapHint.value = false;
-    }
+    tapTimeout = window.setTimeout(() => {
+      tapTimeout = null;
+      // Single tap — handle mute or play/pause
+      if (showTapHint.value && videoRef.value) {
+        videoRef.value.muted = false;
+        videoRef.value.volume = 1.0;
+        showTapHint.value = false;
+      } else if (videoRef.value) {
+        if (videoRef.value.paused) {
+          videoRef.value.play().catch(() => {});
+        } else {
+          videoRef.value.pause();
+        }
+      }
+    }, 250);
   }
 };
 
@@ -232,23 +239,26 @@ const onDoubleTap = () => {
     </div>
 
     <!-- Video -->
-    <video
-      ref="videoRef"
-      class="emotion-video"
-      :src="videoSrc"
-      :poster="posterSrc || undefined"
-      preload="auto"
-      loop
-      playsinline
-      webkit-playsinline
-      x5-video-player-type="h5"
-      x5-video-player-fullscreen="true"
-      x5-video-orientation="portrait"
-      @canplay="onVideoReady"
-      @loadeddata="onVideoReady"
-      :class="{ 'is-visible': isLoaded }"
-      :style="swipeStyle"
-    ></video>
+    <transition name="slide-up" mode="out-in">
+      <video
+        :key="currentIndex"
+        ref="videoRef"
+        class="emotion-video"
+        :src="videoSrc"
+        :poster="posterSrc || undefined"
+        preload="auto"
+        loop
+        playsinline
+        webkit-playsinline
+        x5-video-player-type="h5"
+        x5-video-player-fullscreen="true"
+        x5-video-orientation="portrait"
+        @canplay="onVideoReady"
+        @loadeddata="onVideoReady"
+        :class="{ 'is-visible': isLoaded }"
+        :style="swipeStyle"
+      ></video>
+    </transition>
 
     <!-- Video counter -->
     <div v-if="feed.length > 1 && isLoaded" class="feed-counter">
@@ -360,4 +370,16 @@ const onDoubleTap = () => {
 .fade-leave-to { opacity: 0; }
 .fade-enter-active { transition: opacity 0.3s ease; }
 .fade-enter-from { opacity: 0; }
+
+.slide-up-enter-active, .slide-up-leave-active {
+  transition: transform 0.4s ease, opacity 0.4s ease;
+}
+.slide-up-enter-from {
+  transform: translateY(100%);
+  opacity: 0;
+}
+.slide-up-leave-to {
+  transform: translateY(-100%);
+  opacity: 0;
+}
 </style>

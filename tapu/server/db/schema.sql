@@ -1,7 +1,30 @@
+CREATE TABLE IF NOT EXISTS series (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS users (
+  id TEXT PRIMARY KEY,
+  username TEXT UNIQUE NOT NULL,
+  password_hash TEXT NOT NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS groups (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  series_id TEXT,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (series_id) REFERENCES series(id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS entities (
+  id TEXT PRIMARY KEY,
+  group_id TEXT,
+  user_id TEXT,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (group_id) REFERENCES groups(id) ON DELETE CASCADE,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS videos (
@@ -14,8 +37,11 @@ CREATE TABLE IF NOT EXISTS videos (
   status TEXT DEFAULT 'processing',
   duration REAL,
   file_size INTEGER,
+  is_private INTEGER DEFAULT 0,
+  entity_id TEXT,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (group_id) REFERENCES groups(id) ON DELETE SET NULL
+  FOREIGN KEY (group_id) REFERENCES groups(id) ON DELETE SET NULL,
+  FOREIGN KEY (entity_id) REFERENCES entities(id) ON DELETE SET NULL
 );
 
 CREATE TABLE IF NOT EXISTS play_events (
@@ -45,11 +71,14 @@ CREATE TABLE IF NOT EXISTS defaults (
 
 CREATE TABLE IF NOT EXISTS wishlist (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id TEXT NOT NULL,
+  entity_id TEXT NOT NULL,
   group_id TEXT NOT NULL,
-  fingerprint TEXT NOT NULL,
   default_video_id TEXT,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (entity_id) REFERENCES entities(id) ON DELETE CASCADE,
   FOREIGN KEY (group_id) REFERENCES groups(id) ON DELETE CASCADE,
   FOREIGN KEY (default_video_id) REFERENCES videos(id) ON DELETE SET NULL,
-  UNIQUE(group_id, fingerprint)
+  UNIQUE(user_id, entity_id)
 );

@@ -46,16 +46,12 @@ onMounted(() => {
       <p class="section-desc">不是表情包，不是贴纸。<br/>是那个你不用解释，碰一下就心安的存在。</p>
       <div class="ip-grid" :class="{ 'anim-in': visible }">
         <div class="ip-card anim-item" style="--i: 0">
-          <div class="ip-visual ip-v1">
-            <span class="ip-emoji">🙏🐕</span>
-          </div>
+          <img class="ip-visual" src="../IPimg/永远系列-祈福小狗-合集.png" alt="祈福小狗" style="object-fit: cover;" />
           <h4>祈福小狗</h4>
           <p>永远帮你祈福的小狗。<br/>愿你的心愿成真。</p>
         </div>
         <div class="ip-card anim-item" style="--i: 1">
-          <div class="ip-visual ip-v2">
-            <span class="ip-emoji">🧻🐕</span>
-          </div>
+          <img class="ip-visual" src="../IPimg/永远系列-纸巾小狗-合集.png" alt="纸巾小狗" style="object-fit: cover;" />
           <h4>纸巾小狗</h4>
           <p>永远为你递上纸巾的小狗。<br/>看见它就不难过。</p>
         </div>

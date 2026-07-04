@@ -127,6 +127,26 @@ router.get('/daily', async (req, res) => {
   res.json(daily);
 });
 
+// Default video ranking (based on wishlist default_video_id)
+router.get('/default-ranking', async (req, res) => {
+  try {
+    const db = await getDb();
+    let sql = `
+      SELECT v.id as video_id, v.title, COUNT(w.id) as default_count
+      FROM videos v
+      JOIN wishlist w ON v.id = w.default_video_id
+      GROUP BY v.id
+      ORDER BY default_count DESC
+    `;
+    const result = db.exec(sql);
+    const ranking = resultToObjects(result);
+    res.json(ranking);
+  } catch (error) {
+    console.error('Error fetching default ranking:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 function resultToObjects(results) {
   if (!results || results.length === 0) return [];
   const { columns, values } = results[0];
