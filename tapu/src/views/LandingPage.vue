@@ -57,7 +57,7 @@ const scrollToBuy = () => {
             </div>
           </div>
         </transition>
-        <div v-else class="touch-hint">↑ 轻轻碰一下它</div>
+        <div v-if="!isTouched" class="touch-hint">↑ 轻轻碰一下它</div>
       </div>
 
       <div class="hero-ctas">
