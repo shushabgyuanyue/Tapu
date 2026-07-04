@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router';
+import { loginByKey, getProfile, isLoggedIn } from '../api';
 
 const routes = [
   {
@@ -17,6 +18,16 @@ const routes = [
     component: () => import('../views/CommunityPage.vue'),
   },
   {
+    path: '/community/ip/:id',
+    name: 'ip-detail',
+    component: () => import('../views/IPDetailPage.vue'),
+  },
+  {
+    path: '/content/:id',
+    name: 'content-detail',
+    component: () => import('../views/ContentDetailPage.vue'),
+  },
+  {
     path: '/wishlist',
     name: 'wishlist',
     component: () => import('../views/WishlistPage.vue'),
@@ -27,11 +38,42 @@ const routes = [
     component: () => import('../views/PlayerView.vue'),
   },
   {
+    path: '/account',
+    name: 'account',
+    component: () => import('../views/AccountPage.vue'),
+  },
+  {
+    path: '/disclaimer',
+    name: 'disclaimer',
+    component: () => import('../views/DisclaimerPage.vue'),
+  },
+  {
+    path: '/privacy',
+    name: 'privacy',
+    component: () => import('../views/PrivacyPage.vue'),
+  },
+  {
     path: '/admin',
     component: () => import('../views/admin/AdminLayout.vue'),
     children: [
       { path: '', name: 'admin-videos', component: () => import('../views/admin/VideoList.vue') },
-      { path: 'stats', name: 'admin-stats', component: () => import('../views/admin/Stats.vue') },
+    ],
+  },
+  {
+    path: '/official',
+    component: () => import('../views/official/OfficialLayout.vue'),
+    beforeEnter: async (_to: any, _from: any, next: any) => {
+      if (!isLoggedIn()) return next('/');
+      try {
+        const profile = await getProfile();
+        if (profile.username === 'admin') return next();
+      } catch { /* fallthrough */ }
+      next('/');
+    },
+    children: [
+      { path: '', name: 'official-groups', component: () => import('../views/admin/GroupManage.vue') },
+      { path: 'stats', name: 'official-stats', component: () => import('../views/admin/Stats.vue') },
+      { path: 'settings', name: 'official-settings', component: () => import('../views/official/SiteSettings.vue') },
     ],
   },
 ];
@@ -39,6 +81,20 @@ const routes = [
 const router = createRouter({
   history: createWebHistory(),
   routes,
+});
+
+// Auto-login via URL key parameter
+router.beforeEach(async (to, _from, next) => {
+  const key = to.query.key as string | undefined;
+  if (key) {
+    try {
+      await loginByKey(key);
+    } catch { /* ignore login failure */ }
+    const query = { ...to.query };
+    delete query.key;
+    return next({ path: to.path, query, replace: true });
+  }
+  next();
 });
 
 export default router;

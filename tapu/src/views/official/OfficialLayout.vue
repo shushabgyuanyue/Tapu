@@ -6,7 +6,9 @@ import '../../styles/admin.css';
 const route = useRoute();
 
 const nav = [
-  { path: '/admin', label: '内容管理', exact: true },
+  { path: '/official', label: '分组管理', exact: true },
+  { path: '/official/stats', label: '统计' },
+  { path: '/official/settings', label: '系统设置' },
 ];
 
 const isActive = (item: any) => {

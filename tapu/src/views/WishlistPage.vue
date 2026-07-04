@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, inject } from 'vue';
-import { getWishlist, removeFromWishlist, setWishlistDefault, fetchVideos } from '../api';
+import { getWishlist, removeFromWishlist, setWishlistDefault, fetchVideos, purchase, isLoggedIn } from '../api';
+import NavBar from '../components/NavBar.vue';
 
 const toast = inject<{ show: (text: string) => void }>('toast');
 const items = ref<any[]>([]);
@@ -8,6 +9,8 @@ const loading = ref(true);
 const expandedGroup = ref('');
 const groupVideos = ref<any[]>([]);
 const loadingVideos = ref(false);
+const purchasedKey = ref('');
+const showKeyModal = ref(false);
 
 const loadWishlist = async () => {
   loading.value = true;
@@ -22,7 +25,8 @@ const toggleExpand = async (groupId: string) => {
   }
   expandedGroup.value = groupId;
   loadingVideos.value = true;
-  const vids = await fetchVideos(groupId);
+  const result = await fetchVideos(groupId);
+  const vids = result.videos || result;
   groupVideos.value = vids.filter((v: any) => v.status === 'ready');
   loadingVideos.value = false;
 };
@@ -48,18 +52,37 @@ const handleRemove = async (groupId: string) => {
   toast?.show('已移出心愿单');
 };
 
+const handlePurchase = async (item: any) => {
+  if (!isLoggedIn()) {
+    toast?.show('请先登录再购买');
+    return;
+  }
+  const entityId = item.entity_id || item.group_id;
+  const data = await purchase(entityId, item.group_id);
+  if (data.success) {
+    purchasedKey.value = data.entity_key;
+    showKeyModal.value = true;
+    toast?.show('购买成功！');
+  } else {
+    toast?.show(data.error || '购买失败');
+  }
+};
+
+const copyKey = () => {
+  navigator.clipboard.writeText(purchasedKey.value);
+  toast?.show('密钥已复制');
+};
+
 onMounted(loadWishlist);
 </script>
 
 <template>
   <div class="wishlist">
-    <header class="w-header">
-      <div class="w-header-inner">
-        <router-link to="/community" class="w-back">← 社区</router-link>
-        <h1 class="w-title">心愿单</h1>
-        <span class="w-count">{{ items.length }} 个IP</span>
-      </div>
-    </header>
+    <NavBar />
+    <div class="w-page-header">
+      <h1 class="w-title">心愿单</h1>
+      <span class="w-count">{{ items.length }} 个IP</span>
+    </div>
 
     <div class="w-content">
       <!-- Loading -->
@@ -100,6 +123,11 @@ onMounted(loadWishlist);
             <button class="w-card-remove" @click.stop="handleRemove(item.group_id)">×</button>
           </div>
 
+          <!-- Purchase button (always available) -->
+          <div class="w-card-purchase">
+            <button class="w-buy-btn" @click.stop="handlePurchase(item)">购买</button>
+          </div>
+
           <!-- Expanded video picker -->
           <Transition name="expand">
             <div v-if="expandedGroup === item.group_id" class="w-picker">
@@ -127,6 +155,23 @@ onMounted(loadWishlist);
         </div>
       </TransitionGroup>
     </div>
+
+    <!-- Key display modal after purchase -->
+    <Teleport to="body">
+      <Transition name="modal">
+        <div v-if="showKeyModal" class="key-mask" @click.self="showKeyModal = false">
+          <div class="key-modal">
+            <h3>购买成功</h3>
+            <p class="key-desc">你的专属密钥如下，请妥善保管：</p>
+            <div class="key-display">{{ purchasedKey }}</div>
+            <div class="key-actions">
+              <button class="key-copy" @click="copyKey">复制密钥</button>
+              <button class="key-close" @click="showKeyModal = false">关闭</button>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
   </div>
 </template>
 
@@ -138,20 +183,11 @@ onMounted(loadWishlist);
   color: #1a1a1a;
 }
 
-.w-header {
-  position: sticky; top: 0; background: rgba(255,255,255,0.92);
-  backdrop-filter: blur(12px); border-bottom: 1px solid #f0f0f0; z-index: 100;
-}
-.w-header-inner {
+.w-page-header {
   max-width: 640px; margin: 0 auto;
   display: flex; align-items: center; gap: 12px;
-  padding: 14px 24px;
+  padding: 20px 24px 0;
 }
-.w-back {
-  font-size: 13px; color: #7c4dff; text-decoration: none;
-  transition: opacity 0.15s;
-}
-.w-back:hover { opacity: 0.7; }
 .w-title { font-size: 18px; font-weight: 800; margin: 0; flex: 1; }
 .w-count { font-size: 12px; color: #999; }
 
@@ -285,8 +321,56 @@ onMounted(loadWishlist);
 }
 
 @media (max-width: 640px) {
-  .w-header-inner { padding: 12px 16px; }
+  .w-page-header { padding: 16px 16px 0; }
   .w-content { padding: 16px 16px 60px; }
   .w-picker-grid { grid-template-columns: repeat(3, 1fr); }
 }
+
+/* Purchase button */
+.w-card-purchase, .w-card-purchased {
+  padding: 0 16px 12px; display: flex; justify-content: flex-end;
+}
+.w-buy-btn {
+  padding: 6px 16px; border: none; border-radius: 8px;
+  background: #7c4dff; color: #fff; font-size: 12px; font-weight: 600;
+  cursor: pointer; transition: opacity 0.12s;
+}
+.w-buy-btn:hover { opacity: 0.85; }
+.w-purchased-badge {
+  font-size: 11px; color: #4caf50; padding: 4px 10px;
+  background: #e8f5e9; border-radius: 6px;
+}
+
+/* Key modal */
+.key-mask {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.4);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 1000; padding: 20px;
+}
+.key-modal {
+  background: #fff; border-radius: 16px; padding: 24px;
+  max-width: 400px; width: 100%;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+}
+.key-modal h3 { margin: 0 0 8px; font-size: 16px; font-weight: 700; }
+.key-desc { font-size: 13px; color: #666; margin: 0 0 14px; }
+.key-display {
+  background: #f5f5f5; border-radius: 8px; padding: 12px;
+  font-size: 11px; font-family: monospace; word-break: break-all;
+  color: #333; margin-bottom: 16px; line-height: 1.5;
+}
+.key-actions { display: flex; gap: 10px; }
+.key-copy {
+  flex: 1; padding: 10px; border: none; border-radius: 8px;
+  background: #7c4dff; color: #fff; font-size: 13px; font-weight: 600;
+  cursor: pointer;
+}
+.key-close {
+  padding: 10px 16px; border: 1px solid #eee; border-radius: 8px;
+  background: #fff; color: #666; font-size: 13px; cursor: pointer;
+}
+
+.modal-enter-active { transition: opacity 0.25s ease; }
+.modal-leave-active { transition: opacity 0.2s ease; }
+.modal-enter-from, .modal-leave-to { opacity: 0; }
 </style>

@@ -23,27 +23,6 @@ router.get('/overview', async (req, res) => {
   const { group_id, from, to } = req.query;
   const db = await getDb();
 
-  let whereClause = '';
-  let joinClause = '';
-  const params = [];
-
-  if (group_id || from || to) {
-    const conditions = [];
-    if (group_id) {
-      conditions.push('v.group_id = ?');
-      params.push(group_id);
-    }
-    if (from) {
-      conditions.push('p.played_at >= ?');
-      params.push(from);
-    }
-    if (to) {
-      conditions.push('p.played_at <= ?');
-      params.push(to + ' 23:59:59');
-    }
-    whereClause = conditions.length ? ` WHERE ${conditions.join(' AND ')}` : '';
-  }
-
   // Total plays (filtered)
   let totalPlaysSql = 'SELECT COUNT(*) as count FROM play_events p JOIN videos v ON p.video_id = v.id';
   const playConditions = [];
@@ -60,14 +39,13 @@ router.get('/overview', async (req, res) => {
   let totalVideosSql = 'SELECT COUNT(*) as count FROM videos';
   if (group_id) {
     totalVideosSql += ' WHERE group_id = ?';
-    const videosResult = db.exec(totalVideosSql, [group_id]);
-    var totalVideos = videosResult.length > 0 ? videosResult[0].values[0][0] : 0;
+    var videosResult = db.exec(totalVideosSql, [group_id]);
   } else {
-    const videosResult = db.exec(totalVideosSql);
-    var totalVideos = videosResult.length > 0 ? videosResult[0].values[0][0] : 0;
+    var videosResult = db.exec(totalVideosSql);
   }
+  const totalVideos = videosResult.length > 0 ? videosResult[0].values[0][0] : 0;
 
-  // Top videos by play count (with filter support)
+  // Top videos by play count
   let topSql = `
     SELECT v.id, v.title, COUNT(p.id) as play_count
     FROM videos v
@@ -84,24 +62,12 @@ router.get('/overview', async (req, res) => {
   const topResult = db.exec(topSql, topParams);
   const topVideos = resultToObjects(topResult);
 
-  // Recent plays
-  let recentSql = `
-    SELECT p.played_at, p.user_agent, v.id as video_id, v.title
-    FROM play_events p
-    JOIN videos v ON p.video_id = v.id
-  `;
-  const recentConditions = [];
-  const recentParams = [];
-  if (group_id) { recentConditions.push('v.group_id = ?'); recentParams.push(group_id); }
-  if (from) { recentConditions.push('p.played_at >= ?'); recentParams.push(from); }
-  if (to) { recentConditions.push('p.played_at <= ?'); recentParams.push(to + ' 23:59:59'); }
-  if (recentConditions.length) recentSql += ' WHERE ' + recentConditions.join(' AND ');
-  recentSql += ' ORDER BY p.played_at DESC LIMIT 20';
+  // Default count (how many times defaults have been set)
+  let defaultCountSql = 'SELECT COUNT(*) as count FROM user_defaults';
+  const defaultResult = db.exec(defaultCountSql);
+  const defaultCount = defaultResult.length > 0 ? defaultResult[0].values[0][0] : 0;
 
-  const recentResult = db.exec(recentSql, recentParams);
-  const recentPlays = resultToObjects(recentResult);
-
-  res.json({ totalPlays, totalVideos, topVideos, recentPlays });
+  res.json({ totalPlays, totalVideos, topVideos, defaultCount });
 });
 
 // Daily aggregated stats
@@ -127,22 +93,48 @@ router.get('/daily', async (req, res) => {
   res.json(daily);
 });
 
-// Default video ranking (based on wishlist default_video_id)
+// Default video ranking
 router.get('/default-ranking', async (req, res) => {
   try {
     const db = await getDb();
     let sql = `
-      SELECT v.id as video_id, v.title, COUNT(w.id) as default_count
+      SELECT v.id as video_id, v.title, COUNT(ud.id) as default_count
       FROM videos v
-      JOIN wishlist w ON v.id = w.default_video_id
+      JOIN user_defaults ud ON v.id = ud.video_id
       GROUP BY v.id
       ORDER BY default_count DESC
+      LIMIT 20
     `;
     const result = db.exec(sql);
     const ranking = resultToObjects(result);
     res.json(ranking);
   } catch (error) {
     console.error('Error fetching default ranking:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Community leaderboard - top groups by engagement
+router.get('/leaderboard', async (req, res) => {
+  try {
+    const db = await getDb();
+    const sql = `
+      SELECT g.id, g.name, g.series_id, s.name as series_name,
+        COUNT(DISTINCT p.id) as play_count,
+        COUNT(DISTINCT pr.id) as purchase_count
+      FROM groups g
+      LEFT JOIN videos v ON v.group_id = g.id
+      LEFT JOIN play_events p ON p.video_id = v.id
+      LEFT JOIN purchases pr ON pr.group_id = g.id
+      LEFT JOIN series s ON g.series_id = s.id
+      GROUP BY g.id
+      ORDER BY play_count DESC
+      LIMIT 20
+    `;
+    const result = db.exec(sql);
+    res.json(resultToObjects(result));
+  } catch (error) {
+    console.error('Leaderboard error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

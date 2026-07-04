@@ -1,17 +1,19 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, onUnmounted } from 'vue';
-import { fetchVideos, uploadVideo, deleteVideo, fetchGroups, createGroup, deleteGroup } from '../../api';
+import { fetchVideos, uploadVideo, deleteVideo, fetchGroups, fetchSeries } from '../../api';
 
 const videos = ref<any[]>([]);
 const groups = ref<any[]>([]);
+const seriesList = ref<any[]>([]);
+const filterSeries = ref('');
 const filterGroup = ref('');
 const uploading = ref(false);
 const uploadTitle = ref('');
+const uploadSeriesId = ref('');
 const uploadGroupId = ref('');
+const uploadIsPrivate = ref(false);
 const selectedFile = ref<File | null>(null);
 const dragOver = ref(false);
-const showGroupModal = ref(false);
-const newGroupName = ref('');
 let pollTimer: any = null;
 
 // 分页
@@ -25,9 +27,26 @@ const pagedVideos = computed(() => {
 
 const hasProcessing = computed(() => videos.value.some(v => v.status === 'processing'));
 
+const filteredGroupsForSelect = computed(() => {
+  if (!filterSeries.value) return groups.value;
+  return groups.value.filter(g => g.series_id === filterSeries.value);
+});
+
+const uploadGroupsFiltered = computed(() => {
+  if (!uploadSeriesId.value) return groups.value;
+  return groups.value.filter(g => g.series_id === uploadSeriesId.value);
+});
+
 const loadData = async () => {
-  videos.value = await fetchVideos(filterGroup.value || undefined);
-  groups.value = await fetchGroups();
+  const [result, grps, srs] = await Promise.all([
+    fetchVideos(filterGroup.value || undefined),
+    fetchGroups(),
+    fetchSeries(),
+  ]);
+  const vids = result.videos || result;
+  videos.value = Array.isArray(vids) ? vids : [];
+  groups.value = grps;
+  seriesList.value = srs;
 };
 
 // 轮询：有转码中的视频时每3秒刷新
@@ -69,10 +88,12 @@ const clearFile = () => { selectedFile.value = null; };
 const handleSubmit = async () => {
   if (!selectedFile.value) return;
   uploading.value = true;
-  await uploadVideo(selectedFile.value, uploadTitle.value || selectedFile.value.name, uploadGroupId.value || undefined);
+  await uploadVideo(selectedFile.value, uploadTitle.value || selectedFile.value.name, uploadGroupId.value || undefined, uploadIsPrivate.value);
   uploading.value = false;
   uploadTitle.value = '';
+  uploadSeriesId.value = '';
   uploadGroupId.value = '';
+  uploadIsPrivate.value = false;
   selectedFile.value = null;
   await loadData();
   startPolling();
@@ -86,21 +107,6 @@ const handleDelete = async (id: string) => {
 
 const goPlay = (id: string) => { window.open(`/play/${id}`, '_blank'); };
 const copyLink = (id: string) => { navigator.clipboard.writeText(`${window.location.origin}/play/${id}`); };
-
-// 分组管理
-const handleCreateGroup = async () => {
-  const name = newGroupName.value.trim();
-  if (!name) return;
-  await createGroup(name);
-  newGroupName.value = '';
-  groups.value = await fetchGroups();
-};
-
-const handleDeleteGroup = async (id: string) => {
-  await deleteGroup(id);
-  if (filterGroup.value === id) filterGroup.value = '';
-  groups.value = await fetchGroups();
-};
 
 const fmtSize = (b: number) => b ? (b / 1048576).toFixed(1) + ' MB' : '-';
 const fmtDur = (s: number) => {
@@ -145,11 +151,16 @@ const fmtDur = (s: number) => {
             <button @click.stop="clearFile" class="file-remove">&times;</button>
           </div>
           <div class="upload-options">
-            <input v-model="uploadTitle" placeholder="视频标题（可选）" class="inp" />
+            <input v-model="uploadTitle" placeholder="我想说的....（可选）" class="inp" />
+            <select v-model="uploadSeriesId" @change="uploadGroupId = ''" class="sel">
+              <option value="">全部系列</option>
+              <option v-for="s in seriesList" :key="s.id" :value="s.id">{{ s.name }}</option>
+            </select>
             <select v-model="uploadGroupId" class="sel">
               <option value="">不分组</option>
-              <option v-for="g in groups" :key="g.id" :value="g.id">{{ g.name }}</option>
+              <option v-for="g in uploadGroupsFiltered" :key="g.id" :value="g.id">{{ g.name }}</option>
             </select>
+            <label class="private-toggle"><input type="checkbox" v-model="uploadIsPrivate" /><span>仅持有者可见</span></label>
             <button @click="handleSubmit" class="btn-upload">上传</button>
           </div>
         </template>
@@ -166,11 +177,14 @@ const fmtDur = (s: number) => {
     <div class="list-toolbar">
       <h2 class="toolbar-title">全部内容 <span class="count">{{ videos.length }}</span></h2>
       <div class="toolbar-right">
-        <select v-model="filterGroup" @change="page = 1; loadData()" class="sel sel-sm">
-          <option value="">全部分组</option>
-          <option v-for="g in groups" :key="g.id" :value="g.id">{{ g.name }}</option>
+        <select v-model="filterSeries" @change="filterGroup = ''; page = 1; loadData()" class="sel sel-sm">
+          <option value="">全部系列</option>
+          <option v-for="s in seriesList" :key="s.id" :value="s.id">{{ s.name }}</option>
         </select>
-        <button @click="showGroupModal = true" class="btn-ghost-sm">管理分组</button>
+        <select v-model="filterGroup" @change="page = 1; loadData()" class="sel sel-sm">
+          <option value="">全部IP</option>
+          <option v-for="g in filteredGroupsForSelect" :key="g.id" :value="g.id">{{ g.name }}</option>
+        </select>
       </div>
     </div>
 
@@ -210,30 +224,6 @@ const fmtDur = (s: number) => {
       <button class="act-btn" :disabled="page >= totalPages" @click="page++">下一页</button>
     </div>
 
-    <!-- Group Modal -->
-    <Teleport to="body">
-      <div v-if="showGroupModal" class="modal-mask" @click.self="showGroupModal = false">
-        <div class="modal">
-          <div class="modal-header">
-            <h3>管理分组</h3>
-            <button @click="showGroupModal = false" class="modal-close">&times;</button>
-          </div>
-          <div class="modal-body">
-            <div class="modal-create">
-              <input v-model="newGroupName" placeholder="输入分组名称" class="inp" @keyup.enter="handleCreateGroup" />
-              <button @click="handleCreateGroup" class="btn-upload btn-sm">添加</button>
-            </div>
-            <div class="modal-list">
-              <div v-for="g in groups" :key="g.id" class="modal-item">
-                <span>{{ g.name }}</span>
-                <button @click="handleDeleteGroup(g.id)" class="act-btn act-danger">删除</button>
-              </div>
-              <div v-if="groups.length === 0" class="modal-empty">暂无分组，创建一个来整理内容</div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </Teleport>
   </div>
 </template>
 
@@ -267,6 +257,8 @@ const fmtDur = (s: number) => {
 .file-remove { background: none; border: none; font-size: 20px; color: #ccc; cursor: pointer; }
 
 .upload-options { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.private-toggle { display: flex; align-items: center; gap: 4px; font-size: 12px; color: #666; cursor: pointer; white-space: nowrap; }
+.private-toggle input { margin: 0; }
 
 .btn-upload {
   padding: 8px 20px; background: var(--accent); color: #fff; border: none;
@@ -316,9 +308,6 @@ const fmtDur = (s: number) => {
 .act-btn:disabled { opacity: 0.4; }
 .act-danger:hover { background: #fef2f2; color: #dc2626; }
 
-.btn-ghost-sm { background: none; border: 1px solid var(--border); padding: 5px 10px; font-size: 12px; color: #888; cursor: pointer; border-radius: 6px; }
-.btn-ghost-sm:hover { background: #f5f5f5; color: #333; }
-
 .inp { padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 13px; background: #fff; color: #1a1a1a; outline: none; flex: 1; min-width: 100px; }
 .inp:focus { border-color: #ccc; }
 .sel { padding: 7px 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 13px; background: #fff; color: #666; outline: none; }
@@ -327,19 +316,6 @@ const fmtDur = (s: number) => {
 .empty-state { text-align: center; padding: 48px 20px; color: var(--text-muted); font-size: 14px; }
 .pager { display: flex; align-items: center; justify-content: center; gap: 12px; margin-top: 16px; }
 .pager-num { font-size: 12px; color: var(--text-muted); }
-
-/* Modal */
-.modal-mask { position: fixed; inset: 0; background: rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 20px; }
-.modal { background: #fff; border-radius: 16px; width: 100%; max-width: 360px; box-shadow: 0 20px 60px rgba(0,0,0,0.15); }
-.modal-header { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; border-bottom: 1px solid #f0f0f0; }
-.modal-header h3 { margin: 0; font-size: 15px; font-weight: 600; }
-.modal-close { background: none; border: none; font-size: 22px; color: #999; cursor: pointer; }
-.modal-body { padding: 16px 20px 20px; }
-.modal-create { display: flex; gap: 8px; margin-bottom: 14px; }
-.modal-list { max-height: 240px; overflow-y: auto; }
-.modal-item { display: flex; align-items: center; justify-content: space-between; padding: 8px 0; font-size: 13px; border-bottom: 1px solid #f5f5f5; }
-.modal-item:last-child { border-bottom: none; }
-.modal-empty { text-align: center; color: #aaa; font-size: 13px; padding: 20px 0; }
 
 @media (max-width: 640px) {
   .upload-options { flex-direction: column; align-items: stretch; }

@@ -53,12 +53,20 @@ router.post('/:groupId', async (req, res) => {
   const { groupId } = req.params;
   const db = await getDb();
   const fingerprint = req.headers['x-fingerprint'] || req.ip || 'anonymous';
+  const defaultVideoId = req.body?.default_video_id || null;
 
   try {
     db.run(
-      'INSERT OR IGNORE INTO wishlist (group_id, fingerprint) VALUES (?, ?)',
-      [groupId, fingerprint]
+      'INSERT OR IGNORE INTO wishlist (group_id, fingerprint, default_video_id) VALUES (?, ?, ?)',
+      [groupId, fingerprint, defaultVideoId]
     );
+    // If already exists and a default_video_id is provided, update it
+    if (defaultVideoId) {
+      db.run(
+        'UPDATE wishlist SET default_video_id = ? WHERE group_id = ? AND fingerprint = ?',
+        [defaultVideoId, groupId, fingerprint]
+      );
+    }
     saveDb();
     res.json({ success: true });
   } catch (err) {

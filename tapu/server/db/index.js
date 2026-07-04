@@ -27,11 +27,29 @@ export async function getDb() {
   const schema = fs.readFileSync(SCHEMA_PATH, 'utf-8');
   db.run(schema);
 
-  // Migrations: add poster_url column if missing
-  try {
-    db.run('ALTER TABLE videos ADD COLUMN poster_url TEXT');
-  } catch (e) {
-    // Column already exists, ignore
+  // Migrations: add columns if missing
+  const migrations = [
+    'ALTER TABLE videos ADD COLUMN poster_url TEXT',
+    'ALTER TABLE videos ADD COLUMN is_private INTEGER DEFAULT 0',
+    'ALTER TABLE videos ADD COLUMN entity_id TEXT',
+    'ALTER TABLE groups ADD COLUMN series_id TEXT',
+    'ALTER TABLE groups ADD COLUMN official_default_video_id TEXT',
+    'ALTER TABLE entities ADD COLUMN entity_key TEXT',
+    'ALTER TABLE users ADD COLUMN is_creator INTEGER DEFAULT 0',
+    `CREATE TABLE IF NOT EXISTS crowdfund_pledges (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id TEXT NOT NULL,
+      group_id TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(user_id, group_id)
+    )`,
+    `CREATE TABLE IF NOT EXISTS site_config (
+      key TEXT PRIMARY KEY,
+      value TEXT
+    )`,
+  ];
+  for (const sql of migrations) {
+    try { db.run(sql); } catch (e) { /* Column already exists */ }
   }
 
   saveDb();

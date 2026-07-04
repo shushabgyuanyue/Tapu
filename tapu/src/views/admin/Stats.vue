@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
-import { fetchStats, fetchDailyStats, fetchGroups } from '../../api';
+import { fetchStats, fetchDailyStats, fetchGroups, fetchLeaderboard } from '../../api';
 import BarChart from '../../components/BarChart.vue';
 import DateRangePicker from '../../components/DateRangePicker.vue';
 
-const stats = ref<any>({ totalPlays: 0, totalVideos: 0, topVideos: [], recentPlays: [] });
+const stats = ref<any>({ totalPlays: 0, totalVideos: 0, topVideos: [], defaultCount: 0 });
 const dailyData = ref<Array<{ label: string; value: number }>>([]);
 const groups = ref<any[]>([]);
+const leaderboard = ref<any[]>([]);
 const filterGroup = ref('');
 const filterFrom = ref('');
 const filterTo = ref('');
@@ -17,14 +18,16 @@ const loadData = async () => {
   if (filterFrom.value) params.from = filterFrom.value;
   if (filterTo.value) params.to = filterTo.value;
 
-  const [overview, daily, groupList] = await Promise.all([
+  const [overview, daily, groupList, lb] = await Promise.all([
     fetchStats(params),
     fetchDailyStats(params),
     fetchGroups(),
+    fetchLeaderboard(),
   ]);
 
   stats.value = overview;
   groups.value = groupList;
+  leaderboard.value = lb;
   dailyData.value = daily.map((d: any) => ({
     label: d.date?.slice(5) || '',
     value: d.count,
@@ -67,6 +70,10 @@ const onGroupChange = () => { loadData(); };
         <div class="card-val">{{ stats.totalPlays }}</div>
         <div class="card-label">累计播放</div>
       </div>
+      <div class="card">
+        <div class="card-val">{{ stats.defaultCount }}</div>
+        <div class="card-label">默认设置次数</div>
+      </div>
     </div>
 
     <!-- Chart -->
@@ -95,19 +102,20 @@ const onGroupChange = () => { loadData(); };
       </div>
     </div>
 
-    <!-- Recent -->
+    <!-- Leaderboard -->
     <div class="section">
-      <h2>最近播放</h2>
+      <h2>社区排行榜</h2>
       <div class="table-wrap">
         <table class="tbl">
-          <thead><tr><th>视频</th><th>时间</th><th>设备</th></tr></thead>
+          <thead><tr><th>IP名称</th><th>系列</th><th>播放</th><th>购买</th></tr></thead>
           <tbody>
-            <tr v-for="(p, i) in stats.recentPlays" :key="i">
-              <td>{{ p.title }}</td>
-              <td class="td-dim">{{ p.played_at }}</td>
-              <td class="td-ua">{{ p.user_agent?.slice(0, 40) }}</td>
+            <tr v-for="g in leaderboard" :key="g.id">
+              <td>{{ g.name }}</td>
+              <td class="td-dim">{{ g.series_name || '-' }}</td>
+              <td class="td-num">{{ g.play_count }}</td>
+              <td class="td-num">{{ g.purchase_count }}</td>
             </tr>
-            <tr v-if="!stats.recentPlays.length"><td colspan="3" class="empty">暂无数据</td></tr>
+            <tr v-if="!leaderboard.length"><td colspan="4" class="empty">暂无数据</td></tr>
           </tbody>
         </table>
       </div>

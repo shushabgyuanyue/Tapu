@@ -1,163 +1,243 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted, onUnmounted, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { fetchVideo, fetchSiblings, recordPlay, setDefault } from '../api';
+import { fetchVideo, fetchSiblings, recordPlay, setDefault, resolveByKey, getConfig } from '../api';
 
 const route = useRoute();
 const router = useRouter();
 
-const isLoaded = ref(false);
-const videoSrc = ref('');
-const posterSrc = ref('');
-const videoRef = ref<HTMLVideoElement | null>(null);
-const showTapHint = ref(false);
-
-// Swipe feed state
-const currentIndex = ref(0);
+// Feed state
 const feed = ref<any[]>([]);
-const isTransitioning = ref(false);
-const swipeY = ref(0);
-const swipeStartY = ref(0);
+const currentIndex = ref(0);
+const isLoaded = ref(false);
+const showTapHint = ref(true); // Show unmute hint by default (autoplay is muted)
+const userHasUnmuted = ref(false); // Track if user explicitly unmuted
+
+// Swipe state
+const translateY = ref(0);
 const isSwiping = ref(false);
+const startY = ref(0);
+const startTime = ref(0);
+const isAnimating = ref(false);
+
+// Video refs - we render multiple video elements for smooth transition
+const videoRefs = ref<Record<number, HTMLVideoElement>>({});
 
 // Double-tap state
-const lastTapTime = ref(0);
 const showHeartAnim = ref(false);
 const showDefaultSet = ref(false);
+let tapTimeout: number | null = null;
+
+// Ad state
+const adEnabled = ref(false);
+const adInterval = ref(5);
+const swipeCount = ref(0);
+const showAdCard = ref(false);
+
+// Viewport height
+const viewportHeight = ref(window.innerHeight);
+
+const trackStyle = computed(() => {
+  const base = -(currentIndex.value * viewportHeight.value);
+  const offset = base + translateY.value;
+  return {
+    transform: `translateY(${offset}px)`,
+    transition: isSwiping.value ? 'none' : 'transform 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
+  };
+});
 
 onMounted(async () => {
   const loadingEl = document.getElementById('app-loading');
   if (loadingEl) loadingEl.style.display = 'none';
 
-  const id = route.params.id as string;
-  const vParam = new URLSearchParams(window.location.search).get('v');
+  viewportHeight.value = window.innerHeight;
+  window.addEventListener('resize', onResize);
 
+  // Load ad config
+  try {
+    const [enabledRes, intervalRes] = await Promise.all([
+      getConfig('ad_enabled'),
+      getConfig('ad_interval'),
+    ]);
+    if (enabledRes.value !== null) adEnabled.value = enabledRes.value === 'true';
+    if (intervalRes.value !== null) adInterval.value = parseInt(intervalRes.value) || 5;
+  } catch { /* defaults */ }
+
+  const id = route.params.id as string;
+  const key = route.query.key as string;
+
+  // Key-based entry: resolve via entity key (includes private content)
+  if (key) {
+    try {
+      const data = await resolveByKey(key);
+      if (data.videos && data.videos.length > 0) {
+        feed.value = data.videos;
+        recordPlay(data.videos[0].id);
+        return;
+      }
+    } catch (e) {
+      console.error('Key resolve failed:', e);
+    }
+  }
+
+  // Standard entry by video ID
   if (id) {
     try {
       const video = await fetchVideo(id);
-      if (video && video.file_path) {
-        // Build the feed: current video first, then siblings
+      if (video && !video.error && video.file_path) {
         feed.value = [video];
-        videoSrc.value = video.file_path;
-        if (video.poster_url) posterSrc.value = video.poster_url;
         recordPlay(id);
-
-        // Load siblings for swipe
+        // Load siblings
         const sibs = await fetchSiblings(id);
         if (sibs && sibs.length > 0) {
           feed.value = [video, ...sibs];
         }
+      } else if (video.error) {
+        // 403 or not found - show error state
+        console.error('Video access denied:', video.error);
       }
     } catch (e) {
       console.error('Failed to load video:', e);
     }
-  } else if (vParam) {
-    videoSrc.value = `/${vParam}.mp4`;
-    feed.value = [{ file_path: videoSrc.value }];
-  } else {
-    videoSrc.value = '/test.mp4';
-    feed.value = [{ file_path: videoSrc.value }];
   }
 });
 
-const swipeStyle = computed(() => {
-  if (!isSwiping.value) return {};
-  return { transform: `translateY(${swipeY.value}px)`, transition: 'none' };
+onUnmounted(() => {
+  window.removeEventListener('resize', onResize);
 });
 
-const onVideoReady = () => {
-  if (!isLoaded.value) {
+const onResize = () => { viewportHeight.value = window.innerHeight; };
+
+const onVideoCanPlay = (idx: number) => {
+  if (idx === currentIndex.value && !isLoaded.value) {
     isLoaded.value = true;
-    playCurrentVideo();
+    // Autoplay muted (browser policy compliant)
+    const v = videoRefs.value[idx];
+    if (v) {
+      v.muted = true;
+      v.play().catch(() => {});
+    }
   }
 };
 
-const playCurrentVideo = () => {
-  if (!videoRef.value) return;
-  videoRef.value.volume = 1.0;
-  videoRef.value.muted = false;
-  videoRef.value.play().catch(() => {
-    videoRef.value!.muted = true;
-    showTapHint.value = true;
-    videoRef.value!.play().catch(() => {});
+// Play current, pause others
+const syncPlayback = () => {
+  Object.entries(videoRefs.value).forEach(([idxStr, el]) => {
+    const idx = parseInt(idxStr);
+    if (idx === currentIndex.value) {
+      el.muted = !userHasUnmuted.value;
+      el.play().catch(() => {});
+    } else {
+      el.pause();
+      el.currentTime = 0;
+    }
   });
 };
 
-// Swipe handling (touch)
+const unmute = () => {
+  userHasUnmuted.value = true;
+  showTapHint.value = false;
+  const v = videoRefs.value[currentIndex.value];
+  if (v) {
+    v.muted = false;
+    v.volume = 1.0;
+  }
+};
+
+// --- Touch swipe ---
 const onTouchStart = (e: TouchEvent) => {
-  if (feed.value.length <= 1) return;
-  swipeStartY.value = e.touches[0].clientY;
+  if (isAnimating.value || feed.value.length <= 1) return;
   isSwiping.value = true;
-  swipeY.value = 0;
+  startY.value = e.touches[0].clientY;
+  startTime.value = Date.now();
+  translateY.value = 0;
 };
 
 const onTouchMove = (e: TouchEvent) => {
   if (!isSwiping.value) return;
   e.preventDefault();
-  const diff = e.touches[0].clientY - swipeStartY.value;
-  swipeY.value = diff < 0 ? diff : diff * 0.3;
+  const diff = e.touches[0].clientY - startY.value;
+  // Rubber-band effect at boundaries
+  if ((currentIndex.value === 0 && diff > 0) ||
+      (currentIndex.value === feed.value.length - 1 && diff < 0)) {
+    translateY.value = diff * 0.3;
+  } else {
+    translateY.value = diff;
+  }
 };
 
 const onTouchEnd = () => {
   if (!isSwiping.value) return;
   isSwiping.value = false;
 
-  const threshold = -60;
-  if (swipeY.value < threshold && currentIndex.value < feed.value.length - 1) {
-    navigateToVideo(currentIndex.value + 1);
-  } else if (swipeY.value > 60 && currentIndex.value > 0) {
-    navigateToVideo(currentIndex.value - 1);
+  const dist = translateY.value;
+  const elapsed = Date.now() - startTime.value;
+  const velocity = Math.abs(dist) / elapsed;
+  const threshold = viewportHeight.value * 0.2;
+
+  // Swipe up (next) or fast flick
+  if ((dist < -threshold || (velocity > 0.5 && dist < -30)) && currentIndex.value < feed.value.length - 1) {
+    goTo(currentIndex.value + 1);
   }
-  swipeY.value = 0;
+  // Swipe down (prev) or fast flick
+  else if ((dist > threshold || (velocity > 0.5 && dist > 30)) && currentIndex.value > 0) {
+    goTo(currentIndex.value - 1);
+  }
+  // Snap back
+  else {
+    translateY.value = 0;
+  }
 };
 
-// Wheel support (desktop)
-let wheelLock = false;
+// --- Wheel (desktop) ---
+let wheelCooldown = false;
 const onWheel = (e: WheelEvent) => {
-  if (feed.value.length <= 1 || wheelLock) return;
-  e.preventDefault();
-  if (e.deltaY > 30 && currentIndex.value < feed.value.length - 1) {
-    wheelLock = true;
-    navigateToVideo(currentIndex.value + 1);
-    setTimeout(() => { wheelLock = false; }, 800);
-  } else if (e.deltaY < -30 && currentIndex.value > 0) {
-    wheelLock = true;
-    navigateToVideo(currentIndex.value - 1);
-    setTimeout(() => { wheelLock = false; }, 800);
+  if (wheelCooldown || isAnimating.value || feed.value.length <= 1) return;
+  if (e.deltaY > 40 && currentIndex.value < feed.value.length - 1) {
+    wheelCooldown = true;
+    goTo(currentIndex.value + 1);
+    setTimeout(() => { wheelCooldown = false; }, 600);
+  } else if (e.deltaY < -40 && currentIndex.value > 0) {
+    wheelCooldown = true;
+    goTo(currentIndex.value - 1);
+    setTimeout(() => { wheelCooldown = false; }, 600);
   }
 };
 
-const navigateToVideo = (index: number) => {
-  if (isTransitioning.value) return;
-  isTransitioning.value = true;
+const goTo = (index: number) => {
+  isAnimating.value = true;
+  translateY.value = 0;
   currentIndex.value = index;
 
-  const video = feed.value[index];
-  videoSrc.value = video.file_path;
-  posterSrc.value = video.poster_url || '';
+  // Ad logic: count swipes and show ad card
+  swipeCount.value++;
+  if (adEnabled.value && (swipeCount.value >= adInterval.value || index >= feed.value.length - 1)) {
+    swipeCount.value = 0;
+    showAdCard.value = true;
+  }
 
-  if (video.id) {
+  const video = feed.value[index];
+  if (video?.id) {
     router.replace(`/play/${video.id}`);
     recordPlay(video.id);
   }
 
-  if (videoRef.value) {
-    videoRef.value.load();
-    const onReady = () => {
-      playCurrentVideo();
-      isTransitioning.value = false;
-      videoRef.value!.removeEventListener('canplay', onReady);
-    };
-    videoRef.value.addEventListener('canplay', onReady);
-    // Timeout fallback in case canplay doesn't fire
-    setTimeout(() => { isTransitioning.value = false; }, 3000);
-  } else {
-    isTransitioning.value = false;
-  }
+  // After transition completes
+  setTimeout(() => {
+    isAnimating.value = false;
+    syncPlayback();
+  }, 380);
 };
 
-// Double-tap to set default
-let tapTimeout: number | null = null;
+const dismissAd = () => {
+  showAdCard.value = false;
+};
+
+const goToCommunity = () => {
+  router.push('/community');
+};
+
+// --- Tap / Double-tap ---
 const onTap = () => {
   if (tapTimeout !== null) {
     clearTimeout(tapTimeout);
@@ -166,30 +246,33 @@ const onTap = () => {
   } else {
     tapTimeout = window.setTimeout(() => {
       tapTimeout = null;
-      // Single tap — handle mute or play/pause
-      if (showTapHint.value && videoRef.value) {
-        videoRef.value.muted = false;
-        videoRef.value.volume = 1.0;
-        showTapHint.value = false;
-      } else if (videoRef.value) {
-        if (videoRef.value.paused) {
-          videoRef.value.play().catch(() => {});
-        } else {
-          videoRef.value.pause();
-        }
-      }
+      onSingleTap();
     }, 250);
+  }
+};
+
+const onSingleTap = () => {
+  // If user hasn't unmuted yet, single tap unmutes
+  if (!userHasUnmuted.value) {
+    unmute();
+    return;
+  }
+  // Otherwise toggle play/pause
+  const v = videoRefs.value[currentIndex.value];
+  if (v) {
+    if (v.paused) {
+      v.play().catch(() => {});
+    } else {
+      v.pause();
+    }
   }
 };
 
 const onDoubleTap = () => {
   const video = feed.value[currentIndex.value];
-  if (!video || !video.id) return;
+  if (!video?.id) return;
 
-  // Record default on backend (for popularity stats)
   setDefault(video.id);
-
-  // Also save locally for instant NFC recall
   if (video.group_id) {
     localStorage.setItem(`whatmint_default_${video.group_id}`, video.id);
   }
@@ -203,12 +286,12 @@ const onDoubleTap = () => {
 
 <template>
   <div
+    ref="containerRef"
     class="player-container"
     @touchstart.passive="onTouchStart"
     @touchmove="onTouchMove"
     @touchend="onTouchEnd"
     @wheel.prevent="onWheel"
-    @click="onTap"
   >
     <!-- Loading -->
     <transition name="fade">
@@ -217,15 +300,54 @@ const onDoubleTap = () => {
       </div>
     </transition>
 
-    <!-- Tap hint -->
+    <!-- Video feed stack -->
+    <div
+      class="feed-track"
+      :style="trackStyle"
+    >
+      <div
+        v-for="(video, idx) in feed"
+        :key="video.id || idx"
+        class="feed-item"
+        @click="onTap"
+      >
+        <video
+          :ref="(el) => { if (el) videoRefs[idx] = el as HTMLVideoElement }"
+          class="emotion-video"
+          :src="video.file_path"
+          :poster="video.poster_url || undefined"
+          preload="auto"
+          loop
+          muted
+          playsinline
+          webkit-playsinline
+          x5-video-player-type="h5"
+          x5-video-player-fullscreen="true"
+          x5-video-orientation="portrait"
+          @canplay="() => onVideoCanPlay(idx)"
+          @loadeddata="() => onVideoCanPlay(idx)"
+        ></video>
+      </div>
+    </div>
+
+    <!-- Tap hint (unmute) -->
     <transition name="fade">
-      <div v-if="showTapHint" class="tap-hint">点击屏幕开启声音</div>
+      <div v-if="showTapHint && isLoaded" class="tap-hint" @click.stop="unmute">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+          <line x1="23" y1="9" x2="17" y2="15"/>
+          <line x1="17" y1="9" x2="23" y2="15"/>
+        </svg>
+        <span>点击开启声音</span>
+      </div>
     </transition>
 
     <!-- Heart animation on double tap -->
     <transition name="heart-pop">
       <div v-if="showHeartAnim" class="heart-anim">
-        <svg viewBox="0 0 24 24" width="80" height="80" fill="#ff4d6a" stroke="#ff4d6a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>
+        <svg viewBox="0 0 24 24" width="80" height="80" fill="#ff4d6a" stroke="none">
+          <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/>
+        </svg>
       </div>
     </transition>
 
@@ -234,32 +356,17 @@ const onDoubleTap = () => {
       <div v-if="showDefaultSet" class="default-toast">已设为默认</div>
     </transition>
 
-    <!-- Swipe hint -->
-    <div v-if="feed.length > 1 && isLoaded && !isSwiping" class="swipe-hint">
-      <span class="swipe-arrow">↑</span>
-      <span>上滑换一个</span>
-    </div>
-
-    <!-- Video -->
-    <transition name="slide-up" mode="out-in">
-      <video
-        :key="currentIndex"
-        ref="videoRef"
-        class="emotion-video"
-        :src="videoSrc"
-        :poster="posterSrc || undefined"
-        preload="auto"
-        loop
-        playsinline
-        webkit-playsinline
-        x5-video-player-type="h5"
-        x5-video-player-fullscreen="true"
-        x5-video-orientation="portrait"
-        @canplay="onVideoReady"
-        @loadeddata="onVideoReady"
-        :class="{ 'is-visible': isLoaded }"
-        :style="swipeStyle"
-      ></video>
+    <!-- Ad card overlay -->
+    <transition name="fade">
+      <div v-if="showAdCard" class="ad-card" @click.stop>
+        <div class="ad-inner">
+          <div class="ad-brand">whatmint</div>
+          <h2 class="ad-title">发现更多精彩内容</h2>
+          <p class="ad-desc">社区里有更多创作者的情绪表达</p>
+          <button class="ad-btn" @click="goToCommunity">进入社区</button>
+          <button class="ad-dismiss" @click="dismissAd">继续浏览</button>
+        </div>
+      </div>
     </transition>
 
     <!-- Video counter -->
@@ -280,6 +387,32 @@ const onDoubleTap = () => {
   overflow: hidden;
   z-index: 1000;
   touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.feed-track {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  will-change: transform;
+}
+
+.feed-item {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+}
+
+.emotion-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  background: #000;
 }
 
 .loading-screen {
@@ -303,35 +436,17 @@ const onDoubleTap = () => {
 
 .tap-hint {
   position: absolute; bottom: 80px; left: 50%; transform: translateX(-50%);
-  color: rgba(255, 255, 255, 0.8); font-size: 14px;
-  padding: 8px 16px; background: rgba(0, 0, 0, 0.5);
-  border-radius: 20px; z-index: 20; pointer-events: none;
-}
-
-.swipe-hint {
-  position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%);
-  display: flex; flex-direction: column; align-items: center; gap: 4px;
-  color: rgba(255, 255, 255, 0.5); font-size: 12px;
-  z-index: 15; pointer-events: none;
-  animation: hint-fade 3s ease-in-out infinite;
-}
-.swipe-arrow {
-  font-size: 16px;
-  animation: hint-bounce 1.5s ease-in-out infinite;
-}
-@keyframes hint-bounce {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-6px); }
-}
-@keyframes hint-fade {
-  0%, 100% { opacity: 0.5; }
-  50% { opacity: 1; }
+  color: rgba(255, 255, 255, 0.9); font-size: 14px;
+  padding: 10px 20px; background: rgba(0, 0, 0, 0.6);
+  border-radius: 24px; z-index: 20; cursor: pointer;
+  display: flex; align-items: center; gap: 8px;
+  backdrop-filter: blur(4px);
 }
 
 .heart-anim {
   position: absolute; top: 50%; left: 50%;
   transform: translate(-50%, -50%);
-  font-size: 72px; z-index: 30; pointer-events: none;
+  z-index: 30; pointer-events: none;
 }
 .heart-pop-enter-active { animation: heart-in 0.4s ease-out; }
 .heart-pop-leave-active { animation: heart-out 0.4s ease-in; }
@@ -359,29 +474,32 @@ const onDoubleTap = () => {
   font-size: 12px; z-index: 15;
 }
 
-.emotion-video {
-  position: absolute; inset: 0;
-  width: 100%; height: 100%;
-  object-fit: cover;
-  opacity: 0;
-  transition: opacity 0.3s ease, transform 0.3s ease;
-}
-.emotion-video.is-visible { opacity: 1; }
+.fade-enter-active, .fade-leave-active { transition: opacity 0.3s ease; }
+.fade-enter-from, .fade-leave-to { opacity: 0; }
 
-.fade-leave-active { transition: opacity 0.3s ease; }
-.fade-leave-to { opacity: 0; }
-.fade-enter-active { transition: opacity 0.3s ease; }
-.fade-enter-from { opacity: 0; }
-
-.slide-up-enter-active, .slide-up-leave-active {
-  transition: transform 0.4s ease, opacity 0.4s ease;
+.ad-card {
+  position: absolute; inset: 0; z-index: 50;
+  background: linear-gradient(160deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+  display: flex; align-items: center; justify-content: center;
+  text-align: center; color: #fff;
 }
-.slide-up-enter-from {
-  transform: translateY(100%);
-  opacity: 0;
+.ad-inner { padding: 40px 24px; }
+.ad-brand {
+  font-size: 14px; font-weight: 800; color: rgba(255,255,255,0.5);
+  letter-spacing: 1px; margin-bottom: 24px;
 }
-.slide-up-leave-to {
-  transform: translateY(-100%);
-  opacity: 0;
+.ad-title { font-size: 24px; font-weight: 800; margin: 0 0 12px; }
+.ad-desc { font-size: 14px; color: rgba(255,255,255,0.7); margin: 0 0 32px; }
+.ad-btn {
+  display: block; width: 200px; margin: 0 auto 16px;
+  padding: 14px 28px; border: none; border-radius: 12px;
+  background: #7c4dff; color: #fff; font-size: 15px; font-weight: 600;
+  cursor: pointer; transition: opacity 0.15s;
 }
+.ad-btn:hover { opacity: 0.9; }
+.ad-dismiss {
+  background: none; border: none; color: rgba(255,255,255,0.5);
+  font-size: 13px; cursor: pointer; padding: 8px 16px;
+}
+.ad-dismiss:hover { color: rgba(255,255,255,0.8); }
 </style>
