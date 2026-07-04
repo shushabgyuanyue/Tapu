@@ -22,7 +22,9 @@ router.get('/', async (req, res) => {
   let results;
   if (series_id) {
     results = db.exec(
-      `SELECT g.*, s.name as series_name, COUNT(e.id) as entity_count
+      `SELECT g.*, s.name as series_name,
+              COUNT(e.id) as entity_count,
+              SUM(CASE WHEN e.user_id IS NULL THEN 1 ELSE 0 END) as available_count
        FROM groups g
        LEFT JOIN series s ON g.series_id = s.id
        LEFT JOIN entities e ON e.group_id = g.id
@@ -33,7 +35,9 @@ router.get('/', async (req, res) => {
     );
   } else {
     results = db.exec(
-      `SELECT g.*, s.name as series_name, COUNT(e.id) as entity_count
+      `SELECT g.*, s.name as series_name,
+              COUNT(e.id) as entity_count,
+              SUM(CASE WHEN e.user_id IS NULL THEN 1 ELSE 0 END) as available_count
        FROM groups g
        LEFT JOIN series s ON g.series_id = s.id
        LEFT JOIN entities e ON e.group_id = g.id

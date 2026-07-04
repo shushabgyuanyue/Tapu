@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed, inject, nextTick } from 'vue';
-import { fetchVideos, fetchGroups, fetchSeries, interact, batchInteractions, addToWishlist, getWishlistStatus } from '../api';
+import { fetchVideos, fetchGroups, fetchSeries, interact, batchInteractions, addToWishlist, getWishlistStatus, purchaseByGroup, isLoggedIn } from '../api';
 import { useRouter } from 'vue-router';
 import NavBar from '../components/NavBar.vue';
 import VideoCard from '../components/VideoCard.vue';
@@ -8,6 +8,7 @@ import RemixModal from '../components/RemixModal.vue';
 
 const router = useRouter();
 const toast = inject<{ show: (text: string) => void }>('toast');
+const activeMode = ref<'content' | 'shop'>('content');
 const videos = ref<any[]>([]);
 const groups = ref<any[]>([]);
 const seriesList = ref<any[]>([]);
@@ -193,6 +194,26 @@ const loadWishlistStatus = async () => {
   }
 };
 
+// Shop
+const shopBuying = ref<string>('');
+const handleShopPurchase = async (group: any) => {
+  if (!isLoggedIn()) {
+    toast?.show('请先登录再购买');
+    return;
+  }
+  if (shopBuying.value) return;
+  shopBuying.value = group.id;
+  const data = await purchaseByGroup(group.id);
+  shopBuying.value = '';
+  if (data.success) {
+    toast?.show('购买成功！可在账户 > 购买记录中查看访问链接');
+    // Refresh groups to update available count
+    groups.value = await fetchGroups(activeSeries.value || undefined);
+  } else {
+    toast?.show(data.error || '购买失败');
+  }
+};
+
 onMounted(() => { loadData(); setupObserver(); });
 onUnmounted(() => { if (observer) observer.disconnect(); });
 </script>
@@ -203,6 +224,51 @@ onUnmounted(() => { if (observer) observer.disconnect(); });
     @touchmove.passive="onTouchMove"
     @touchend="onTouchEnd">
     <NavBar />
+
+    <!-- Mode tabs -->
+    <div class="c-mode-tabs">
+      <button :class="{ active: activeMode === 'content' }" @click="activeMode = 'content'">内容</button>
+      <button :class="{ active: activeMode === 'shop' }" @click="activeMode = 'shop'">商城</button>
+    </div>
+
+    <!-- ===== SHOP MODE ===== -->
+    <template v-if="activeMode === 'shop'">
+      <!-- Series filter in shop -->
+      <div class="c-filters" v-if="seriesList.length > 0">
+        <button class="filter-chip filter-chip--series" :class="{ active: activeSeries === '' }" @click="switchSeries('')">全部系列</button>
+        <button v-for="s in seriesList" :key="s.id" class="filter-chip filter-chip--series" :class="{ active: activeSeries === s.id }" @click="switchSeries(s.id)">{{ s.name }}</button>
+      </div>
+
+      <div class="shop-grid" v-if="filteredGroups.length > 0">
+        <div v-for="g in filteredGroups" :key="g.id" class="shop-card">
+          <div class="shop-card-top">
+            <h3 class="shop-name">{{ g.name }}</h3>
+            <span class="shop-series" v-if="g.series_name">{{ g.series_name }}</span>
+          </div>
+          <div class="shop-card-meta">
+            <span class="shop-stock" :class="{ 'out': !g.available_count }">
+              {{ g.available_count > 0 ? `剩余 ${g.available_count} 个` : '已售罄' }}
+            </span>
+            <span class="shop-total">共 {{ g.entity_count }} 个实体</span>
+          </div>
+          <button
+            class="shop-buy-btn"
+            :disabled="!g.available_count || shopBuying === g.id"
+            @click="handleShopPurchase(g)"
+          >
+            {{ shopBuying === g.id ? '购买中...' : g.available_count > 0 ? '购买' : '售罄' }}
+          </button>
+        </div>
+      </div>
+      <div class="c-empty" v-else-if="!loading">
+        <p class="empty-icon">🏪</p>
+        <p>暂无可购买的IP实体</p>
+      </div>
+      <div class="c-loading" v-if="loading"><div class="c-spinner"></div></div>
+    </template>
+
+    <!-- ===== CONTENT MODE ===== -->
+    <template v-else>
 
     <!-- Pull to refresh indicator -->
     <div class="pull-indicator" :style="{ height: pullDistance + 'px', opacity: pullDistance / 60 }">
@@ -279,6 +345,8 @@ onUnmounted(() => { if (observer) observer.disconnect(); });
       </Transition>
     </Teleport>
 
+    </template><!-- end content mode -->
+
     <footer class="c-footer">
       <span class="c-footer-brand">whatmint</span>
       <span>碰一下，感受到了吗</span>
@@ -292,6 +360,48 @@ onUnmounted(() => { if (observer) observer.disconnect(); });
   font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif;
   color: #1a1a1a;
 }
+
+/* Mode tabs */
+.c-mode-tabs {
+  max-width: 960px; margin: 0 auto; padding: 16px 24px 0;
+  display: flex; gap: 4px; background: #f5f5f5; border-radius: 10px;
+  padding: 4px; width: fit-content; margin-left: auto; margin-right: auto;
+  margin-top: 12px;
+}
+.c-mode-tabs button {
+  padding: 8px 24px; font-size: 14px; font-weight: 600;
+  border: none; background: none; color: #999; cursor: pointer;
+  border-radius: 8px; transition: all 0.15s;
+}
+.c-mode-tabs button.active {
+  background: #fff; color: #1a1a1a; box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+}
+
+/* Shop */
+.shop-grid {
+  max-width: 960px; margin: 0 auto; padding: 20px 24px;
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px;
+}
+.shop-card {
+  border: 1px solid #f0f0f0; border-radius: 16px; padding: 20px;
+  background: #fff; transition: transform 0.2s, box-shadow 0.2s;
+}
+.shop-card:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,0.04); }
+.shop-card-top { margin-bottom: 12px; }
+.shop-name { font-size: 16px; font-weight: 700; margin: 0 0 4px; }
+.shop-series { font-size: 12px; color: #999; background: #f5f5f5; padding: 2px 8px; border-radius: 4px; }
+.shop-card-meta { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+.shop-stock { font-size: 13px; font-weight: 600; color: #4caf50; }
+.shop-stock.out { color: #999; }
+.shop-total { font-size: 12px; color: #bbb; }
+.shop-buy-btn {
+  width: 100%; padding: 10px; border: none; border-radius: 10px;
+  background: #7c4dff; color: #fff; font-size: 14px; font-weight: 600;
+  cursor: pointer; transition: opacity 0.12s;
+}
+.shop-buy-btn:hover { opacity: 0.9; }
+.shop-buy-btn:disabled { background: #e0e0e0; color: #999; cursor: not-allowed; }
+
 .pull-indicator {
   display: flex; align-items: center; justify-content: center; gap: 8px;
   overflow: hidden; font-size: 12px; color: #999; transition: height 0.2s ease;
@@ -376,5 +486,7 @@ onUnmounted(() => { if (observer) observer.disconnect(); });
   .c-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; padding: 16px 16px 20px; }
   .c-filters { padding: 12px 16px 4px; }
   .c-toolbar { padding: 12px 16px 0; }
+  .shop-grid { grid-template-columns: 1fr; padding: 16px; }
+  .c-mode-tabs { margin-top: 8px; }
 }
 </style>
