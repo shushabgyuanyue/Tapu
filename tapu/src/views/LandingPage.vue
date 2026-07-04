@@ -42,25 +42,38 @@ onMounted(() => {
     <!-- IP showcase -->
     <section class="ip-section">
       <h2 class="section-label">永远系列</h2>
-      <h3 class="section-title">他们永远在，你知道的</h3>
-      <p class="section-desc">不是表情包，不是贴纸。<br/>是那个你不用解释，碰一下就心安的存在。</p>
-      <div class="ip-grid" :class="{ 'anim-in': visible }">
-        <div class="ip-card anim-item" style="--i: 0">
-          <img class="ip-visual" src="../IPimg/永远系列-祈福小狗-合集.png" alt="祈福小狗" style="object-fit: cover;" />
-          <h4>祈福小狗</h4>
-          <p>永远帮你祈福的小狗。<br/>愿你的心愿成真。</p>
-        </div>
-        <div class="ip-card anim-item" style="--i: 1">
-          <img class="ip-visual" src="../IPimg/永远系列-纸巾小狗-合集.png" alt="纸巾小狗" style="object-fit: cover;" />
-          <h4>纸巾小狗</h4>
-          <p>永远为你递上纸巾的小狗。<br/>看见它就不难过。</p>
-        </div>
-        <div class="ip-card anim-item" style="--i: 2">
-          <div class="ip-visual ip-v3">
-            <span class="ip-emoji">🤝🐕</span>
+      <h3 class="section-title">那些没说出口的话，它都懂</h3>
+      <p class="section-desc">它不是一只普通的玩具。<br/>它是那个你不用解释，碰一下就能瞬间心安的存在。</p>
+      
+      <div class="ip-carousel-wrapper" :class="{ 'anim-in': visible }">
+        <div class="ip-carousel">
+          <div class="ip-card anim-item" style="--i: 0">
+            <div class="ip-img-box">
+              <img src="../IPimg/永远系列-祈福小狗-合集.png" alt="祈福小狗" />
+            </div>
+            <div class="ip-card-content">
+              <h4>祈福小狗</h4>
+              <p>把最灵验的锦鲤好运，偷偷藏进这只小狗里。<br/>碰一下，好运就属于你。</p>
+            </div>
           </div>
-          <h4>陪伴小狗</h4>
-          <p>永远站在你身边的小狗。<br/>就算全世界抛弃你他也在。</p>
+          <div class="ip-card anim-item" style="--i: 1">
+            <div class="ip-img-box">
+              <img src="../IPimg/永远系列-纸巾小狗-合集.png" alt="纸巾小狗" />
+            </div>
+            <div class="ip-card-content">
+              <h4>纸巾小狗</h4>
+              <p>眼泪掉下来之前，它已经准备好了纸巾。<br/>别怕，我一直在。</p>
+            </div>
+          </div>
+          <div class="ip-card anim-item" style="--i: 2">
+            <div class="ip-img-box">
+              <img src="../IPimg/永远系列-守护小狗-合集.png" alt="守护小狗" />
+            </div>
+            <div class="ip-card-content">
+              <h4>守护小狗</h4>
+              <p>当全世界背过身去，它会坚定地站在你身前。<br/>做你最温柔的盔甲。</p>
+            </div>
+          </div>
         </div>
       </div>
     </section>
@@ -217,25 +230,54 @@ onMounted(() => {
 }
 .section-desc { text-align: center; color: #888; font-size: 15px; line-height: 1.7; margin: 0 0 48px; }
 
-.ip-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+.ip-carousel-wrapper {
+  width: 100%;
+  overflow: hidden;
+  padding: 20px 0 40px;
+}
+
+.ip-carousel {
+  display: flex;
+  gap: 24px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  padding: 0 24px 40px;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none; /* Firefox */
+}
+.ip-carousel::-webkit-scrollbar { display: none; } /* Chrome */
+
 .ip-card {
-  background: #fff; border: 1px solid #f0f0f0; border-radius: 20px;
-  padding: 36px 24px; text-align: center;
+  flex: 0 0 85%;
+  max-width: 400px;
+  scroll-snap-align: center;
+  background: #fff; border: 1px solid #f0f0f0; border-radius: 24px;
+  padding: 0; text-align: left;
   transition: transform 0.25s, box-shadow 0.25s;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 .ip-card:hover { transform: translateY(-6px); box-shadow: 0 16px 48px rgba(124, 77, 255, 0.08); }
 
-.ip-visual {
-  width: 80px; height: 80px; border-radius: 50%; margin: 0 auto 20px;
+.ip-img-box {
+  width: 100%;
+  aspect-ratio: 1;
+  background: #fcfcfc;
   display: flex; align-items: center; justify-content: center;
+  overflow: hidden;
 }
-.ip-emoji { font-size: 32px; }
-.ip-v1 { background: linear-gradient(135deg, #fff3e0, #ffe0b2); }
-.ip-v2 { background: linear-gradient(135deg, #e3f2fd, #bbdefb); }
-.ip-v3 { background: linear-gradient(135deg, #fce4ec, #f8bbd0); }
+.ip-visual-lg {
+  width: 100%; height: 100%; object-fit: cover;
+  transition: transform 0.5s ease;
+}
+.ip-card:hover .ip-visual-lg { transform: scale(1.05); }
 
-.ip-card h4 { font-size: 16px; font-weight: 700; margin: 0 0 10px; }
-.ip-card p { font-size: 14px; color: #888; line-height: 1.7; margin: 0; }
+.ip-card-content {
+  padding: 28px 24px;
+}
+.ip-card-content h4 { font-size: 20px; font-weight: 800; margin: 0 0 12px; color: #1a1a1a; letter-spacing: -0.5px; }
+.ip-card-content p { font-size: 14px; color: #666; line-height: 1.8; margin: 0; }
 
 /* How section */
 .how-section {

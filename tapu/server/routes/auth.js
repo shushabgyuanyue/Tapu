@@ -1,6 +1,6 @@
 import express from 'express';
 import crypto from 'crypto';
-import db from '../db/index.js';
+import { getDb, saveDb } from '../db/index.js';
 import { v4 as uuidv4 } from 'uuid';
 
 const router = express.Router();
@@ -18,7 +18,20 @@ function generateToken() {
   return crypto.randomBytes(32).toString('hex');
 }
 
-router.post('/register', (req, res) => {
+// Helper to parse sql.js exec result
+function resultToObjects(results) {
+  if (!results || results.length === 0) return [];
+  const { columns, values } = results[0];
+  return values.map(row => {
+    const obj = {};
+    columns.forEach((col, idx) => {
+      obj[col] = row[idx];
+    });
+    return obj;
+  });
+}
+
+router.post('/register', async (req, res) => {
   try {
     const { username, password } = req.body;
     if (!username || !password) {
@@ -27,15 +40,17 @@ router.post('/register', (req, res) => {
 
     const id = uuidv4();
     const password_hash = hashPassword(password);
+    const db = await getDb();
 
     db.run(
       'INSERT INTO users (id, username, password_hash) VALUES (?, ?, ?)',
       [id, username, password_hash]
     );
+    saveDb();
 
     res.json({ success: true, id, username });
   } catch (error) {
-    if (error.message.includes('UNIQUE constraint failed')) {
+    if (error.message && error.message.includes('UNIQUE constraint failed')) {
       return res.status(400).json({ error: 'Username already exists' });
     }
     console.error('Registration error:', error);
@@ -43,7 +58,7 @@ router.post('/register', (req, res) => {
   }
 });
 
-router.post('/login', (req, res) => {
+router.post('/login', async (req, res) => {
   try {
     const { username, password } = req.body;
     if (!username || !password) {
@@ -51,17 +66,22 @@ router.post('/login', (req, res) => {
     }
 
     const password_hash = hashPassword(password);
-    const user = db.query(
-      'SELECT id, username FROM users WHERE username = ? AND password_hash = ?',
-      [username, password_hash]
-    );
+    const db = await getDb();
+    const stmt = db.prepare('SELECT id, username FROM users WHERE username = ? AND password_hash = ?');
+    stmt.bind([username, password_hash]);
+    
+    let user = null;
+    if (stmt.step()) {
+      user = stmt.getAsObject();
+    }
+    stmt.free();
 
-    if (user.length === 0) {
+    if (!user) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
     const token = generateToken(); // In a real app, this should be stored or be a JWT
-    res.json({ success: true, token, user: user[0] });
+    res.json({ success: true, token, user });
   } catch (error) {
     console.error('Login error:', error);
     res.status(500).json({ error: 'Internal server error' });
