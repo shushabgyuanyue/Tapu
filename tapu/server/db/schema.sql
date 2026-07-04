@@ -42,3 +42,14 @@ CREATE TABLE IF NOT EXISTS defaults (
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (video_id) REFERENCES videos(id) ON DELETE CASCADE
 );
+
+CREATE TABLE IF NOT EXISTS wishlist (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  group_id TEXT NOT NULL,
+  fingerprint TEXT NOT NULL,
+  default_video_id TEXT,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (group_id) REFERENCES groups(id) ON DELETE CASCADE,
+  FOREIGN KEY (default_video_id) REFERENCES videos(id) ON DELETE SET NULL,
+  UNIQUE(group_id, fingerprint)
+);

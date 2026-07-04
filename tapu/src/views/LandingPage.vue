@@ -1,4 +1,11 @@
 <script setup lang="ts">
+import { ref, onMounted } from 'vue';
+
+const visible = ref(false);
+onMounted(() => {
+  // Trigger entrance animations after mount
+  requestAnimationFrame(() => { visible.value = true; });
+});
 </script>
 
 <template>
@@ -37,22 +44,22 @@
       <h2 class="section-label">永远系列</h2>
       <h3 class="section-title">他们永远在，你知道的</h3>
       <p class="section-desc">不是表情包，不是贴纸。<br/>是那个你不用解释，碰一下就心安的存在。</p>
-      <div class="ip-grid">
-        <div class="ip-card">
+      <div class="ip-grid" :class="{ 'anim-in': visible }">
+        <div class="ip-card anim-item" style="--i: 0">
           <div class="ip-visual ip-v1">
             <span class="ip-emoji">🙏🐕</span>
           </div>
           <h4>祈福小狗</h4>
           <p>永远帮你祈福的小狗。<br/>愿你的心愿成真。</p>
         </div>
-        <div class="ip-card">
+        <div class="ip-card anim-item" style="--i: 1">
           <div class="ip-visual ip-v2">
             <span class="ip-emoji">🧻🐕</span>
           </div>
           <h4>纸巾小狗</h4>
           <p>永远为你递上纸巾的小狗。<br/>看见它就不难过。</p>
         </div>
-        <div class="ip-card">
+        <div class="ip-card anim-item" style="--i: 2">
           <div class="ip-visual ip-v3">
             <span class="ip-emoji">🤝🐕</span>
           </div>
@@ -88,22 +95,22 @@
           </ul>
         </div>
       </div>
-      <div class="flow">
-        <div class="flow-step">
+      <div class="flow" :class="{ 'anim-in': visible }">
+        <div class="flow-step anim-item" style="--i: 3">
           <div class="step-num">01</div>
           <div class="step-body">
             <h4>上传一段共鸣</h4>
             <p>15 秒竖屏视频，表达一种关系、一个态度</p>
           </div>
         </div>
-        <div class="flow-step">
+        <div class="flow-step anim-item" style="--i: 4">
           <div class="step-num">02</div>
           <div class="step-body">
             <h4>社区投票，数据说话</h4>
             <p>点赞/收藏/设为默认的数据决定哪些内容最有共鸣</p>
           </div>
         </div>
-        <div class="flow-step">
+        <div class="flow-step anim-item" style="--i: 5">
           <div class="step-num">03</div>
           <div class="step-body">
             <h4>热门内容铸造成实体</h4>
@@ -293,6 +300,18 @@
 }
 .footer-brand { font-weight: 700; color: #999; }
 .footer-sep { color: #ddd; }
+
+/* Stagger entrance animations */
+.anim-item {
+  opacity: 0;
+  transform: translateY(20px);
+  transition: opacity 0.5s ease, transform 0.5s ease;
+  transition-delay: calc(var(--i) * 100ms);
+}
+.anim-in .anim-item {
+  opacity: 1;
+  transform: translateY(0);
+}
 
 @media (max-width: 640px) {
   .hero { padding: 60px 20px 50px; }

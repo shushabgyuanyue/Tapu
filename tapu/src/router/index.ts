@@ -17,6 +17,11 @@ const routes = [
     component: () => import('../views/CommunityPage.vue'),
   },
   {
+    path: '/wishlist',
+    name: 'wishlist',
+    component: () => import('../views/WishlistPage.vue'),
+  },
+  {
     path: '/play/:id',
     name: 'player-id',
     component: () => import('../views/PlayerView.vue'),

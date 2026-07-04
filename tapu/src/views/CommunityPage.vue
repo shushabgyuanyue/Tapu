@@ -1,14 +1,18 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue';
-import { fetchVideos, fetchGroups, interact, batchInteractions } from '../api';
+import { ref, onMounted, computed, inject } from 'vue';
+import { fetchVideos, fetchGroups, interact, batchInteractions, addToWishlist, getWishlistStatus } from '../api';
 import { useRouter } from 'vue-router';
 
 const router = useRouter();
+const toast = inject<{ show: (text: string) => void }>('toast');
 const videos = ref<any[]>([]);
 const groups = ref<any[]>([]);
 const activeGroup = ref('');
 const loading = ref(true);
 const interactions = ref<Record<string, any>>({});
+const wishlistStatus = ref<Record<string, boolean>>({});
+const likedIds = ref<Set<string>>(new Set());
+const favoritedIds = ref<Set<string>>(new Set());
 
 const readyVideos = computed(() => videos.value.filter(v => v.status === 'ready'));
 
@@ -27,6 +31,9 @@ const loadData = async () => {
   if (readyIds.length > 0) {
     interactions.value = await batchInteractions(readyIds);
   }
+
+  // Load wishlist status
+  loadWishlistStatus();
 };
 
 const switchGroup = (id: string) => {
@@ -40,12 +47,14 @@ const goPlay = (id: string) => {
 
 const handleLike = async (e: Event, videoId: string) => {
   e.stopPropagation();
+  likedIds.value.add(videoId);
   const result = await interact(videoId, 'like');
   interactions.value[videoId] = result;
 };
 
 const handleFavorite = async (e: Event, videoId: string) => {
   e.stopPropagation();
+  favoritedIds.value.add(videoId);
   const result = await interact(videoId, 'favorite');
   interactions.value[videoId] = result;
 };
@@ -112,6 +121,21 @@ const submitRemix = () => {
   closeRemix();
 };
 
+const handleWishlist = async (e: Event, groupId: string) => {
+  e.stopPropagation();
+  if (wishlistStatus.value[groupId]) return;
+  await addToWishlist(groupId);
+  wishlistStatus.value[groupId] = true;
+  toast?.show('已加入心愿单 ♥');
+};
+
+const loadWishlistStatus = async () => {
+  for (const g of groups.value) {
+    const { inWishlist } = await getWishlistStatus(g.id);
+    wishlistStatus.value[g.id] = inWishlist;
+  }
+};
+
 onMounted(loadData);
 </script>
 
@@ -120,7 +144,10 @@ onMounted(loadData);
     <header class="c-header">
       <div class="c-header-inner">
         <router-link to="/" class="c-brand">whatmint</router-link>
-        <router-link to="/admin" class="c-creator-btn">创作者入口</router-link>
+        <div class="c-header-nav">
+          <router-link to="/wishlist" class="c-wishlist-btn" title="心愿单">♥</router-link>
+          <router-link to="/admin" class="c-creator-btn">创作者入口</router-link>
+        </div>
       </div>
     </header>
 
@@ -141,11 +168,12 @@ onMounted(loadData);
     </div>
 
     <!-- Grid -->
-    <div class="c-grid" v-if="!loading && readyVideos.length > 0">
+    <TransitionGroup name="stagger" tag="div" class="c-grid" v-if="!loading && readyVideos.length > 0">
       <div
-        v-for="v in readyVideos"
+        v-for="(v, idx) in readyVideos"
         :key="v.id"
         class="c-card"
+        :style="{ '--i': idx }"
         @click="goPlay(v.id)"
       >
         <div class="card-cover">
@@ -161,16 +189,26 @@ onMounted(loadData);
           <span class="card-group">{{ v.group_name || 'whatmint' }}</span>
         </div>
         <div class="card-actions">
-          <button class="action-btn" @click="handleLike($event, v.id)">
-            <span class="action-icon">♡</span>
+          <button class="action-btn" :class="{ 'is-liked': likedIds.has(v.id) }" @click="handleLike($event, v.id)">
+            <span class="action-icon like-icon">{{ likedIds.has(v.id) ? '♥' : '♡' }}</span>
             <span class="action-count">{{ fmtCount(interactions[v.id]?.likes) }}</span>
           </button>
-          <button class="action-btn" @click="handleFavorite($event, v.id)">
-            <span class="action-icon">☆</span>
+          <button class="action-btn" :class="{ 'is-faved': favoritedIds.has(v.id) }" @click="handleFavorite($event, v.id)">
+            <span class="action-icon fav-icon">{{ favoritedIds.has(v.id) ? '★' : '☆' }}</span>
             <span class="action-count">{{ fmtCount(interactions[v.id]?.favorites) }}</span>
           </button>
           <button class="action-btn" @click="handleShare($event, v.id)">
             <span class="action-icon">↗</span>
+          </button>
+          <button
+            v-if="v.group_id"
+            class="action-btn action-wish"
+            :class="{ 'is-wished': wishlistStatus[v.group_id] }"
+            @click="handleWishlist($event, v.group_id)"
+          >
+            <span class="action-icon wish-icon">{{ wishlistStatus[v.group_id] ? '♥' : '♡' }}</span>
+            <span class="wish-particles" v-if="wishlistStatus[v.group_id]"></span>
+            <span class="action-count">{{ wishlistStatus[v.group_id] ? '已心愿' : '心愿' }}</span>
           </button>
           <button class="action-btn action-remix" @click="openRemix($event, v)">
             <span class="action-icon">✦</span>
@@ -178,7 +216,7 @@ onMounted(loadData);
           </button>
         </div>
       </div>
-    </div>
+    </TransitionGroup>
 
     <!-- Empty -->
     <div class="c-empty" v-if="!loading && readyVideos.length === 0">
@@ -194,9 +232,10 @@ onMounted(loadData);
 
     <!-- Remix Modal -->
     <Teleport to="body">
-      <div v-if="showRemix" class="remix-mask" @click.self="closeRemix">
-        <div class="remix-modal">
-          <div class="remix-header">
+      <Transition name="modal">
+        <div v-if="showRemix" class="remix-mask" @click.self="closeRemix">
+          <div class="remix-modal">
+            <div class="remix-header">
             <h3>二创 · 换成你的角色</h3>
             <button @click="closeRemix" class="remix-close">&times;</button>
           </div>
@@ -235,6 +274,7 @@ onMounted(loadData);
           </div>
         </div>
       </div>
+      </Transition>
     </Teleport>
 
     <footer class="c-footer">
@@ -262,7 +302,15 @@ onMounted(loadData);
   display: flex; justify-content: space-between; align-items: center;
   padding: 14px 24px;
 }
+.c-header-nav {
+  display: flex; align-items: center; gap: 12px;
+}
 .c-brand { font-size: 18px; font-weight: 800; color: #1a1a1a; text-decoration: none; letter-spacing: -0.5px; }
+.c-wishlist-btn {
+  font-size: 18px; color: #ff4d6a; text-decoration: none;
+  transition: transform 0.2s;
+}
+.c-wishlist-btn:hover { transform: scale(1.2); }
 .c-creator-btn {
   font-size: 12px; color: #7c4dff; border: 1px solid #ede7ff;
   padding: 6px 14px; border-radius: 8px; text-decoration: none;
@@ -426,6 +474,103 @@ onMounted(loadData);
 .remix-notice { font-size: 11px; color: #bbb; text-align: center; margin: 10px 0 0; }
 
 .action-remix .action-icon { color: #7c4dff; }
+
+/* Stagger list entrance */
+.stagger-enter-active {
+  transition: all 0.4s ease;
+  transition-delay: calc(var(--i) * 50ms);
+}
+.stagger-enter-from {
+  opacity: 0;
+  transform: translateY(20px);
+}
+
+/* Like bounce animation */
+.is-liked .like-icon {
+  color: #ff4d6a;
+  animation: like-bounce 0.4s ease;
+}
+@keyframes like-bounce {
+  0% { transform: scale(1); }
+  30% { transform: scale(1.3); }
+  60% { transform: scale(0.9); }
+  100% { transform: scale(1); }
+}
+
+/* Favorite star animation */
+.is-faved .fav-icon {
+  color: #ffb300;
+  animation: fav-spin 0.5s ease;
+}
+@keyframes fav-spin {
+  0% { transform: rotate(0deg) scale(1); }
+  50% { transform: rotate(180deg) scale(1.2); }
+  100% { transform: rotate(360deg) scale(1); }
+}
+
+/* Wishlist heart animation */
+.action-wish.is-wished .wish-icon {
+  color: #ff4d6a;
+  animation: wish-bounce 0.6s ease;
+}
+.action-wish { position: relative; }
+.wish-particles {
+  position: absolute;
+  top: 50%; left: 50%;
+  width: 0; height: 0;
+  pointer-events: none;
+}
+.action-wish.is-wished .wish-particles::before,
+.action-wish.is-wished .wish-particles::after {
+  content: '';
+  position: absolute;
+  border-radius: 50%;
+  animation: particle-burst 0.6s ease-out forwards;
+}
+.action-wish.is-wished .wish-particles::before {
+  width: 4px; height: 4px; background: #ff4d6a;
+  box-shadow: 8px -8px 0 #ff8a9e, -8px -6px 0 #ffb3c1, 6px 8px 0 #ff6b8a, -7px 7px 0 #ff9eb5;
+}
+.action-wish.is-wished .wish-particles::after {
+  width: 3px; height: 3px; background: #ffb3c1;
+  box-shadow: 10px 2px 0 #ff4d6a, -10px -2px 0 #ff8a9e, 2px 10px 0 #ff6b8a, -3px -10px 0 #ffb3c1;
+}
+@keyframes particle-burst {
+  0% { transform: scale(0); opacity: 1; }
+  50% { transform: scale(1.5); opacity: 0.8; }
+  100% { transform: scale(2.5); opacity: 0; }
+}
+@keyframes wish-bounce {
+  0% { transform: scale(1); }
+  15% { transform: scale(1.3); }
+  30% { transform: scale(1); }
+  45% { transform: scale(1.15); }
+  60% { transform: scale(1); }
+}
+
+/* Modal transition */
+.modal-enter-active {
+  transition: opacity 0.3s ease;
+}
+.modal-enter-active .remix-modal {
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.modal-leave-active {
+  transition: opacity 0.2s ease;
+}
+.modal-leave-active .remix-modal {
+  transition: transform 0.2s ease;
+}
+.modal-enter-from,
+.modal-leave-to {
+  opacity: 0;
+}
+.modal-enter-from .remix-modal {
+  transform: translateY(40px) scale(0.95);
+}
+.modal-leave-to .remix-modal {
+  transform: translateY(20px) scale(0.98);
+}
 
 @media (max-width: 640px) {
   .c-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; padding: 16px 16px 40px; }

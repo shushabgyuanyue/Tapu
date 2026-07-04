@@ -121,3 +121,53 @@ export async function getPopular(groupId: string) {
   const res = await fetch(`${BASE}/interactions/popular/${groupId}`);
   return res.json();
 }
+
+// Wishlist
+function getFingerprint(): string {
+  let fp = localStorage.getItem('tapu_fp');
+  if (!fp) {
+    fp = Math.random().toString(36).slice(2) + Date.now().toString(36);
+    localStorage.setItem('tapu_fp', fp);
+  }
+  return fp;
+}
+
+const fpHeaders = () => ({
+  'Content-Type': 'application/json',
+  'x-fingerprint': getFingerprint(),
+});
+
+export async function getWishlist() {
+  const res = await fetch(`${BASE}/wishlist`, { headers: fpHeaders() });
+  return res.json();
+}
+
+export async function addToWishlist(groupId: string) {
+  const res = await fetch(`${BASE}/wishlist/${groupId}`, {
+    method: 'POST',
+    headers: fpHeaders(),
+  });
+  return res.json();
+}
+
+export async function removeFromWishlist(groupId: string) {
+  const res = await fetch(`${BASE}/wishlist/${groupId}`, {
+    method: 'DELETE',
+    headers: fpHeaders(),
+  });
+  return res.json();
+}
+
+export async function setWishlistDefault(groupId: string, videoId: string) {
+  const res = await fetch(`${BASE}/wishlist/${groupId}/default`, {
+    method: 'PUT',
+    headers: fpHeaders(),
+    body: JSON.stringify({ videoId }),
+  });
+  return res.json();
+}
+
+export async function getWishlistStatus(groupId: string) {
+  const res = await fetch(`${BASE}/wishlist/${groupId}/status`, { headers: fpHeaders() });
+  return res.json();
+}
