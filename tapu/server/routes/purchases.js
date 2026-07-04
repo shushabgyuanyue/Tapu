@@ -37,15 +37,6 @@ router.post('/by-group', authRequired, async (req, res) => {
 
     const entity_id = rows[0].id;
 
-    // Check if already purchased
-    const existing = db.exec(
-      'SELECT id FROM purchases WHERE user_id = ? AND group_id = ?',
-      [req.user.id, group_id]
-    );
-    if (resultToObjects(existing).length > 0) {
-      return res.status(400).json({ error: '你已购买过该IP' });
-    }
-
     // Generate entity key for this purchase
     const entity_key = generateEntityKey({
       user_id: req.user.id,
@@ -81,15 +72,6 @@ router.post('/', authRequired, async (req, res) => {
     }
 
     const db = await getDb();
-
-    // Check if already purchased
-    const existing = db.exec(
-      'SELECT id FROM purchases WHERE user_id = ? AND entity_id = ?',
-      [req.user.id, entity_id]
-    );
-    if (resultToObjects(existing).length > 0) {
-      return res.status(400).json({ error: '已购买过该IP' });
-    }
 
     // Generate entity key for this purchase
     const entity_key = generateEntityKey({

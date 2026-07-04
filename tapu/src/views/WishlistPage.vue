@@ -9,8 +9,6 @@ const loading = ref(true);
 const expandedGroup = ref('');
 const groupVideos = ref<any[]>([]);
 const loadingVideos = ref(false);
-const purchasedKey = ref('');
-const showKeyModal = ref(false);
 
 const loadWishlist = async () => {
   loading.value = true;
@@ -60,17 +58,13 @@ const handlePurchase = async (item: any) => {
   const entityId = item.entity_id || item.group_id;
   const data = await purchase(entityId, item.group_id);
   if (data.success) {
-    purchasedKey.value = data.entity_key;
-    showKeyModal.value = true;
-    toast?.show('购买成功！');
+    // Auto-remove from wishlist after purchase
+    await removeFromWishlist(item.group_id);
+    items.value = items.value.filter(i => i.group_id !== item.group_id);
+    toast?.show('购买成功！可在购买记录中查看访问链接');
   } else {
     toast?.show(data.error || '购买失败');
   }
-};
-
-const copyKey = () => {
-  navigator.clipboard.writeText(purchasedKey.value);
-  toast?.show('密钥已复制');
 };
 
 onMounted(loadWishlist);
@@ -156,22 +150,7 @@ onMounted(loadWishlist);
       </TransitionGroup>
     </div>
 
-    <!-- Key display modal after purchase -->
-    <Teleport to="body">
-      <Transition name="modal">
-        <div v-if="showKeyModal" class="key-mask" @click.self="showKeyModal = false">
-          <div class="key-modal">
-            <h3>购买成功</h3>
-            <p class="key-desc">你的专属密钥如下，请妥善保管：</p>
-            <div class="key-display">{{ purchasedKey }}</div>
-            <div class="key-actions">
-              <button class="key-copy" @click="copyKey">复制密钥</button>
-              <button class="key-close" @click="showKeyModal = false">关闭</button>
-            </div>
-          </div>
-        </div>
-      </Transition>
-    </Teleport>
+    <!-- Key display modal removed - keys are in purchase records -->
   </div>
 </template>
 
@@ -339,35 +318,6 @@ onMounted(loadWishlist);
 .w-purchased-badge {
   font-size: 11px; color: #4caf50; padding: 4px 10px;
   background: #e8f5e9; border-radius: 6px;
-}
-
-/* Key modal */
-.key-mask {
-  position: fixed; inset: 0; background: rgba(0,0,0,0.4);
-  display: flex; align-items: center; justify-content: center;
-  z-index: 1000; padding: 20px;
-}
-.key-modal {
-  background: #fff; border-radius: 16px; padding: 24px;
-  max-width: 400px; width: 100%;
-  box-shadow: 0 20px 60px rgba(0,0,0,0.15);
-}
-.key-modal h3 { margin: 0 0 8px; font-size: 16px; font-weight: 700; }
-.key-desc { font-size: 13px; color: #666; margin: 0 0 14px; }
-.key-display {
-  background: #f5f5f5; border-radius: 8px; padding: 12px;
-  font-size: 11px; font-family: monospace; word-break: break-all;
-  color: #333; margin-bottom: 16px; line-height: 1.5;
-}
-.key-actions { display: flex; gap: 10px; }
-.key-copy {
-  flex: 1; padding: 10px; border: none; border-radius: 8px;
-  background: #7c4dff; color: #fff; font-size: 13px; font-weight: 600;
-  cursor: pointer;
-}
-.key-close {
-  padding: 10px 16px; border: 1px solid #eee; border-radius: 8px;
-  background: #fff; color: #666; font-size: 13px; cursor: pointer;
 }
 
 .modal-enter-active { transition: opacity 0.25s ease; }

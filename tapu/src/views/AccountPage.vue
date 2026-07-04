@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, inject } from 'vue';
 import { useRouter } from 'vue-router';
 import { getProfile, changePassword, getEntities, getPurchases, isLoggedIn, clearToken, bindEntity, unbindEntity } from '../api';
 import NavBar from '../components/NavBar.vue';
 
 const router = useRouter();
+const toast = inject<{ show: (text: string) => void }>('toast');
 const profile = ref<any>(null);
 const entities = ref<any[]>([]);
 const purchases = ref<any[]>([]);
@@ -93,6 +94,17 @@ const logout = () => {
   clearToken();
   router.push('/');
 };
+
+const copyLink = (entityKey: string) => {
+  const url = `${window.location.origin}/play?key=${encodeURIComponent(entityKey)}`;
+  navigator.clipboard.writeText(url);
+  toast?.show('访问链接已复制');
+};
+
+const copyKey = (entityKey: string) => {
+  navigator.clipboard.writeText(entityKey);
+  toast?.show('密钥已复制');
+};
 </script>
 
 <template>
@@ -138,12 +150,16 @@ const logout = () => {
       <!-- Purchases -->
       <div v-else-if="activeTab === 'purchases'" class="acc-section">
         <div v-if="purchases.length === 0" class="acc-empty">暂无购买记录</div>
-        <div v-for="p in purchases" :key="p.id" class="acc-card">
+        <div v-for="p in purchases" :key="p.id" class="acc-card acc-card--purchase">
           <div class="acc-card-info">
             <span class="acc-card-name">{{ p.group_name || 'IP' }}</span>
             <span class="acc-card-series" v-if="p.series_name">{{ p.series_name }}</span>
           </div>
           <span class="acc-card-date">{{ p.created_at?.slice(0, 10) }}</span>
+          <div class="purchase-actions">
+            <button class="p-btn p-btn--link" @click="copyLink(p.entity_key)">复制链接</button>
+            <button class="p-btn p-btn--key" @click="copyKey(p.entity_key)">复制密钥</button>
+          </div>
         </div>
       </div>
 
@@ -210,6 +226,21 @@ const logout = () => {
 .acc-card-id { font-size: 11px; color: #bbb; font-family: monospace; }
 .acc-card-date { font-size: 12px; color: #999; }
 .acc-card-right { display: flex; align-items: center; gap: 8px; }
+
+.acc-card--purchase {
+  flex-wrap: wrap; gap: 8px;
+}
+.purchase-actions {
+  width: 100%; display: flex; gap: 8px; margin-top: 4px;
+}
+.p-btn {
+  padding: 6px 14px; border-radius: 8px; font-size: 12px; font-weight: 500;
+  cursor: pointer; border: none; transition: all 0.12s;
+}
+.p-btn--link { background: #7c4dff; color: #fff; }
+.p-btn--link:hover { background: #6b3ee8; }
+.p-btn--key { background: #f5f5f5; color: #666; border: 1px solid #eee; }
+.p-btn--key:hover { background: #eee; color: #333; }
 
 .bind-box {
   display: flex; gap: 8px; margin-bottom: 12px;
