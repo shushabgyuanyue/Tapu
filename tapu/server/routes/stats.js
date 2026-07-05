@@ -3,6 +3,30 @@ import { getDb, saveDb } from '../db/index.js';
 
 const router = Router();
 
+function parsePositiveInt(value, fallback) {
+  const num = Number.parseInt(value, 10);
+  return Number.isFinite(num) && num > 0 ? num : fallback;
+}
+
+function buildVideoFilterParts({ group_id, from, to }, videoAlias = 'v', playAlias = 'p') {
+  const conditions = [];
+  const params = [];
+  if (group_id) { conditions.push(`${videoAlias}.group_id = ?`); params.push(group_id); }
+  if (from) { conditions.push(`${playAlias}.played_at >= ?`); params.push(from); }
+  if (to) { conditions.push(`${playAlias}.played_at <= ?`); params.push(to + ' 23:59:59'); }
+  return { conditions, params };
+}
+
+function buildPagedResponse(items, total, page, pageSize) {
+  return {
+    items,
+    total,
+    page,
+    pageSize,
+    totalPages: Math.max(1, Math.ceil(total / pageSize)),
+  };
+}
+
 // Record play event
 router.post('/play', async (req, res) => {
   const { video_id } = req.body;
@@ -51,11 +75,7 @@ router.get('/overview', async (req, res) => {
     FROM videos v
     LEFT JOIN play_events p ON v.id = p.video_id
   `;
-  const topConditions = [];
-  const topParams = [];
-  if (group_id) { topConditions.push('v.group_id = ?'); topParams.push(group_id); }
-  if (from) { topConditions.push('p.played_at >= ?'); topParams.push(from); }
-  if (to) { topConditions.push('p.played_at <= ?'); topParams.push(to + ' 23:59:59'); }
+  const { conditions: topConditions, params: topParams } = buildVideoFilterParts({ group_id, from, to });
   if (topConditions.length) topSql += ' WHERE ' + topConditions.join(' AND ');
   topSql += ' GROUP BY v.id ORDER BY play_count DESC LIMIT 10';
 
@@ -68,6 +88,39 @@ router.get('/overview', async (req, res) => {
   const defaultCount = defaultResult.length > 0 ? defaultResult[0].values[0][0] : 0;
 
   res.json({ totalPlays, totalVideos, topVideos, defaultCount });
+});
+
+router.get('/top-videos', async (req, res) => {
+  try {
+    const { group_id, from, to } = req.query;
+    const page = parsePositiveInt(req.query.page, 1);
+    const pageSize = parsePositiveInt(req.query.page_size, 10);
+    const db = await getDb();
+
+    let countSql = 'SELECT COUNT(*) as total FROM videos v';
+    const countParams = [];
+    if (group_id) {
+      countSql += ' WHERE v.group_id = ?';
+      countParams.push(group_id);
+    }
+    const countResult = db.exec(countSql, countParams);
+    const total = countResult.length > 0 ? countResult[0].values[0][0] : 0;
+
+    let sql = `
+      SELECT v.id, v.title, COUNT(p.id) as play_count
+      FROM videos v
+      LEFT JOIN play_events p ON v.id = p.video_id
+    `;
+    const { conditions, params } = buildVideoFilterParts({ group_id, from, to });
+    if (conditions.length) sql += ' WHERE ' + conditions.join(' AND ');
+    sql += ' GROUP BY v.id ORDER BY play_count DESC, v.created_at DESC LIMIT ? OFFSET ?';
+
+    const result = db.exec(sql, [...params, pageSize, (page - 1) * pageSize]);
+    res.json(buildPagedResponse(resultToObjects(result), total, page, pageSize));
+  } catch (error) {
+    console.error('Top videos error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 // Daily aggregated stats
@@ -118,6 +171,10 @@ router.get('/default-ranking', async (req, res) => {
 router.get('/leaderboard', async (req, res) => {
   try {
     const db = await getDb();
+    const page = parsePositiveInt(req.query.page, 1);
+    const pageSize = parsePositiveInt(req.query.page_size, 10);
+    const countResult = db.exec('SELECT COUNT(*) as total FROM groups');
+    const total = countResult.length > 0 ? countResult[0].values[0][0] : 0;
     const sql = `
       SELECT g.id, g.name, g.series_id, s.name as series_name,
         COUNT(DISTINCT p.id) as play_count,
@@ -129,10 +186,10 @@ router.get('/leaderboard', async (req, res) => {
       LEFT JOIN series s ON g.series_id = s.id
       GROUP BY g.id
       ORDER BY play_count DESC
-      LIMIT 20
+      LIMIT ? OFFSET ?
     `;
-    const result = db.exec(sql);
-    res.json(resultToObjects(result));
+    const result = db.exec(sql, [pageSize, (page - 1) * pageSize]);
+    res.json(buildPagedResponse(resultToObjects(result), total, page, pageSize));
   } catch (error) {
     console.error('Leaderboard error:', error);
     res.status(500).json({ error: 'Internal server error' });

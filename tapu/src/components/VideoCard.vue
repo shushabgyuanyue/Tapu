@@ -5,6 +5,7 @@ defineProps<{
   isLiked: boolean;
   isFaved: boolean;
   wishlistStatus: boolean;
+  wishlistCount?: number;
 }>();
 
 const emit = defineEmits<{
@@ -41,10 +42,11 @@ const fmtDur = (s: number) => {
     </div>
     <div class="card-info">
       <h3 class="card-title">{{ video.title }}</h3>
-      <span class="card-group">
-        <template v-if="video.series_name">{{ video.series_name }} > </template>{{ video.group_name || 'whatmint' }}
-        <span class="card-vid-id">ID: {{ video.id.slice(0, 8) }}</span>
-      </span>
+      <div class="card-tags" v-if="video.series_name || video.group_name">
+        <span v-if="video.series_name" class="card-tag card-tag-series">{{ video.series_name }}</span>
+        <span v-if="video.group_name" class="card-tag card-tag-group">{{ video.group_name }}</span>
+      </div>
+      <span class="card-vid-id">ID: {{ video.id.slice(0, 8) }}</span>
     </div>
     <!-- Actions -->
     <div class="card-actions">
@@ -70,6 +72,7 @@ const fmtDur = (s: number) => {
         <span class="action-icon wish-icon">
           <svg viewBox="0 0 24 24" width="15" height="15" :fill="wishlistStatus ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13"/><path d="M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7"/><path d="M7.5 8a2.5 2.5 0 0 1 0-5A4.8 8 0 0 1 12 8a4.8 8 0 0 1 4.5-5 2.5 2.5 0 0 1 0 5"/></svg>
         </span>
+        <span class="action-count">{{ fmtCount(wishlistCount || 0) }}</span>
       </button>
       <button class="action-btn action-remix" @click.stop="emit('remix', $event, video)">
         <span class="action-icon">
@@ -122,22 +125,28 @@ const fmtDur = (s: number) => {
   min-height: 1.2em; line-height: 1.3;
   word-break: break-all;
 }
-.card-group {
-  font-size: 11px; color: #aaa;
-  display: flex; align-items: center; gap: 4px;
-  white-space: nowrap; overflow: hidden;
-  text-overflow: ellipsis; max-width: 100%;
+.card-tags {
+  display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px;
 }
-.card-vid-id { font-family: monospace; color: #bbb; font-size: 10px; }
-.card-actions { display: flex; align-items: center; gap: 0; padding: 4px 8px 10px; }
+.card-tag {
+  display: inline-flex; align-items: center; padding: 3px 8px; border-radius: 999px;
+  font-size: 10px; line-height: 1; font-weight: 600;
+}
+.card-tag-series { background: #f3efff; color: #7c4dff; }
+.card-tag-group { background: #f6f7fb; color: #5d6472; }
+.card-vid-id { font-family: monospace; color: #bbb; font-size: 10px; display: inline-block; }
+.card-actions {
+  display: flex; align-items: center; gap: 4px; padding: 6px 8px 10px;
+  border-top: 1px solid #f5f5f7;
+}
 .action-spacer { flex: 1; }
 .action-btn {
   display: flex; align-items: center; gap: 2px;
-  background: none; border: none; padding: 4px 6px;
+  background: #fafafb; border: 1px solid transparent; padding: 6px 8px;
   font-size: 12px; color: #999; cursor: pointer;
-  border-radius: 6px; transition: all 0.15s;
+  border-radius: 999px; transition: all 0.15s;
 }
-.action-btn:hover { background: #f5f5f5; color: #7c4dff; }
+.action-btn:hover { background: #f5f2ff; border-color: #eee7ff; color: #7c4dff; }
 .action-icon { font-size: 14px; display: flex; align-items: center; }
 .action-count { font-size: 11px; }
 .action-remix .action-icon { color: #7c4dff; }
@@ -157,7 +166,7 @@ const fmtDur = (s: number) => {
 /* Wishlist */
 .action-wish.is-wished { opacity: 0.6; cursor: default; }
 .action-wish.is-wished .wish-icon { color: #999; }
-.action-wish.is-wished:hover { background: none; color: #999; }
+.action-wish.is-wished:hover { background: #fafafb; color: #999; border-color: transparent; }
 
 @media (max-width: 640px) {
   .card-info { padding: 8px 10px 4px; }

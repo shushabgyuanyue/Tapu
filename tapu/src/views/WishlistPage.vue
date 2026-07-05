@@ -1,29 +1,108 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, inject, watch } from 'vue';
-import { getWishlist, removeFromWishlist, fetchGroups, fetchSeries, purchaseByGroup, pledgeGroup, isLoggedIn, addToWishlist } from '../api';
+import { useRoute } from 'vue-router';
+import { getWishlist, removeFromWishlist, fetchGroups, fetchSeries, purchaseByGroup, pledgeGroup, isLoggedIn, addToWishlist, fetchVideo, getWishlistStatus } from '../api';
 import { chinaRegions } from '../data/chinaRegions';
 import NavBar from '../components/NavBar.vue';
 import BottomNav from '../components/BottomNav.vue';
+import InfiniteScrollTrigger from '../components/InfiniteScrollTrigger.vue';
 
 const toast = inject<{ show: (text: string, duration?: number, type?: string) => void }>('toast');
+const route = useRoute();
 const activeTab = ref<'shop' | 'wishlist'>('shop');
 
 // Shop state
 const groups = ref<any[]>([]);
 const seriesList = ref<any[]>([]);
 const activeSeries = ref('');
+const activeGroup = ref('');
 const shopLoading = ref(true);
 const shopBuying = ref<string>('');
+const shopPage = ref(1);
+const wishlistPage = ref(1);
+const chunkSize = 10;
 
 // Wishlist state
 const items = ref<any[]>([]);
 const wishlistLoading = ref(true);
+const shopWishlistStatus = ref<Record<string, boolean>>({});
+const shopWishlistCounts = ref<Record<string, number>>({});
 
 // Address modal state
 const showAddressModal = ref(false);
 const pendingPurchaseGroupId = ref('');
 const pendingDefaultVideoId = ref('');
+const pendingDefaultVideoPoster = ref('');
+const pendingDefaultVideoTitle = ref('');
+const pendingDefaultVideoGroupId = ref('');
+const previewLookupLoading = ref(false);
+const previewLookupError = ref('');
 const addressForm = ref({ recipient_name: '', phone: '', province: '', city: '', district: '', address: '', default_video_id: '' });
+
+const formatContentId = (id?: string) => id ? id.replace(/-/g, '').toUpperCase() : '';
+const normalizeContentIdInput = (id?: string) => (id || '').replace(/[^0-9a-zA-Z]/g, '').toUpperCase();
+const copyText = async (text: string, successMessage = '已复制') => {
+  await navigator.clipboard.writeText(text);
+  toast?.show(successMessage, 2000, 'success');
+};
+
+const resolveCanonicalVideoId = (id?: string) => {
+  const compact = normalizeContentIdInput(id);
+  if (!compact) return '';
+  if (/^[0-9A-F]{32}$/.test(compact)) {
+    return `${compact.slice(0, 8)}-${compact.slice(8, 12)}-${compact.slice(12, 16)}-${compact.slice(16, 20)}-${compact.slice(20)}`.toLowerCase();
+  }
+  return id?.trim() || '';
+};
+
+const selectedDefaultPreview = computed(() => {
+  if (!pendingPurchaseGroupId.value) return null;
+  const group = groups.value.find((g: any) => g.id === pendingPurchaseGroupId.value);
+  if (!group) return null;
+  if (pendingDefaultVideoId.value) {
+    return {
+      id: pendingDefaultVideoId.value,
+      title: pendingDefaultVideoTitle.value || group.official_default_video_title || '已选默认内容',
+      poster_url: pendingDefaultVideoPoster.value || group.official_default_video_poster || '',
+    };
+  }
+  if (group.official_default_video_id) {
+    return {
+      id: group.official_default_video_id,
+      title: group.official_default_video_title || '官方默认内容',
+      poster_url: group.official_default_video_poster || '',
+    };
+  }
+  return null;
+});
+
+const lookupDefaultPreview = async (rawId: string) => {
+  const canonicalId = resolveCanonicalVideoId(rawId);
+  if (!canonicalId) {
+    previewLookupError.value = '';
+    return;
+  }
+
+  previewLookupLoading.value = true;
+  previewLookupError.value = '';
+  try {
+    const data = await fetchVideo(canonicalId);
+    if (!data?.id || data?.error) {
+      previewLookupError.value = '未找到该内容，请检查内容 ID 是否正确';
+      return;
+    }
+    if (pendingDefaultVideoGroupId.value && data.group_id !== pendingDefaultVideoGroupId.value) {
+      previewLookupError.value = '该内容不属于当前要购买的 IP，请重新输入';
+      return;
+    }
+    pendingDefaultVideoId.value = data.id;
+    pendingDefaultVideoPoster.value = data.poster_url || '';
+    pendingDefaultVideoTitle.value = data.title || '已选默认内容';
+    addressForm.value.default_video_id = formatContentId(data.id);
+  } finally {
+    previewLookupLoading.value = false;
+  }
+};
 
 // Cascade address selectors
 const availableCities = computed(() => {
@@ -42,12 +121,38 @@ const filteredGroups = computed(() => {
   return groups.value.filter(g => g.series_id === activeSeries.value);
 });
 
+const visibleShopGroups = computed(() => {
+  const base = activeGroup.value
+    ? groups.value.filter(g => g.id === activeGroup.value)
+    : filteredGroups.value;
+  return base.slice(0, shopPage.value * chunkSize);
+});
+const shopHasMore = computed(() => {
+  const total = activeGroup.value ? groups.value.filter(g => g.id === activeGroup.value).length : filteredGroups.value.length;
+  return visibleShopGroups.value.length < total;
+});
+const visibleWishlistItems = computed(() => items.value.slice(0, wishlistPage.value * chunkSize));
+const wishlistHasMore = computed(() => visibleWishlistItems.value.length < items.value.length);
+
 const loadShop = async () => {
   shopLoading.value = true;
   const [grps, srs] = await Promise.all([fetchGroups(), fetchSeries()]);
   groups.value = grps;
   seriesList.value = srs;
+  await loadShopWishlistMeta(grps);
   shopLoading.value = false;
+};
+
+const loadShopWishlistMeta = async (groupList = groups.value) => {
+  const entries = await Promise.all(groupList.map(async (group: any) => {
+    const { inWishlist, count } = await getWishlistStatus(group.id);
+    return { id: group.id, inWishlist: !!inWishlist, count: count || 0 };
+  }));
+
+  for (const entry of entries) {
+    shopWishlistStatus.value[entry.id] = entry.inWishlist;
+    shopWishlistCounts.value[entry.id] = entry.count;
+  }
 };
 
 const loadWishlist = async () => {
@@ -56,13 +161,36 @@ const loadWishlist = async () => {
   wishlistLoading.value = false;
 };
 
-const switchSeries = (id: string) => { activeSeries.value = id; };
+const switchSeries = (id: string) => {
+  activeSeries.value = id;
+  shopPage.value = 1;
+  if (!id) return;
+  const selectedGroup = groups.value.find(g => g.id === activeGroup.value);
+  if (selectedGroup && selectedGroup.series_id !== id) {
+    activeGroup.value = '';
+  }
+};
 
-const openAddressModal = (groupId: string, defaultVideoId?: string) => {
+const switchGroup = (id: string) => {
+  activeGroup.value = id;
+  shopPage.value = 1;
+  if (!id) return;
+  const selectedGroup = groups.value.find(g => g.id === id);
+  if (selectedGroup) {
+    activeSeries.value = selectedGroup.series_id || '';
+  }
+};
+
+const openAddressModal = (groupId: string, defaultVideoId?: string, meta?: { poster?: string; title?: string }) => {
   if (!isLoggedIn()) { toast?.show('请先登录再购买', 2500, 'error'); return; }
   pendingPurchaseGroupId.value = groupId;
-  pendingDefaultVideoId.value = defaultVideoId || '';
-  addressForm.value = { recipient_name: '', phone: '', province: '', city: '', district: '', address: '', default_video_id: defaultVideoId || '' };
+  pendingDefaultVideoGroupId.value = groupId;
+  pendingDefaultVideoId.value = resolveCanonicalVideoId(defaultVideoId) || '';
+  pendingDefaultVideoPoster.value = meta?.poster || '';
+  pendingDefaultVideoTitle.value = meta?.title || '';
+  previewLookupError.value = '';
+  previewLookupLoading.value = false;
+  addressForm.value = { recipient_name: '', phone: '', province: '', city: '', district: '', address: '', default_video_id: formatContentId(defaultVideoId) || '' };
   showAddressModal.value = true;
 };
 
@@ -72,9 +200,17 @@ const submitPurchase = async () => {
     toast?.show('请填写收件人、手机号和地址', 2500, 'error');
     return;
   }
+  if (previewLookupLoading.value) {
+    toast?.show('正在校验默认内容，请稍候', 2200, 'error');
+    return;
+  }
+  if (previewLookupError.value) {
+    toast?.show(previewLookupError.value, 2500, 'error');
+    return;
+  }
   shopBuying.value = pendingPurchaseGroupId.value;
   showAddressModal.value = false;
-  const data = await purchaseByGroup(pendingPurchaseGroupId.value, addressForm.value, default_video_id || undefined);
+  const data = await purchaseByGroup(pendingPurchaseGroupId.value, addressForm.value, resolveCanonicalVideoId(default_video_id) || undefined);
   shopBuying.value = '';
   if (data.success) {
     toast?.show('下单成功，官方将尽快发货', 3000, 'success');
@@ -86,7 +222,10 @@ const submitPurchase = async () => {
 };
 
 const handleShopPurchase = (group: any) => {
-  openAddressModal(group.id);
+  openAddressModal(group.id, group.official_default_video_id, {
+    poster: group.official_default_video_poster,
+    title: group.official_default_video_title,
+  });
 };
 
 const handlePledge = async (group: any) => {
@@ -101,8 +240,12 @@ const handlePledge = async (group: any) => {
 };
 
 const handleAddWishlist = async (group: any) => {
-  await addToWishlist(group.id);
-  toast?.show(`已将「${group.name}」加入心愿单`, 2500, 'heart');
+  const result = await addToWishlist(group.id, group.official_default_video_id || undefined);
+  shopWishlistStatus.value[group.id] = !!result?.inWishlist;
+  shopWishlistCounts.value[group.id] = result?.count || 0;
+  toast?.show(result?.added === false
+    ? `「${group.name}」已在心愿单，当前 ${shopWishlistCounts.value[group.id] || 0} 人已加入`
+    : `已将「${group.name}」加入心愿单，当前 ${shopWishlistCounts.value[group.id] || 0} 人已加入`, 2500, 'heart');
   // Reload wishlist to reflect the new item
   items.value = await getWishlist();
 };
@@ -111,14 +254,55 @@ const handleAddWishlist = async (group: any) => {
 const handleRemove = async (groupId: string) => {
   await removeFromWishlist(groupId);
   items.value = items.value.filter(i => i.group_id !== groupId);
+  const { inWishlist, count } = await getWishlistStatus(groupId);
+  shopWishlistStatus.value[groupId] = !!inWishlist;
+  shopWishlistCounts.value[groupId] = count || 0;
   toast?.show('已移出心愿单');
 };
 
 const handlePurchase = (item: any) => {
-  openAddressModal(item.group_id, item.default_video_id);
+  openAddressModal(item.group_id, item.default_video_id, {
+    poster: item.video_poster,
+    title: item.video_title,
+  });
 };
 
-onMounted(() => { loadShop(); loadWishlist(); });
+watch(() => addressForm.value.default_video_id, (value) => {
+  if (!showAddressModal.value) return;
+  const compact = normalizeContentIdInput(value);
+  previewLookupError.value = '';
+
+  if (!compact) {
+    const group = groups.value.find((g: any) => g.id === pendingPurchaseGroupId.value);
+    pendingDefaultVideoId.value = group?.official_default_video_id || '';
+    pendingDefaultVideoPoster.value = group?.official_default_video_poster || '';
+    pendingDefaultVideoTitle.value = group?.official_default_video_title || '';
+    previewLookupLoading.value = false;
+    return;
+  }
+
+  if (compact.length < 32) {
+    previewLookupLoading.value = false;
+    return;
+  }
+
+  lookupDefaultPreview(compact);
+});
+
+onMounted(async () => {
+  await Promise.all([loadShop(), loadWishlist()]);
+  const tab = route.query.tab;
+  if (tab === 'wishlist' || tab === 'shop') activeTab.value = tab;
+  const groupId = typeof route.query.groupId === 'string' ? route.query.groupId : '';
+  const defaultVideoId = typeof route.query.defaultVideoId === 'string' ? route.query.defaultVideoId : '';
+  if (groupId) {
+    const group = groups.value.find((g: any) => g.id === groupId);
+    openAddressModal(groupId, defaultVideoId || group?.official_default_video_id, {
+      poster: group?.official_default_video_poster,
+      title: defaultVideoId ? '当前内容' : group?.official_default_video_title,
+    });
+  }
+});
 
 // Reload wishlist data when switching to wishlist tab
 watch(activeTab, (tab) => {
@@ -149,8 +333,13 @@ watch(activeTab, (tab) => {
         <button v-for="s in seriesList" :key="s.id" class="filter-chip" :class="{ active: activeSeries === s.id }" @click="switchSeries(s.id)">{{ s.name }}</button>
       </div>
 
-      <div class="shop-grid" v-if="!shopLoading && filteredGroups.length > 0">
-        <div v-for="g in filteredGroups" :key="g.id" class="shop-card">
+      <div class="wp-filters" v-if="groups.length > 0">
+        <button class="filter-chip" :class="{ active: activeGroup === '' }" @click="switchGroup('')">全部IP</button>
+        <button v-for="g in groups" :key="g.id" class="filter-chip" :class="{ active: activeGroup === g.id }" @click="switchGroup(g.id)">{{ g.name }}</button>
+      </div>
+
+      <div class="shop-grid" v-if="!shopLoading && visibleShopGroups.length > 0">
+        <div v-for="g in visibleShopGroups" :key="g.id" class="shop-card">
           <div class="shop-card-top">
             <div class="shop-card-header">
               <h3 class="shop-name">{{ g.name }}</h3>
@@ -183,10 +372,15 @@ watch(activeTab, (tab) => {
             <button v-else class="shop-buy-btn" disabled>
               {{ g.sale_status === 'sold_out' ? '售罄' : '已结束' }}
             </button>
-            <button class="shop-wish-btn" @click="handleAddWishlist(g)" title="加入心愿单">♡</button>
+            <button class="shop-wish-btn" :class="{ active: shopWishlistStatus[g.id] }" @click="handleAddWishlist(g)" :title="shopWishlistStatus[g.id] ? '已在心愿单' : '加入心愿单'">
+              <span class="shop-wish-icon">♡</span>
+              <span class="shop-wish-text">{{ shopWishlistStatus[g.id] ? '已在心愿单' : '加入心愿单' }}</span>
+              <span class="shop-wish-count">{{ shopWishlistCounts[g.id] || 0 }}</span>
+            </button>
           </div>
         </div>
       </div>
+      <InfiniteScrollTrigger v-if="!shopLoading && visibleShopGroups.length > 0" :loading="false" :has-more="shopHasMore" @load-more="shopPage++" />
       <div class="wp-empty" v-else-if="!shopLoading">
         <p class="empty-icon">🏪</p>
         <p>暂无可购买的IP实体</p>
@@ -204,7 +398,7 @@ watch(activeTab, (tab) => {
         <button class="empty-cta" @click="activeTab = 'shop'">去商城</button>
       </div>
       <TransitionGroup v-else name="wish-list" tag="div" class="w-list">
-        <div v-for="(item, idx) in items" :key="item.group_id" class="w-card" :style="{ '--i': idx }">
+        <div v-for="(item, idx) in visibleWishlistItems" :key="item.group_id" class="w-card" :style="{ '--i': idx }">
           <div class="w-card-main">
             <div class="w-card-cover">
               <img v-if="item.video_poster" :src="item.video_poster" alt="" />
@@ -212,16 +406,17 @@ watch(activeTab, (tab) => {
             </div>
             <div class="w-card-info">
               <h3 class="w-card-name">{{ item.group_name }}</h3>
-              <p class="w-card-default" v-if="item.video_title">默认: {{ item.video_title }}</p>
+               <p class="w-card-default" v-if="item.video_title">已记录默认内容：{{ item.video_title }}</p>
               <p class="w-card-default w-card-none" v-else>未指定默认内容</p>
             </div>
             <button class="w-card-remove" @click.stop="handleRemove(item.group_id)">×</button>
           </div>
           <div class="w-card-purchase">
-            <button class="w-buy-btn" @click.stop="handlePurchase(item)">购买</button>
+             <button class="w-buy-btn" @click.stop="handlePurchase(item)">购买并带入默认内容</button>
           </div>
         </div>
       </TransitionGroup>
+      <InfiniteScrollTrigger v-if="!wishlistLoading && visibleWishlistItems.length > 0" :loading="false" :has-more="wishlistHasMore" @load-more="wishlistPage++" />
     </div>
 
     <!-- Address Modal -->
@@ -265,9 +460,25 @@ watch(activeTab, (tab) => {
             <input v-model="addressForm.address" placeholder="街道、门牌号等" />
           </div>
           <div class="addr-field">
-            <label>默认内容ID（可选）</label>
-            <input v-model="addressForm.default_video_id" placeholder="不填则使用官方指定默认" />
+             <label>默认内容 ID（可选）</label>
+             <input v-model="addressForm.default_video_id" placeholder="可粘贴扩展内容 ID；不填则使用官方指定默认内容" />
           </div>
+           <p class="addr-helper">你可以直接粘贴内容详情页复制的扩展内容 ID，我会自动识别并展示对应封面与标题。</p>
+          <div v-if="selectedDefaultPreview" class="addr-default-preview">
+            <div class="addr-default-cover">
+              <img v-if="selectedDefaultPreview.poster_url" :src="selectedDefaultPreview.poster_url" alt="" />
+              <div v-else class="addr-default-placeholder">封面</div>
+            </div>
+            <div class="addr-default-info">
+              <p class="addr-default-label">本次默认内容</p>
+              <p class="addr-default-title">{{ selectedDefaultPreview.title }}</p>
+              <button class="addr-default-id" type="button" @click="copyText(formatContentId(addressForm.default_video_id || selectedDefaultPreview.id), '内容ID已复制')">
+                内容ID：{{ formatContentId(addressForm.default_video_id || selectedDefaultPreview.id) }}
+              </button>
+            </div>
+          </div>
+           <p v-if="previewLookupLoading" class="addr-status">正在识别默认内容…</p>
+           <p v-else-if="previewLookupError" class="addr-status addr-status--error">{{ previewLookupError }}</p>
           <div class="addr-actions">
             <button class="addr-cancel" @click="showAddressModal = false">取消</button>
             <button class="addr-submit" @click="submitPurchase">确认下单</button>
@@ -357,12 +568,19 @@ watch(activeTab, (tab) => {
 .shop-buy-btn--crowd { background: #ff9800; }
 .shop-buy-btn--crowd:hover { opacity: 0.9; }
 .shop-wish-btn {
-  width: 42px; height: 42px; border: 1px solid #eee; border-radius: 10px;
-  background: #fff; color: #ff6b8a; font-size: 18px; cursor: pointer;
-  display: flex; align-items: center; justify-content: center;
-  transition: all 0.12s;
+  border: 1px solid #eee; border-radius: 10px; background: #fff; color: #ff6b8a;
+  cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
+  gap: 6px; padding: 0 12px; min-height: 42px; transition: all 0.12s;
 }
 .shop-wish-btn:hover { border-color: #ff6b8a; background: #fff5f7; }
+.shop-wish-btn.active { border-color: #ffc4d0; background: #fff5f7; color: #e64980; }
+.shop-wish-icon { font-size: 18px; line-height: 1; }
+.shop-wish-text { font-size: 12px; font-weight: 600; white-space: nowrap; }
+.shop-wish-count {
+  min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px;
+  background: rgba(255, 107, 138, 0.12); color: inherit; font-size: 11px; font-weight: 700;
+  display: inline-flex; align-items: center; justify-content: center;
+}
 
 /* Empty & Loading */
 .wp-empty { text-align: center; padding: 80px 24px; color: #999; }
@@ -484,11 +702,35 @@ watch(activeTab, (tab) => {
   width: 100%; padding: 10px 12px; border: 1px solid #e8e8e8; border-radius: 8px;
   font-size: 14px; outline: none; box-sizing: border-box; background: #fff;
 }
+.addr-helper {
+  margin: -4px 0 12px; font-size: 12px; line-height: 1.6; color: #8a7aa8;
+}
 .addr-field input:focus, .addr-field select:focus { border-color: #7c4dff; }
 .addr-field select:disabled { background: #f5f5f5; color: #999; }
 .addr-row { display: flex; gap: 8px; }
 .addr-row .addr-field { flex: 1; }
 .addr-actions { display: flex; gap: 8px; margin-top: 16px; }
+.addr-default-preview {
+  display: flex; gap: 12px; align-items: center; padding: 12px; border-radius: 12px;
+  background: #faf7ff; border: 1px solid #eee6ff; margin-top: 4px;
+}
+.addr-default-cover {
+  width: 56px; height: 72px; border-radius: 10px; overflow: hidden; background: #f0ebff; flex-shrink: 0;
+}
+.addr-default-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.addr-default-placeholder {
+  width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;
+  color: #8f79d9; font-size: 12px;
+}
+.addr-default-info { min-width: 0; flex: 1; }
+.addr-default-label { margin: 0 0 4px; font-size: 12px; color: #8c7ca8; }
+.addr-default-title { margin: 0 0 8px; font-size: 14px; color: #1a1a1a; font-weight: 600; }
+.addr-default-id {
+  border: none; background: #fff; color: #7c4dff; border-radius: 999px; padding: 6px 10px;
+  font-size: 12px; font-family: monospace; cursor: pointer; max-width: 100%; overflow: hidden; text-overflow: ellipsis;
+}
+.addr-status { margin: 10px 2px 0; font-size: 12px; color: #7c4dff; }
+.addr-status--error { color: #dc2626; }
 .addr-cancel {
   flex: 1; padding: 10px; border: 1px solid #eee; border-radius: 10px;
   background: #fff; color: #666; font-size: 14px; cursor: pointer;

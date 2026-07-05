@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, inject, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { fetchVideo, fetchGroups, interact, addToWishlist, getWishlistStatus, batchInteractions } from '../api';
+import { fetchVideo, fetchGroups, interact, addToWishlist, getWishlistStatus, batchInteractions, isLoggedIn } from '../api';
 import NavBar from '../components/NavBar.vue';
 
 const route = useRoute();
@@ -14,9 +14,15 @@ const interactions = ref<any>({});
 const isLiked = ref(false);
 const isFaved = ref(false);
 const wishlistActive = ref(false);
+const wishlistCount = ref(0);
 const videoEl = ref<HTMLVideoElement | null>(null);
 const showRemixPanel = ref(false);
 const promptCopied = ref(false);
+
+const formatContentId = (id?: string) => {
+  if (!id) return '-';
+  return id.replace(/-/g, '').toUpperCase();
+};
 
 onMounted(async () => {
   const id = route.params.id as string;
@@ -29,8 +35,9 @@ onMounted(async () => {
     interactions.value = batch[video.value.id] || {};
   }
   if (video.value?.group_id) {
-    const { inWishlist } = await getWishlistStatus(video.value.group_id);
+    const { inWishlist, count } = await getWishlistStatus(video.value.group_id);
     wishlistActive.value = inWishlist;
+    wishlistCount.value = count || 0;
   }
 });
 
@@ -47,14 +54,36 @@ const playFullscreen = () => {
 
 const handleLike = async () => {
   if (!video.value) return;
-  isLiked.value = true;
-  interactions.value = await interact(video.value.id, 'like');
+  if (!isLoggedIn()) {
+    toast?.show('请先登录再点赞');
+    router.push('/login');
+    return;
+  }
+  const result = await interact(video.value.id, 'like');
+  if (result?.requires_login) {
+    toast?.show(result.error || '请先登录再点赞');
+    router.push('/login');
+    return;
+  }
+  isLiked.value = !!result?.liked;
+  interactions.value = result;
 };
 
 const handleFavorite = async () => {
   if (!video.value) return;
-  isFaved.value = true;
-  interactions.value = await interact(video.value.id, 'favorite');
+  if (!isLoggedIn()) {
+    toast?.show('请先登录再喜欢');
+    router.push('/login');
+    return;
+  }
+  const result = await interact(video.value.id, 'favorite');
+  if (result?.requires_login) {
+    toast?.show(result.error || '请先登录再喜欢');
+    router.push('/login');
+    return;
+  }
+  isFaved.value = !!result?.favorited;
+  interactions.value = result;
 };
 
 const handleShare = async () => {
@@ -79,9 +108,23 @@ const handleWishlist = async () => {
       toast?.show('该IP暂时无法购买，已加入心愿单等待补货');
     }
   } catch {}
-  await addToWishlist(video.value.group_id, video.value.id);
-  wishlistActive.value = true;
-  toast?.show(`已将「${video.value.group_name || 'IP'}」加入心愿单 ♥`);
+  const result = await addToWishlist(video.value.group_id, video.value.id);
+  wishlistActive.value = !!result?.inWishlist;
+  wishlistCount.value = result?.count || 0;
+  toast?.show(result?.added === false
+    ? `「${video.value.group_name || 'IP'}」已在心愿单，当前 ${wishlistCount.value} 人已加入`
+    : `已将「${video.value.group_name || 'IP'}」加入心愿单，当前 ${wishlistCount.value} 人已加入`);
+};
+
+const handleBuy = () => {
+  if (!video.value?.group_id || !video.value?.id) return;
+  router.push(`/wishlist?tab=shop&groupId=${encodeURIComponent(video.value.group_id)}&defaultVideoId=${encodeURIComponent(video.value.id)}`);
+};
+
+const copyContentId = async () => {
+  if (!video.value?.id) return;
+  await navigator.clipboard.writeText(formatContentId(video.value.id));
+  toast?.show('内容ID已复制');
 };
 
 const remixPrompt = computed(() => {
@@ -136,8 +179,9 @@ const goBack = () => {
       <div class="detail-info">
         <h1 class="detail-title">{{ video.title }}</h1>
         <div class="detail-meta">
-          <span class="detail-group" v-if="video.group_name">{{ video.group_name }}</span>
-          <span class="detail-id">ID: {{ video.id.slice(0, 8) }}</span>
+          <span class="detail-group detail-series" v-if="video.series_name">系列 · {{ video.series_name }}</span>
+          <span class="detail-group" v-if="video.group_name">IP · {{ video.group_name }}</span>
+          <button class="detail-id detail-id-btn" @click="copyContentId">内容ID：{{ formatContentId(video.id) }}</button>
         </div>
       </div>
 
@@ -156,9 +200,16 @@ const goBack = () => {
         </button>
         <button class="act-btn" :class="{ active: wishlistActive }" @click="handleWishlist">
           <svg viewBox="0 0 24 24" width="20" height="20" :fill="wishlistActive ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="2"><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13"/><path d="M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7"/></svg>
-          <span>{{ wishlistActive ? '已心愿' : '心愿单' }}</span>
+          <span>{{ wishlistActive ? '已在心愿单' : '加入心愿单' }}</span>
+          <span class="detail-badge">{{ wishlistCount }}</span>
+        </button>
+        <button class="act-btn act-btn-buy" @click="handleBuy">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+          <span>购买所属 IP</span>
         </button>
       </div>
+
+      <p class="detail-action-hint">点击购买后会自动带上当前内容 ID，方便直接将这条内容设为默认内容。</p>
 
       <!-- Remix tutorial section -->
       <div class="remix-section">
@@ -240,19 +291,35 @@ const goBack = () => {
   font-size: 12px; color: #7c4dff; background: #f3eeff;
   padding: 3px 10px; border-radius: 6px;
 }
+.detail-series { background: #f6f7fb; color: #5d6472; }
 .detail-id { font-size: 11px; color: #999; font-family: monospace; }
+.detail-id-btn {
+  border: none; background: #f5f2ff; color: #7c4dff; padding: 4px 10px; border-radius: 999px;
+  cursor: pointer; font-family: monospace;
+}
+.detail-id-btn:hover { background: #eee7ff; }
 
 .detail-actions {
-  display: flex; gap: 8px; padding: 12px 0; border-top: 1px solid #f0f0f0;
+  display: flex; gap: 10px; padding: 14px 0; border-top: 1px solid #f0f0f0; flex-wrap: wrap;
 }
 .act-btn {
   display: flex; align-items: center; gap: 6px;
-  padding: 8px 14px; border: 1px solid #eee; border-radius: 10px;
+  padding: 10px 14px; border: 1px solid #eee; border-radius: 999px;
   background: #fff; font-size: 13px; color: #666; cursor: pointer;
   transition: all 0.15s;
 }
 .act-btn:hover { border-color: #ddd; color: #333; }
 .act-btn.active { color: #ff4d6a; border-color: #ffe0e6; background: #fff8f9; }
+.act-btn-buy { color: #7c4dff; border-color: #e8defe; background: #faf7ff; }
+.act-btn-buy:hover { border-color: #d7c5ff; color: #6a3de8; }
+.detail-badge {
+  min-width: 18px; height: 18px; border-radius: 999px; padding: 0 6px;
+  background: #f3efff; color: #7c4dff; display: inline-flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 700;
+}
+.detail-action-hint {
+  margin: 10px 0 0; font-size: 12px; line-height: 1.6; color: #8a7aa8;
+}
 
 .detail-comments {
   margin-top: 24px; padding: 20px; background: #f9f9f9;

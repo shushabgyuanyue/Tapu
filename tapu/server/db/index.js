@@ -11,6 +11,22 @@ const SCHEMA_PATH = path.join(__dirname, 'schema.sql');
 
 let db;
 
+function runSchemaSafely(database, schema) {
+  const statements = schema
+    .split(';')
+    .map(statement => statement.trim())
+    .filter(Boolean);
+
+  for (const statement of statements) {
+    try {
+      database.run(`${statement};`);
+    } catch (error) {
+      // Old databases may miss columns referenced by newer indexes/constraints.
+      // Ignore schema bootstrap errors here and rely on explicit migrations below.
+    }
+  }
+}
+
 export async function getDb() {
   if (db) return db;
 
@@ -25,7 +41,7 @@ export async function getDb() {
 
   // Run schema
   const schema = fs.readFileSync(SCHEMA_PATH, 'utf-8');
-  db.run(schema);
+  runSchemaSafely(db, schema);
 
   // Migrations: add columns if missing
   const migrations = [
@@ -38,9 +54,12 @@ export async function getDb() {
     'ALTER TABLE groups ADD COLUMN crowdfund_deadline TEXT',
     'ALTER TABLE groups ADD COLUMN price REAL DEFAULT 0',
     'ALTER TABLE groups ADD COLUMN stock_limit INTEGER DEFAULT 0',
+    'ALTER TABLE entities ADD COLUMN user_id TEXT',
     'ALTER TABLE entities ADD COLUMN entity_key TEXT',
     'ALTER TABLE users ADD COLUMN is_creator INTEGER DEFAULT 0',
+    'ALTER TABLE interactions ADD COLUMN user_id TEXT',
     'ALTER TABLE wishlist ADD COLUMN fingerprint TEXT',
+    'ALTER TABLE wishlist ADD COLUMN default_video_id TEXT',
     `CREATE TABLE IF NOT EXISTS crowdfund_pledges (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id TEXT NOT NULL,
@@ -74,6 +93,12 @@ export async function getDb() {
   for (const sql of migrations) {
     try { db.run(sql); } catch (e) { /* Column already exists */ }
   }
+
+  try {
+    db.run(`CREATE UNIQUE INDEX IF NOT EXISTS idx_interactions_user_unique
+      ON interactions(video_id, type, user_id)
+      WHERE user_id IS NOT NULL AND type IN ('like', 'favorite')`);
+  } catch (e) { /* ignore */ }
 
   saveDb();
 

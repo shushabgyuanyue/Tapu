@@ -3,6 +3,17 @@ import { getDb, saveDb } from '../db/index.js';
 
 const router = Router();
 
+function normalizeVideoId(rawId) {
+  if (!rawId || typeof rawId !== 'string') return null;
+  const trimmed = rawId.trim();
+  if (!trimmed) return null;
+  const compact = trimmed.replace(/-/g, '');
+  if (/^[0-9a-fA-F]{32}$/.test(compact)) {
+    return `${compact.slice(0, 8)}-${compact.slice(8, 12)}-${compact.slice(12, 16)}-${compact.slice(16, 20)}-${compact.slice(20)}`.toLowerCase();
+  }
+  return trimmed;
+}
+
 // Get user's wishlist
 router.get('/', async (req, res) => {
   const db = await getDb();
@@ -64,7 +75,9 @@ router.get('/:groupId/status', async (req, res) => {
   );
 
   const inWishlist = results && results.length > 0 && results[0].values.length > 0;
-  res.json({ inWishlist });
+  const countR = db.exec('SELECT COUNT(*) FROM wishlist WHERE group_id = ?', [groupId]);
+  const count = countR?.[0]?.values?.[0]?.[0] || 0;
+  res.json({ inWishlist, count });
 });
 
 // Add group to wishlist
@@ -72,9 +85,15 @@ router.post('/:groupId', async (req, res) => {
   const { groupId } = req.params;
   const db = await getDb();
   const fingerprint = req.headers['x-fingerprint'] || req.ip || 'anonymous';
-  const defaultVideoId = req.body?.default_video_id || null;
+  const defaultVideoId = normalizeVideoId(req.body?.default_video_id) || null;
 
   try {
+    const existing = db.exec(
+      'SELECT id FROM wishlist WHERE group_id = ? AND fingerprint = ? LIMIT 1',
+      [groupId, fingerprint]
+    );
+    const alreadyInWishlist = !!existing?.[0]?.values?.length;
+
     db.run(
       'INSERT OR IGNORE INTO wishlist (group_id, fingerprint, default_video_id) VALUES (?, ?, ?)',
       [groupId, fingerprint, defaultVideoId]
@@ -87,7 +106,9 @@ router.post('/:groupId', async (req, res) => {
       );
     }
     saveDb();
-    res.json({ success: true });
+    const countR = db.exec('SELECT COUNT(*) FROM wishlist WHERE group_id = ?', [groupId]);
+    const count = countR?.[0]?.values?.[0]?.[0] || 0;
+    res.json({ success: true, added: !alreadyInWishlist, inWishlist: true, count });
   } catch (err) {
     res.status(500).json({ error: 'Failed to add to wishlist' });
   }
@@ -104,13 +125,15 @@ router.delete('/:groupId', async (req, res) => {
     [groupId, fingerprint]
   );
   saveDb();
-  res.json({ success: true });
+  const countR = db.exec('SELECT COUNT(*) FROM wishlist WHERE group_id = ?', [groupId]);
+  const count = countR?.[0]?.values?.[0]?.[0] || 0;
+  res.json({ success: true, inWishlist: false, count });
 });
 
 // Set/update default video for a wishlist item
 router.put('/:groupId/default', async (req, res) => {
   const { groupId } = req.params;
-  const { videoId } = req.body;
+  const videoId = normalizeVideoId(req.body?.videoId);
   const db = await getDb();
   const fingerprint = req.headers['x-fingerprint'] || req.ip || 'anonymous';
 

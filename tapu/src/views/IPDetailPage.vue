@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted, computed, inject } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import {
   fetchGroup, fetchVideos, getPledgeCount, getPledgeStatus,
@@ -9,6 +9,7 @@ import NavBar from '../components/NavBar.vue';
 
 const route = useRoute();
 const router = useRouter();
+const toast = inject<{ show: (text: string, duration?: number, type?: string) => void }>('toast');
 const groupId = route.params.id as string;
 
 const group = ref<any>(null);
@@ -16,6 +17,7 @@ const videos = ref<any[]>([]);
 const pledgeCount = ref(0);
 const hasPledged = ref(false);
 const inWishlist = ref(false);
+const wishlistCount = ref(0);
 const loading = ref(true);
 const purchasing = ref(false);
 const purchasedKey = ref('');
@@ -43,6 +45,7 @@ const loadData = async () => {
   }
   const ws = await getWishlistStatus(groupId);
   inWishlist.value = ws.inWishlist;
+  wishlistCount.value = ws.count || 0;
 
   loading.value = false;
 };
@@ -78,9 +81,12 @@ const handlePledge = async () => {
 };
 
 const handleWishlist = async () => {
-  if (inWishlist.value) return;
-  await addToWishlist(groupId);
-  inWishlist.value = true;
+  const result = await addToWishlist(groupId);
+  inWishlist.value = !!result?.inWishlist;
+  wishlistCount.value = result?.count || 0;
+  toast?.show(result?.added === false
+    ? `「${group.value?.name || 'IP'}」已在心愿单，当前 ${wishlistCount.value} 人已加入`
+    : `已将「${group.value?.name || 'IP'}」加入心愿单，当前 ${wishlistCount.value} 人已加入`, 2500, 'heart');
 };
 
 const goPlay = (id: string) => {
@@ -151,7 +157,8 @@ onMounted(loadData);
       <div class="ip-action-bar" v-if="!purchasedKey">
         <button class="ip-wish-btn" :class="{ active: inWishlist }" @click="handleWishlist">
           <svg viewBox="0 0 24 24" width="18" height="18" :fill="inWishlist ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="2"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>
-          {{ inWishlist ? '已心愿' : '心愿单' }}
+          <span>{{ inWishlist ? '已在心愿单' : '加入心愿单' }}</span>
+          <span class="ip-wish-count">{{ wishlistCount }}</span>
         </button>
         <button v-if="hasStock" class="ip-buy-btn" :disabled="purchasing" @click="handlePurchase">
           {{ purchasing ? '处理中...' : '立即购买' }}
@@ -256,6 +263,11 @@ onMounted(loadData);
   background: #fff; font-size: 13px; color: #666; cursor: pointer;
 }
 .ip-wish-btn.active { color: #ff4d6a; border-color: #ffcdd2; }
+.ip-wish-count {
+  min-width: 22px; height: 22px; padding: 0 8px; border-radius: 999px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: #fff5f7; color: #ff4d6a; font-size: 11px; font-weight: 700;
+}
 .ip-buy-btn {
   flex: 1; max-width: 240px; padding: 12px 24px;
   background: #7c4dff; color: #fff; border: none; border-radius: 10px;

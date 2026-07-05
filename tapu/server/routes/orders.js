@@ -22,19 +22,40 @@ function adminOnly(req, res, next) {
   next();
 }
 
+function parsePositiveInt(value, fallback) {
+  const num = Number.parseInt(value, 10);
+  return Number.isFinite(num) && num > 0 ? num : fallback;
+}
+
 // List all orders (admin only)
 router.get('/', authRequired, adminOnly, async (req, res) => {
   try {
     const db = await getDb();
+    const page = parsePositiveInt(req.query.page, 1);
+    const pageSize = parsePositiveInt(req.query.page_size, 10);
+    const shouldPaginate = req.query.page !== undefined || req.query.page_size !== undefined;
+    const totalResult = db.exec('SELECT COUNT(*) as total FROM orders');
+    const total = totalResult.length > 0 ? totalResult[0].values[0][0] : 0;
     const results = db.exec(
       `SELECT o.*, g.name as group_name, s.name as series_name, u.username as buyer_username
        FROM orders o
        LEFT JOIN groups g ON o.group_id = g.id
        LEFT JOIN series s ON g.series_id = s.id
        LEFT JOIN users u ON o.buyer_user_id = u.id
-       ORDER BY o.created_at DESC`
+       ORDER BY o.created_at DESC${shouldPaginate ? ' LIMIT ? OFFSET ?' : ''}`,
+      shouldPaginate ? [pageSize, (page - 1) * pageSize] : []
     );
-    res.json(resultToObjects(results));
+    const items = resultToObjects(results);
+    if (shouldPaginate) {
+      return res.json({
+        items,
+        total,
+        page,
+        pageSize,
+        totalPages: Math.max(1, Math.ceil(total / pageSize)),
+      });
+    }
+    res.json(items);
   } catch (error) {
     console.error('List orders error:', error);
     res.status(500).json({ error: 'Internal server error' });

@@ -15,10 +15,12 @@ import purchasesRouter from './routes/purchases.js';
 import ordersRouter from './routes/orders.js';
 import entitiesRouter from './routes/entities.js';
 import configRouter from './routes/config.js';
+import { getUploadsDir } from './services/storage.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = process.env.PORT || 3001;
+const uploadsDir = getUploadsDir();
 
 // CORS configuration from environment
 const corsOrigin = process.env.CORS_ORIGIN
@@ -29,9 +31,9 @@ app.use(express.json());
 
 // Serve uploaded videos with Range request support (required by Safari)
 app.use('/uploads', (req, res, next) => {
-  const filePath = path.join(__dirname, 'uploads', req.path);
+  const filePath = path.join(uploadsDir, req.path);
   if (!filePath.endsWith('.mp4')) {
-    return express.static(path.join(__dirname, 'uploads'))(req, res, next);
+    return express.static(uploadsDir)(req, res, next);
   }
 
   fs.stat(filePath, (err, stat) => {

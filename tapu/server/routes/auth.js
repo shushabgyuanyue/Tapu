@@ -6,6 +6,17 @@ import { authRequired, verifyEntityKey, generateEntityKey } from '../middleware/
 
 const router = express.Router();
 
+function normalizeVideoId(rawId) {
+  if (!rawId || typeof rawId !== 'string') return null;
+  const trimmed = rawId.trim();
+  if (!trimmed) return null;
+  const compact = trimmed.replace(/-/g, '');
+  if (/^[0-9a-fA-F]{32}$/.test(compact)) {
+    return `${compact.slice(0, 8)}-${compact.slice(8, 12)}-${compact.slice(12, 16)}-${compact.slice(16, 20)}-${compact.slice(20)}`.toLowerCase();
+  }
+  return trimmed;
+}
+
 function hashPassword(password) {
   return crypto.createHash('sha256').update(password).digest('hex');
 }
@@ -267,7 +278,7 @@ router.get('/entity-default/:entityId', authRequired, async (req, res) => {
 // Set default video for an entity
 router.put('/entity-default/:entityId', authRequired, async (req, res) => {
   try {
-    const { video_id } = req.body;
+    const video_id = normalizeVideoId(req.body?.video_id);
     if (!video_id) return res.status(400).json({ error: 'video_id is required' });
 
     const db = await getDb();
@@ -278,6 +289,21 @@ router.put('/entity-default/:entityId', authRequired, async (req, res) => {
       return res.status(403).json({ error: '无权操作该实体' });
     }
     const group_id = entities[0].group_id;
+
+    const videoResults = db.exec(
+      'SELECT id, group_id, status FROM videos WHERE id = ?',
+      [video_id]
+    );
+    const videos = resultToObjects(videoResults);
+    if (videos.length === 0) {
+      return res.status(404).json({ error: '默认内容不存在' });
+    }
+    if (videos[0].group_id !== group_id) {
+      return res.status(400).json({ error: '该内容不属于当前 IP' });
+    }
+    if (videos[0].status !== 'ready') {
+      return res.status(400).json({ error: '只能将就绪内容设为默认内容' });
+    }
 
     // Delete old default and insert new
     db.run('DELETE FROM user_defaults WHERE entity_id = ?', [req.params.entityId]);

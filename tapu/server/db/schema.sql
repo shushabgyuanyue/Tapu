@@ -57,9 +57,15 @@ CREATE TABLE IF NOT EXISTS interactions (
   video_id TEXT NOT NULL,
   type TEXT NOT NULL,
   fingerprint TEXT,
+  user_id TEXT,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (video_id) REFERENCES videos(id) ON DELETE CASCADE
+  FOREIGN KEY (video_id) REFERENCES videos(id) ON DELETE CASCADE,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_interactions_user_unique
+ON interactions(video_id, type, user_id)
+WHERE user_id IS NOT NULL AND type IN ('like', 'favorite');
 
 CREATE TABLE IF NOT EXISTS defaults (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

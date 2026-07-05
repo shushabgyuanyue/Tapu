@@ -5,6 +5,17 @@ import { authRequired } from '../middleware/auth.js';
 
 const router = Router();
 
+function normalizeVideoId(rawId) {
+  if (!rawId || typeof rawId !== 'string') return null;
+  const trimmed = rawId.trim();
+  if (!trimmed) return null;
+  const compact = trimmed.replace(/-/g, '');
+  if (/^[0-9a-fA-F]{32}$/.test(compact)) {
+    return `${compact.slice(0, 8)}-${compact.slice(8, 12)}-${compact.slice(12, 16)}-${compact.slice(16, 20)}-${compact.slice(20)}`.toLowerCase();
+  }
+  return trimmed;
+}
+
 function resultToObjects(results) {
   if (!results || results.length === 0) return [];
   const { columns, values } = results[0];
@@ -29,25 +40,48 @@ function computeSaleStatus(g) {
   return 'sold_out';
 }
 
+function parsePositiveInt(value, fallback) {
+  const num = Number.parseInt(value, 10);
+  return Number.isFinite(num) && num > 0 ? num : fallback;
+}
+
 // List groups (IPs), optionally filter by series_id
 router.get('/', async (req, res) => {
   const db = await getDb();
   const { series_id } = req.query;
+  const page = parsePositiveInt(req.query.page, 1);
+  const pageSize = parsePositiveInt(req.query.page_size, 10);
+  const shouldPaginate = req.query.page !== undefined || req.query.page_size !== undefined;
   let results;
   const baseQuery = `SELECT g.*, s.name as series_name,
+              ov.title as official_default_video_title,
+              ov.poster_url as official_default_video_poster,
               COUNT(e.id) as entity_count,
               COALESCE((SELECT COUNT(*) FROM crowdfund_pledges cp WHERE cp.group_id = g.id), 0) as pledge_count
        FROM groups g
        LEFT JOIN series s ON g.series_id = s.id
+       LEFT JOIN videos ov ON ov.id = g.official_default_video_id
        LEFT JOIN entities e ON e.group_id = g.id`;
+  const countSql = 'SELECT COUNT(*) as total FROM groups g';
+  let total = 0;
+
+  if (series_id) {
+    const countResults = db.exec(`${countSql} WHERE g.series_id = ?`, [series_id]);
+    total = countResults.length > 0 ? countResults[0].values[0][0] : 0;
+  } else {
+    const countResults = db.exec(countSql);
+    total = countResults.length > 0 ? countResults[0].values[0][0] : 0;
+  }
+
   if (series_id) {
     results = db.exec(
-      `${baseQuery} WHERE g.series_id = ? GROUP BY g.id ORDER BY g.created_at DESC`,
-      [series_id]
+      `${baseQuery} WHERE g.series_id = ? GROUP BY g.id ORDER BY g.created_at DESC${shouldPaginate ? ' LIMIT ? OFFSET ?' : ''}`,
+      shouldPaginate ? [series_id, pageSize, (page - 1) * pageSize] : [series_id]
     );
   } else {
     results = db.exec(
-      `${baseQuery} GROUP BY g.id ORDER BY g.created_at DESC`
+      `${baseQuery} GROUP BY g.id ORDER BY g.created_at DESC${shouldPaginate ? ' LIMIT ? OFFSET ?' : ''}`,
+      shouldPaginate ? [pageSize, (page - 1) * pageSize] : []
     );
   }
   const groups = resultToObjects(results);
@@ -58,6 +92,15 @@ router.get('/', async (req, res) => {
     g.available_count = stockLimit > 0 ? Math.max(0, stockLimit - soldCount) : 0;
     g.sale_status = computeSaleStatus(g);
   }
+  if (shouldPaginate) {
+    return res.json({
+      items: groups,
+      total,
+      page,
+      pageSize,
+      totalPages: Math.max(1, Math.ceil(total / pageSize)),
+    });
+  }
   res.json(groups);
 });
 
@@ -65,9 +108,13 @@ router.get('/', async (req, res) => {
 router.get('/:id', async (req, res) => {
   const db = await getDb();
   const results = db.exec(
-    `SELECT g.*, s.name as series_name, COUNT(e.id) as entity_count
+    `SELECT g.*, s.name as series_name,
+            ov.title as official_default_video_title,
+            ov.poster_url as official_default_video_poster,
+            COUNT(e.id) as entity_count
      FROM groups g
      LEFT JOIN series s ON g.series_id = s.id
+     LEFT JOIN videos ov ON ov.id = g.official_default_video_id
      LEFT JOIN entities e ON e.group_id = g.id
      WHERE g.id = ?
      GROUP BY g.id`,
@@ -116,10 +163,26 @@ router.delete('/:id', authRequired, async (req, res) => {
 
 // Set official default video for a group
 router.put('/:id/official-default', authRequired, async (req, res) => {
-  const { video_id } = req.body;
+  const video_id = normalizeVideoId(req.body?.video_id);
   if (!video_id) return res.status(400).json({ error: 'video_id is required' });
 
   const db = await getDb();
+
+  const videoResults = db.exec(
+    "SELECT id, group_id, status FROM videos WHERE id = ?",
+    [video_id]
+  );
+  const videos = resultToObjects(videoResults);
+  if (videos.length === 0) {
+    return res.status(404).json({ error: '默认视频不存在' });
+  }
+  if (videos[0].group_id !== req.params.id) {
+    return res.status(400).json({ error: '该视频不属于当前 IP' });
+  }
+  if (videos[0].status !== 'ready') {
+    return res.status(400).json({ error: '只能将就绪内容设为默认视频' });
+  }
+
   db.run('UPDATE groups SET official_default_video_id = ? WHERE id = ?', [video_id, req.params.id]);
   saveDb();
   res.json({ success: true, group_id: req.params.id, official_default_video_id: video_id });

@@ -5,6 +5,7 @@ import path from 'path';
 import { getDb, saveDb } from '../db/index.js';
 import { getUploadsDir, deleteFile } from '../services/storage.js';
 import { transcodeVideo } from '../services/transcode.js';
+import { deleteFromR2, getR2KeyFromUrl } from '../services/r2.js';
 import { authRequired, verifyEntityKey } from '../middleware/auth.js';
 
 const router = Router();
@@ -22,6 +23,16 @@ const upload = multer({
     }
   },
 });
+
+function normalizeVideoId(rawId) {
+  if (!rawId || typeof rawId !== 'string') return rawId;
+  const trimmed = rawId.trim();
+  const compact = trimmed.replace(/-/g, '');
+  if (/^[0-9a-fA-F]{32}$/.test(compact)) {
+    return `${compact.slice(0, 8)}-${compact.slice(8, 12)}-${compact.slice(12, 16)}-${compact.slice(16, 20)}-${compact.slice(20)}`.toLowerCase();
+  }
+  return trimmed;
+}
 
 function getEntityId(req) {
   // Only trust entity_id from verified key, not from spoofable headers
@@ -76,33 +87,48 @@ router.post('/upload', authRequired, upload.single('video'), async (req, res) =>
 // List videos
 router.get('/', optionalKeyVerify, async (req, res) => {
   const db = await getDb();
-  const { group_id, series_id, sort, q, page, limit: limitStr, all } = req.query;
+  const { group_id, series_id, sort, q, page, limit: limitStr, all, is_private } = req.query;
   const currentEntityId = getEntityId(req);
+  const searchQuery = typeof q === 'string' ? q.trim() : '';
 
   const pageNum = Math.max(1, parseInt(page) || 1);
   const limit = Math.min(50, Math.max(1, parseInt(limitStr) || 20));
   const offset = (pageNum - 1) * limit;
 
   // Admin/creator can see all videos including private
-  let privacyCondition = '1=1';
+  const conditions = [];
+  const params = [];
   if (!all) {
-    privacyCondition = currentEntityId ? `(v.is_private = 0 OR v.entity_id = '${currentEntityId}')` : `v.is_private = 0`;
+    if (currentEntityId) {
+      conditions.push('(v.is_private = 0 OR v.entity_id = ?)');
+      params.push(currentEntityId);
+    } else {
+      conditions.push('v.is_private = 0');
+    }
   }
 
-  let where = `WHERE ${privacyCondition}`;
-  const params = [];
+  let where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
   if (group_id) {
-    where += ` AND v.group_id = ?`;
+    where += where ? ` AND v.group_id = ?` : ` WHERE v.group_id = ?`;
     params.push(group_id);
   } else if (series_id) {
-    where += ` AND v.group_id IN (SELECT id FROM groups WHERE series_id = ?)`;
+    where += where ? ` AND v.group_id IN (SELECT id FROM groups WHERE series_id = ?)` : ` WHERE v.group_id IN (SELECT id FROM groups WHERE series_id = ?)`;
     params.push(series_id);
   }
 
-  if (q) {
-    where += ` AND v.title LIKE ?`;
-    params.push(`%${q}%`);
+  if (searchQuery) {
+    const normalizedQuery = `%${searchQuery}%`;
+    const compactQuery = `%${searchQuery.replace(/-/g, '')}%`;
+    where += where
+      ? ` AND (LOWER(v.title) LIKE LOWER(?) OR LOWER(COALESCE(g.name, '')) LIKE LOWER(?) OR LOWER(COALESCE(s.name, '')) LIKE LOWER(?) OR LOWER(v.id) LIKE LOWER(?) OR LOWER(REPLACE(v.id, '-', '')) LIKE LOWER(?))`
+      : ` WHERE (LOWER(v.title) LIKE LOWER(?) OR LOWER(COALESCE(g.name, '')) LIKE LOWER(?) OR LOWER(COALESCE(s.name, '')) LIKE LOWER(?) OR LOWER(v.id) LIKE LOWER(?) OR LOWER(REPLACE(v.id, '-', '')) LIKE LOWER(?))`;
+    params.push(normalizedQuery, normalizedQuery, normalizedQuery, normalizedQuery, compactQuery);
+  }
+
+  if (is_private === '1' || is_private === '0') {
+    where += where ? ` AND v.is_private = ?` : ` WHERE v.is_private = ?`;
+    params.push(Number(is_private));
   }
 
   let orderBy = 'ORDER BY v.created_at DESC';
@@ -114,10 +140,12 @@ router.get('/', optionalKeyVerify, async (req, res) => {
     ) DESC, v.created_at DESC`;
   }
 
-  const sql = `SELECT v.*, g.name as group_name, s.name as series_name
-    FROM videos v
+  const baseFrom = `FROM videos v
     LEFT JOIN groups g ON v.group_id = g.id
-    LEFT JOIN series s ON g.series_id = s.id
+    LEFT JOIN series s ON g.series_id = s.id`;
+
+  const sql = `SELECT v.*, g.name as group_name, s.name as series_name
+    ${baseFrom}
     ${where}
     ${orderBy}
     LIMIT ${limit} OFFSET ${offset}`;
@@ -126,7 +154,7 @@ router.get('/', optionalKeyVerify, async (req, res) => {
   const videos = resultToObjects(results);
 
   // Get total count for pagination info
-  const countSql = `SELECT COUNT(*) as total FROM videos v ${where}`;
+  const countSql = `SELECT COUNT(*) as total ${baseFrom} ${where}`;
   const countResults = db.exec(countSql, params);
   const total = countResults.length > 0 ? countResults[0].values[0][0] : 0;
 
@@ -136,7 +164,8 @@ router.get('/', optionalKeyVerify, async (req, res) => {
 // Get single video
 router.get('/:id', optionalKeyVerify, async (req, res) => {
   const db = await getDb();
-  const results = db.exec('SELECT * FROM videos WHERE id = ?', [req.params.id]);
+  const normalizedId = normalizeVideoId(req.params.id);
+  const results = db.exec('SELECT * FROM videos WHERE id = ?', [normalizedId]);
   const videos = resultToObjects(results);
 
   if (videos.length === 0) {
@@ -172,11 +201,14 @@ router.get('/:id/siblings', optionalKeyVerify, async (req, res) => {
 
   // Only show private videos if key is verified and entity matches
   const verifiedEntityId = getEntityId(req);
-  const privacyCondition = verifiedEntityId ? `(is_private = 0 OR entity_id = '${verifiedEntityId}')` : `is_private = 0`;
+  const privacyCondition = verifiedEntityId ? '(is_private = 0 OR entity_id = ?)' : 'is_private = 0';
+  const siblingParams = verifiedEntityId
+    ? [groupId, 'ready', req.params.id, verifiedEntityId]
+    : [groupId, 'ready', req.params.id];
 
   const siblings = db.exec(
     `SELECT id, title, file_path, poster_url, duration FROM videos WHERE group_id = ? AND status = ? AND id != ? AND ${privacyCondition} ORDER BY created_at DESC`,
-    [groupId, 'ready', req.params.id]
+    siblingParams
   );
   res.json(resultToObjects(siblings));
 });
@@ -184,12 +216,13 @@ router.get('/:id/siblings', optionalKeyVerify, async (req, res) => {
 // Delete video (requires auth)
 router.delete('/:id', authRequired, async (req, res) => {
   const db = await getDb();
-  const results = db.exec('SELECT file_path FROM videos WHERE id = ?', [req.params.id]);
+  const results = db.exec('SELECT file_path, poster_url FROM videos WHERE id = ?', [req.params.id]);
   const videos = resultToObjects(results);
 
-  if (videos.length > 0 && videos[0].file_path) {
-    const filePath = path.join(getUploadsDir(), '..', videos[0].file_path);
-    deleteFile(filePath);
+  if (videos.length > 0) {
+    const { file_path: filePath, poster_url: posterUrl } = videos[0];
+    await removeStoredAsset(filePath);
+    await removeStoredAsset(posterUrl);
   }
 
   db.run('DELETE FROM videos WHERE id = ?', [req.params.id]);
@@ -255,6 +288,22 @@ function resultToObjects(results) {
     columns.forEach((col, i) => { obj[col] = row[i]; });
     return obj;
   });
+}
+
+async function removeStoredAsset(assetPath) {
+  if (!assetPath) return;
+
+  const r2Key = getR2KeyFromUrl(assetPath);
+  if (r2Key) {
+    await deleteFromR2(r2Key);
+    return;
+  }
+
+  if (assetPath.startsWith('/uploads/')) {
+    const relativePath = assetPath.replace(/^\/uploads\//, '');
+    const localFilePath = path.join(getUploadsDir(), relativePath);
+    deleteFile(localFilePath);
+  }
 }
 
 export default router;

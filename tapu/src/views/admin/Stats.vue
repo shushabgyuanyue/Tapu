@@ -1,16 +1,35 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
-import { fetchStats, fetchDailyStats, fetchGroups, fetchLeaderboard } from '../../api';
+import { fetchStats, fetchDailyStats, fetchGroups, fetchLeaderboard, fetchTopVideos } from '../../api';
 import BarChart from '../../components/BarChart.vue';
 import DateRangePicker from '../../components/DateRangePicker.vue';
+import AdminPagination from '../../components/AdminPagination.vue';
+import { useServerPagination } from '../../composables/useServerPagination';
 
-const stats = ref<any>({ totalPlays: 0, totalVideos: 0, topVideos: [], defaultCount: 0 });
+const stats = ref<any>({ totalPlays: 0, totalVideos: 0, defaultCount: 0 });
 const dailyData = ref<Array<{ label: string; value: number }>>([]);
 const groups = ref<any[]>([]);
+const topVideos = ref<any[]>([]);
 const leaderboard = ref<any[]>([]);
 const filterGroup = ref('');
 const filterFrom = ref('');
 const filterTo = ref('');
+const topPagination = useServerPagination();
+const leaderboardPagination = useServerPagination();
+const {
+  page: topPage,
+  pageSize: topPageSize,
+  total: topVideosTotal,
+  resetPage: resetTopPage,
+  applyPagedResult: applyTopVideos,
+} = topPagination;
+const {
+  page: leaderboardPage,
+  pageSize: leaderboardPageSize,
+  total: leaderboardTotal,
+  resetPage: resetLeaderboardPage,
+  applyPagedResult: applyLeaderboard,
+} = leaderboardPagination;
 
 const loadData = async () => {
   const params: any = {};
@@ -18,16 +37,18 @@ const loadData = async () => {
   if (filterFrom.value) params.from = filterFrom.value;
   if (filterTo.value) params.to = filterTo.value;
 
-  const [overview, daily, groupList, lb] = await Promise.all([
+  const [overview, daily, groupList, topResult, lb] = await Promise.all([
     fetchStats(params),
     fetchDailyStats(params),
     fetchGroups(),
-    fetchLeaderboard(),
+    fetchTopVideos({ ...params, page: topPage.value, pageSize: topPageSize.value }),
+    fetchLeaderboard({ page: leaderboardPage.value, pageSize: leaderboardPageSize.value }),
   ]);
 
   stats.value = overview;
   groups.value = groupList;
-  leaderboard.value = lb;
+  applyTopVideos(topResult, topVideos);
+  applyLeaderboard(lb, leaderboard);
   dailyData.value = daily.map((d: any) => ({
     label: d.date?.slice(5) || '',
     value: d.count,
@@ -39,10 +60,26 @@ onMounted(loadData);
 const onDateChange = (from: string, to: string) => {
   filterFrom.value = from;
   filterTo.value = to;
+  resetTopPage();
+  resetLeaderboardPage();
   loadData();
 };
 
-const onGroupChange = () => { loadData(); };
+const onGroupChange = () => {
+  resetTopPage();
+  resetLeaderboardPage();
+  loadData();
+};
+
+const onTopPageChange = (next: number) => {
+  topPage.value = next;
+  loadData();
+};
+
+const onLeaderboardPageChange = (next: number) => {
+  leaderboardPage.value = next;
+  loadData();
+};
 </script>
 
 <template>
@@ -92,14 +129,15 @@ const onGroupChange = () => { loadData(); };
         <table class="tbl">
           <thead><tr><th>视频</th><th>播放次数</th></tr></thead>
           <tbody>
-            <tr v-for="v in stats.topVideos" :key="v.id">
+            <tr v-for="v in topVideos" :key="v.id">
               <td>{{ v.title }}</td>
               <td class="td-num">{{ v.play_count }}</td>
             </tr>
-            <tr v-if="!stats.topVideos.length"><td colspan="2" class="empty">暂无数据</td></tr>
+            <tr v-if="!topVideos.length"><td colspan="2" class="empty">暂无数据</td></tr>
           </tbody>
         </table>
       </div>
+      <AdminPagination :model-value="topPage" :total="topVideosTotal" :page-size="topPageSize" @update:model-value="onTopPageChange" @update:page-size="topPageSize = $event; topPage = 1; loadData()" />
     </div>
 
     <!-- Leaderboard -->
@@ -119,6 +157,7 @@ const onGroupChange = () => { loadData(); };
           </tbody>
         </table>
       </div>
+      <AdminPagination :model-value="leaderboardPage" :total="leaderboardTotal" :page-size="leaderboardPageSize" @update:model-value="onLeaderboardPageChange" @update:page-size="leaderboardPageSize = $event; leaderboardPage = 1; loadData()" />
     </div>
   </div>
 </template>

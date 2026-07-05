@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed, inject, nextTick } from 'vue';
+import { ref, onMounted, computed, inject } from 'vue';
 import { fetchVideos, fetchGroups, fetchSeries, interact, batchInteractions, addToWishlist, getWishlistStatus, isLoggedIn } from '../api';
 import { useRouter } from 'vue-router';
 import NavBar from '../components/NavBar.vue';
 import VideoCard from '../components/VideoCard.vue';
 import RemixModal from '../components/RemixModal.vue';
 import BottomNav from '../components/BottomNav.vue';
+import InfiniteScrollTrigger from '../components/InfiniteScrollTrigger.vue';
 
 const router = useRouter();
 const toast = inject<{ show: (text: string) => void }>('toast');
@@ -20,6 +21,7 @@ const loading = ref(true);
 const loadingMore = ref(false);
 const interactions = ref<Record<string, any>>({});
 const wishlistStatus = ref<Record<string, boolean>>({});
+const wishlistCounts = ref<Record<string, number>>({});
 const likedIds = ref<Set<string>>(new Set());
 const favoritedIds = ref<Set<string>>(new Set());
 
@@ -41,6 +43,14 @@ const filteredGroups = computed(() => {
   if (!activeSeries.value) return groups.value;
   return groups.value.filter(g => g.series_id === activeSeries.value);
 });
+
+const syncSeriesByGroup = (groupId: string) => {
+  if (!groupId) return;
+  const selectedGroup = groups.value.find(g => g.id === groupId);
+  if (selectedGroup) {
+    activeSeries.value = selectedGroup.series_id || '';
+  }
+};
 
 const loadData = async (reset = true) => {
   if (reset) {
@@ -71,6 +81,8 @@ const loadData = async (reset = true) => {
   if (readyIds.length > 0) {
     const batch = await batchInteractions(readyIds);
     interactions.value = { ...interactions.value, ...batch };
+    likedIds.value = new Set(readyIds.filter((id: string) => batch[id]?.liked));
+    favoritedIds.value = new Set(readyIds.filter((id: string) => batch[id]?.favorited));
   }
   if (reset) loadWishlistStatus();
 };
@@ -111,21 +123,6 @@ const onTouchEnd = async () => {
   pullDistance.value = 0;
 };
 
-// Infinite scroll observer
-let observer: IntersectionObserver | null = null;
-const sentinelRef = ref<HTMLElement | null>(null);
-
-const setupObserver = () => {
-  if (observer) observer.disconnect();
-  observer = new IntersectionObserver((entries) => {
-    if (entries[0].isIntersecting && !loading.value) {
-      loadMore();
-    }
-  }, { rootMargin: '200px' });
-  nextTick(() => {
-    if (sentinelRef.value) observer!.observe(sentinelRef.value);
-  });
-};
 
 const switchSort = (sort: 'latest' | 'hot') => {
   activeSort.value = sort;
@@ -145,6 +142,7 @@ const switchSeries = (id: string) => {
 
 const switchGroup = (id: string) => {
   activeGroup.value = id;
+  syncSeriesByGroup(id);
   loadData();
 };
 
@@ -152,15 +150,37 @@ const goPlay = (id: string) => { router.push(`/content/${id}`); };
 
 const handleLike = async (e: Event, videoId: string) => {
   e.stopPropagation();
-  likedIds.value.add(videoId);
+  if (!isLoggedIn()) {
+    toast?.show('请先登录再点赞');
+    router.push('/login');
+    return;
+  }
   const result = await interact(videoId, 'like');
+  if (result?.requires_login) {
+    toast?.show(result.error || '请先登录再点赞');
+    router.push('/login');
+    return;
+  }
+  if (result?.liked) likedIds.value.add(videoId);
+  else likedIds.value.delete(videoId);
   interactions.value[videoId] = result;
 };
 
 const handleFavorite = async (e: Event, videoId: string) => {
   e.stopPropagation();
-  favoritedIds.value.add(videoId);
+  if (!isLoggedIn()) {
+    toast?.show('请先登录再喜欢');
+    router.push('/login');
+    return;
+  }
   const result = await interact(videoId, 'favorite');
+  if (result?.requires_login) {
+    toast?.show(result.error || '请先登录再喜欢');
+    router.push('/login');
+    return;
+  }
+  if (result?.favorited) favoritedIds.value.add(videoId);
+  else favoritedIds.value.delete(videoId);
   interactions.value[videoId] = result;
 };
 
@@ -180,22 +200,24 @@ const submitRemix = () => { closeRemix(); };
 
 const handleWishlist = async (e: Event, groupId: string, videoId?: string) => {
   e.stopPropagation();
-  if (wishlistStatus.value[groupId]) return;
-  await addToWishlist(groupId, videoId);
-  wishlistStatus.value[groupId] = true;
+  const result = await addToWishlist(groupId, videoId);
+  wishlistStatus.value[groupId] = !!result?.inWishlist;
+  wishlistCounts.value[groupId] = result?.count || 0;
   const group = groups.value.find(g => g.id === groupId);
-  toast?.show(`已将「${group?.name || 'IP'}」加入心愿单 ♥`);
+  toast?.show(result?.added === false
+    ? `「${group?.name || 'IP'}」已在心愿单，当前 ${result?.count || 0} 人已加入`
+    : `已将「${group?.name || 'IP'}」加入心愿单，当前 ${result?.count || 0} 人已加入`);
 };
 
 const loadWishlistStatus = async () => {
   for (const g of groups.value) {
-    const { inWishlist } = await getWishlistStatus(g.id);
+    const { inWishlist, count } = await getWishlistStatus(g.id);
     wishlistStatus.value[g.id] = inWishlist;
+    wishlistCounts.value[g.id] = count || 0;
   }
 };
 
-onMounted(() => { loadData(); setupObserver(); });
-onUnmounted(() => { if (observer) observer.disconnect(); });
+onMounted(() => { loadData(); });
 </script>
 
 <template>
@@ -235,9 +257,9 @@ onUnmounted(() => { if (observer) observer.disconnect(); });
     </div>
 
     <!-- IP filter -->
-    <div class="c-filters c-filters--ip" v-if="filteredGroups.length > 0">
+    <div class="c-filters c-filters--ip" v-if="groups.length > 0">
       <button class="filter-chip" :class="{ active: activeGroup === '' }" @click="switchGroup('')">全部IP</button>
-      <span v-for="g in filteredGroups" :key="g.id" class="filter-chip-wrap">
+      <span v-for="g in groups" :key="g.id" class="filter-chip-wrap">
         <button class="filter-chip" :class="{ active: activeGroup === g.id }" @click="switchGroup(g.id)">{{ g.name }}</button>
         <router-link :to="`/community/ip/${g.id}`" class="chip-detail-link" title="查看详情">→</router-link>
       </span>
@@ -247,17 +269,18 @@ onUnmounted(() => { if (observer) observer.disconnect(); });
     <TransitionGroup name="stagger" tag="div" class="c-grid" v-if="!loading && readyVideos.length > 0">
       <VideoCard v-for="(v, idx) in readyVideos" :key="v.id" :video="v" :interactions="interactions"
         :is-liked="likedIds.has(v.id)" :is-faved="favoritedIds.has(v.id)"
-        :wishlist-status="!!wishlistStatus[v.group_id]" :style="{ '--i': Math.min(idx, 10) }"
+        :wishlist-status="!!wishlistStatus[v.group_id]" :wishlist-count="wishlistCounts[v.group_id] || 0" :style="{ '--i': Math.min(idx, 10) }"
         @like="handleLike" @favorite="handleFavorite" @share="handleShare"
         @wishlist="handleWishlist" @remix="openRemix" @play="goPlay" />
     </TransitionGroup>
 
-    <!-- Infinite scroll sentinel -->
-    <div ref="sentinelRef" class="scroll-sentinel"></div>
-
-    <!-- Load more -->
-    <div class="c-loadmore" v-if="loadingMore"><div class="c-spinner"></div></div>
-    <div class="c-nomore" v-else-if="!hasMore && readyVideos.length > 0">没有更多了</div>
+    <InfiniteScrollTrigger
+      v-if="!loading && readyVideos.length > 0"
+      :loading="loadingMore"
+      :has-more="hasMore"
+      finished-text="没有更多了"
+      @load-more="loadMore"
+    />
 
     <!-- Empty -->
     <div class="c-empty" v-if="!loading && readyVideos.length === 0">

@@ -1,11 +1,13 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted, computed, watch } from 'vue';
 import {
   fetchGroups, createGroup, updateGroup, deleteGroup,
   fetchSeries, createSeries, deleteSeries,
-  fetchVideos, setOfficialDefault,
+  fetchVideos, setOfficialDefault, fetchGroupsPaged,
   fetchEntitiesByGroup
 } from '../../api';
+import AdminPagination from '../../components/AdminPagination.vue';
+import { useServerPagination } from '../../composables/useServerPagination';
 
 const groups = ref<any[]>([]);
 const seriesList = ref<any[]>([]);
@@ -35,14 +37,22 @@ const entityList = ref<any[]>([]);
 const loadingEntities = ref(false);
 
 const filteredGroups = computed(() => {
-  if (!activeSeries.value) return groups.value;
-  return groups.value.filter(g => g.series_id === activeSeries.value);
+  return groups.value;
 });
+const pagination = useServerPagination();
+const { page, pageSize, total: totalGroups, resetPage, applyPagedResult } = pagination;
+
+watch(activeSeries, () => { resetPage(); loadData(); });
+watch(pageSize, () => { resetPage(); loadData(); });
+watch(page, () => { loadData(); });
 
 const loadData = async () => {
   loading.value = true;
-  const [grps, srs] = await Promise.all([fetchGroups(), fetchSeries()]);
-  groups.value = grps;
+  const [groupRes, srs] = await Promise.all([
+    fetchGroupsPaged({ seriesId: activeSeries.value || undefined, page: page.value, pageSize: pageSize.value }),
+    fetchSeries(),
+  ]);
+  applyPagedResult(groupRes, groups);
   seriesList.value = srs;
   loading.value = false;
 };
@@ -125,10 +135,15 @@ const openDefaultPicker = async (groupId: string) => {
 };
 
 const selectOfficialDefault = async (groupId: string, videoId: string) => {
-  await setOfficialDefault(groupId, videoId);
+  const result = await setOfficialDefault(groupId, videoId);
+  if (result?.error) {
+    alert(result.error);
+    return;
+  }
   const g = groups.value.find(x => x.id === groupId);
   if (g) g.official_default_video_id = videoId;
   showDefaultPicker.value = '';
+  await loadData();
 };
 
 const openEntityPanel = async (groupId: string) => {
@@ -182,7 +197,7 @@ onMounted(loadData);
       <div class="gm-loading" v-if="loading">加载中...</div>
 
       <div class="gm-list" v-else>
-        <div v-for="g in filteredGroups" :key="g.id" class="gm-item">
+        <div v-for="g in groups" :key="g.id" class="gm-item">
           <div class="gm-item-info">
             <span class="gm-item-name">{{ g.name }}</span>
             <span class="gm-item-series" v-if="g.series_name">{{ g.series_name }}</span>
@@ -233,8 +248,9 @@ onMounted(loadData);
             <button class="gm-cancel" @click="showDefaultPicker = ''">关闭</button>
           </div>
         </div>
-        <div v-if="filteredGroups.length === 0" class="gm-empty">暂无分组</div>
+        <div v-if="groups.length === 0" class="gm-empty">暂无分组</div>
       </div>
+      <AdminPagination v-model="page" :total="totalGroups" :page-size="pageSize" @update:page-size="pageSize = $event" />
     </div>
 
     <!-- Create/Edit modal -->

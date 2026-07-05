@@ -1,15 +1,27 @@
 <script setup lang="ts">
-import { ref, onMounted, inject } from 'vue';
+import { ref, onMounted, inject, watch } from 'vue';
 import { fetchOrders, updateOrderStatus } from '../../api';
+import AdminPagination from '../../components/AdminPagination.vue';
+import { useServerPagination } from '../../composables/useServerPagination';
 
 const toast = inject<{ show: (text: string, duration?: number, type?: string) => void }>('toast');
 const orders = ref<any[]>([]);
 const loading = ref(true);
+const pagination = useServerPagination();
+const { page, pageSize, total: totalOrders, resetPage, applyPagedResult } = pagination;
 
-onMounted(async () => {
+const loadOrders = async () => {
   loading.value = true;
-  orders.value = await fetchOrders();
+  const result = await fetchOrders({ page: page.value, pageSize: pageSize.value });
+  applyPagedResult(result, orders);
   loading.value = false;
+};
+
+onMounted(loadOrders);
+watch(page, () => { loadOrders(); });
+watch(pageSize, () => {
+  resetPage();
+  loadOrders();
 });
 
 const statusLabel = (s: string) => {
@@ -87,6 +99,7 @@ const copyUrl = (key: string) => {
         </div>
       </div>
     </div>
+    <AdminPagination v-model="page" :total="totalOrders" :page-size="pageSize" @update:page-size="pageSize = $event" />
   </div>
 </template>
 

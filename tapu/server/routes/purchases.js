@@ -5,6 +5,17 @@ import { authRequired, generateEntityKey } from '../middleware/auth.js';
 
 const router = Router();
 
+function normalizeVideoId(rawId) {
+  if (!rawId || typeof rawId !== 'string') return null;
+  const trimmed = rawId.trim();
+  if (!trimmed) return null;
+  const compact = trimmed.replace(/-/g, '');
+  if (/^[0-9a-fA-F]{32}$/.test(compact)) {
+    return `${compact.slice(0, 8)}-${compact.slice(8, 12)}-${compact.slice(12, 16)}-${compact.slice(16, 20)}-${compact.slice(20)}`.toLowerCase();
+  }
+  return trimmed;
+}
+
 function resultToObjects(results) {
   if (!results || results.length === 0) return [];
   const { columns, values } = results[0];
@@ -18,7 +29,8 @@ function resultToObjects(results) {
 // Purchase by group - create order with shipping address
 router.post('/by-group', authRequired, async (req, res) => {
   try {
-    const { group_id, recipient_name, phone, province, city, district, address, default_video_id } = req.body;
+    const { group_id, recipient_name, phone, province, city, district, address } = req.body;
+    const requestedDefaultVideoId = normalizeVideoId(req.body?.default_video_id);
     if (!group_id) {
       return res.status(400).json({ error: 'group_id is required' });
     }
@@ -71,7 +83,14 @@ router.post('/by-group', authRequired, async (req, res) => {
     );
 
     // Set default video for this entity (user choice > official default)
-    const videoId = default_video_id || groupRows[0].official_default_video_id;
+    let videoId = requestedDefaultVideoId || groupRows[0].official_default_video_id;
+    if (videoId) {
+      const videoResults = db.exec('SELECT id FROM videos WHERE id = ? AND group_id = ?', [videoId, group_id]);
+      if (!videoResults || videoResults.length === 0 || videoResults[0].values.length === 0) {
+        return res.status(400).json({ error: '默认内容不存在，或不属于当前 IP' });
+      }
+      videoId = videoResults[0].values[0][0];
+    }
     if (videoId) {
       db.run(
         'INSERT INTO user_defaults (entity_id, video_id, group_id) VALUES (?, ?, ?)',
@@ -79,8 +98,9 @@ router.post('/by-group', authRequired, async (req, res) => {
       );
     }
 
-    // Remove from wishlist if present
-    db.run('DELETE FROM wishlist WHERE group_id = ? AND fingerprint IN (SELECT id FROM users WHERE id = ?)', [group_id, req.user.id]);
+    // Remove from wishlist if present for the current device fingerprint
+    const fingerprint = req.headers['x-fingerprint'] || req.ip || 'anonymous';
+    db.run('DELETE FROM wishlist WHERE group_id = ? AND fingerprint = ?', [group_id, fingerprint]);
 
     saveDb();
 

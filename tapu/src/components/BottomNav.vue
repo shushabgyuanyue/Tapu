@@ -19,6 +19,7 @@
 </template>
 
 <style scoped>
+/* Mobile: bottom nav (default) */
 .bottom-nav {
   position: fixed;
   bottom: 0;
@@ -45,7 +46,7 @@
   font-size: 11px;
   padding: 4px 16px;
   border-radius: 8px;
-  transition: color 0.15s;
+  transition: color 0.15s, background 0.15s;
 }
 
 .bnav-item:hover {
@@ -58,5 +59,61 @@
 
 .bnav-item.active svg {
   stroke: #7c4dff;
+}
+
+/* PC: left floating sidebar, near the content area */
+@media (min-width: 769px) {
+  .bottom-nav {
+    bottom: auto;
+    right: auto;
+    top: 80px;
+    left: calc(50% - 540px);
+    transform: none;
+    flex-direction: column;
+    justify-content: flex-start;
+    gap: 4px;
+    width: 56px;
+    padding: 10px 0;
+    border-top: none;
+    border: none;
+    border-radius: 14px;
+    background: #fff;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.05);
+  }
+
+  .bnav-item {
+    padding: 12px 0;
+    border-radius: 10px;
+    gap: 3px;
+    width: 100%;
+    font-size: 10px;
+    color: #bbb;
+  }
+
+  .bnav-item svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  .bnav-item:hover {
+    background: #f8f5ff;
+    color: #7c4dff;
+  }
+
+  .bnav-item:hover svg {
+    stroke: #7c4dff;
+  }
+
+  .bnav-item.active {
+    color: #7c4dff;
+    background: #f3edff;
+  }
+}
+
+/* Narrower viewport: tuck sidebar closer */
+@media (min-width: 769px) and (max-width: 1100px) {
+  .bottom-nav {
+    left: calc(50% - 500px);
+  }
 }
 </style>

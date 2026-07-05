@@ -1,13 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
-
-const BASE = '/api';
-function authHeaders() {
-  const token = localStorage.getItem('tapu_token');
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (token) headers['Authorization'] = `Bearer ${token}`;
-  return headers;
-}
+import { getConfig, setConfig } from '../../api';
 
 const adEnabled = ref(true);
 const adInterval = ref(5);
@@ -16,12 +9,10 @@ const msg = ref('');
 
 onMounted(async () => {
   try {
-    const res1 = await fetch(`${BASE}/config/ad_enabled`);
-    const d1 = await res1.json();
+    const d1 = await getConfig('ad_enabled');
     if (d1.value !== undefined) adEnabled.value = d1.value === 'true' || d1.value === true;
 
-    const res2 = await fetch(`${BASE}/config/ad_interval`);
-    const d2 = await res2.json();
+    const d2 = await getConfig('ad_interval');
     if (d2.value !== undefined) adInterval.value = parseInt(d2.value) || 5;
   } catch { /* defaults */ }
 });
@@ -30,16 +21,8 @@ const save = async () => {
   saving.value = true;
   msg.value = '';
   try {
-    await fetch(`${BASE}/config/ad_enabled`, {
-      method: 'PUT',
-      headers: authHeaders(),
-      body: JSON.stringify({ value: String(adEnabled.value) }),
-    });
-    await fetch(`${BASE}/config/ad_interval`, {
-      method: 'PUT',
-      headers: authHeaders(),
-      body: JSON.stringify({ value: String(adInterval.value) }),
-    });
+    await setConfig('ad_enabled', String(adEnabled.value));
+    await setConfig('ad_interval', String(adInterval.value));
     msg.value = '保存成功';
   } catch {
     msg.value = '保存失败';

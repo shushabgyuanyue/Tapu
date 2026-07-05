@@ -29,6 +29,8 @@ const videoRefs = ref<Record<number, HTMLVideoElement>>({});
 const showHeartAnim = ref(false);
 const showDefaultSet = ref(false);
 let tapTimeout: number | null = null;
+let heartAnimTimeout: number | null = null;
+let defaultToastTimeout: number | null = null;
 
 // Ad state
 const adEnabled = ref(false);
@@ -87,7 +89,7 @@ onMounted(async () => {
       const data = await resolveByKey(key);
       if (data.videos && data.videos.length > 0) {
         feed.value = data.videos;
-        recordPlay(data.videos[0].id);
+        safeRecordPlay(data.videos[0].id);
         return;
       } else {
         loadFailed.value = true;
@@ -106,7 +108,7 @@ onMounted(async () => {
       const video = await fetchVideo(id);
       if (video && !video.error && video.file_path) {
         feed.value = [video];
-        recordPlay(id);
+        safeRecordPlay(id);
         // Load siblings
         const sibs = await fetchSiblings(id);
         if (sibs && sibs.length > 0) {
@@ -128,9 +130,24 @@ onUnmounted(() => {
   window.removeEventListener('resize', onResize);
   document.removeEventListener('touchstart', onFirstInteraction);
   document.removeEventListener('click', onFirstInteraction);
+  clearTimer(tapTimeout);
+  clearTimer(heartAnimTimeout);
+  clearTimer(defaultToastTimeout);
 });
 
 const onResize = () => { viewportHeight.value = window.innerHeight; };
+
+const clearTimer = (timerId: number | null) => {
+  if (timerId !== null) {
+    window.clearTimeout(timerId);
+  }
+};
+
+const safeRecordPlay = (videoId: string) => {
+  recordPlay(videoId).catch((error) => {
+    console.warn('Record play failed:', error);
+  });
+};
 
 const onVideoCanPlay = (idx: number) => {
   if (idx === currentIndex.value && !isLoaded.value) {
@@ -281,7 +298,7 @@ const goTo = (index: number) => {
   const video = feed.value[index];
   if (video?.id) {
     router.replace(`/play/${video.id}`);
-    recordPlay(video.id);
+    safeRecordPlay(video.id);
   }
 
   // After transition completes
@@ -330,19 +347,33 @@ const onSingleTap = () => {
   }
 };
 
-const onDoubleTap = () => {
+const onDoubleTap = async () => {
   const video = feed.value[currentIndex.value];
   if (!video?.id) return;
 
-  setDefault(video.id);
+  try {
+    await setDefault(video.id);
+  } catch (error) {
+    console.warn('Set default failed:', error);
+    return;
+  }
+
   if (video.group_id) {
     localStorage.setItem(`whatmint_default_${video.group_id}`, video.id);
   }
 
   showHeartAnim.value = true;
   showDefaultSet.value = true;
-  setTimeout(() => { showHeartAnim.value = false; }, 800);
-  setTimeout(() => { showDefaultSet.value = false; }, 2000);
+  clearTimer(heartAnimTimeout);
+  clearTimer(defaultToastTimeout);
+  heartAnimTimeout = window.setTimeout(() => {
+    showHeartAnim.value = false;
+    heartAnimTimeout = null;
+  }, 800);
+  defaultToastTimeout = window.setTimeout(() => {
+    showDefaultSet.value = false;
+    defaultToastTimeout = null;
+  }, 2000);
 };
 </script>
 

@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { ref, onMounted, inject } from 'vue';
+import { ref, onMounted, inject, computed } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { getProfile, getEntities, getPurchases, isLoggedIn, bindEntity, unbindEntity, getEntityDefault, setEntityDefault } from '../api';
 import NavBar from '../components/NavBar.vue';
 import BottomNav from '../components/BottomNav.vue';
+import InfiniteScrollTrigger from '../components/InfiniteScrollTrigger.vue';
 
 const router = useRouter();
 const route = useRoute();
@@ -13,6 +14,13 @@ const entities = ref<any[]>([]);
 const purchases = ref<any[]>([]);
 const loading = ref(true);
 const activeTab = ref<'entities' | 'purchases'>('entities');
+const entityPage = ref(1);
+const purchasePage = ref(1);
+const chunkSize = 10;
+const visibleEntities = computed(() => entities.value.slice(0, entityPage.value * chunkSize));
+const visiblePurchases = computed(() => purchases.value.slice(0, purchasePage.value * chunkSize));
+const entityHasMore = computed(() => visibleEntities.value.length < entities.value.length);
+const purchaseHasMore = computed(() => visiblePurchases.value.length < purchases.value.length);
 
 // Bind entity form
 const bindKey = ref('');
@@ -110,7 +118,6 @@ const saveDefault = async (entityId: string) => {
   const data = await setEntityDefault(entityId, editDefaultInput.value.trim());
   if (data.success) {
     toast?.show('默认内容已更新');
-    entityDefaults.value[entityId] = { video_id: editDefaultInput.value.trim(), video_title: null };
     // Reload to get video title
     const updated = await getEntityDefault(entityId);
     entityDefaults.value[entityId] = updated;
@@ -146,7 +153,7 @@ const saveDefault = async (entityId: string) => {
         <p v-if="bindMsg" :class="['bind-msg', { error: bindError }]">{{ bindMsg }}</p>
 
         <div v-if="entities.length === 0" class="assets-empty">暂无绑定的IP</div>
-        <div v-for="e in entities" :key="e.id" class="assets-card assets-card--entity">
+        <div v-for="e in visibleEntities" :key="e.id" class="assets-card assets-card--entity">
           <div class="assets-card-top">
             <div class="assets-card-info">
               <span class="assets-card-name">{{ e.group_name || 'IP' }}</span>
@@ -172,12 +179,13 @@ const saveDefault = async (entityId: string) => {
             </template>
           </div>
         </div>
+        <InfiniteScrollTrigger v-if="entities.length > 0" :loading="false" :has-more="entityHasMore" @load-more="entityPage++" />
       </div>
 
       <!-- Purchases -->
       <div v-else-if="activeTab === 'purchases'" class="assets-section">
         <div v-if="purchases.length === 0" class="assets-empty">暂无购买记录</div>
-        <div v-for="p in purchases" :key="p.id" class="assets-card assets-card--purchase">
+        <div v-for="p in visiblePurchases" :key="p.id" class="assets-card assets-card--purchase">
           <div class="assets-card-info">
             <span class="assets-card-name">{{ p.group_name || 'IP' }}</span>
             <span class="assets-card-series" v-if="p.series_name">{{ p.series_name }}</span>
@@ -187,6 +195,7 @@ const saveDefault = async (entityId: string) => {
             {{ p.status === 'shipped' ? '已发货' : p.status === 'completed' ? '已完成' : '待发货' }}
           </span>
         </div>
+        <InfiniteScrollTrigger v-if="purchases.length > 0" :loading="false" :has-more="purchaseHasMore" @load-more="purchasePage++" />
       </div>
     </div>
     <BottomNav />

@@ -1,6 +1,5 @@
 import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import fs from 'fs';
-import path from 'path';
 
 const R2_ACCOUNT_ID = process.env.R2_ACCOUNT_ID || '';
 const R2_ACCESS_KEY_ID = process.env.R2_ACCESS_KEY_ID || '';
@@ -41,6 +40,13 @@ export async function deleteFromR2(key) {
     Bucket: R2_BUCKET_NAME,
     Key: key,
   }));
+}
+
+export function getR2KeyFromUrl(url) {
+  if (!R2_PUBLIC_URL || !url || typeof url !== 'string') return null;
+  const normalizedBase = R2_PUBLIC_URL.replace(/\/+$/, '');
+  if (!url.startsWith(normalizedBase + '/')) return null;
+  return url.slice(normalizedBase.length + 1);
 }
 
 /**
