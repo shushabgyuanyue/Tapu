@@ -11,7 +11,7 @@ const emit = defineEmits<{
   like: [e: Event, videoId: string];
   favorite: [e: Event, videoId: string];
   share: [e: Event, videoId: string];
-  wishlist: [e: Event, groupId: string];
+  wishlist: [e: Event, groupId: string, videoId: string];
   remix: [e: Event, video: any];
   play: [videoId: string];
 }>();
@@ -43,38 +43,38 @@ const fmtDur = (s: number) => {
       <h3 class="card-title">{{ video.title }}</h3>
       <span class="card-group">
         <template v-if="video.series_name">{{ video.series_name }} > </template>{{ video.group_name || 'whatmint' }}
+        <span class="card-vid-id">ID: {{ video.id.slice(0, 8) }}</span>
       </span>
     </div>
     <!-- Actions -->
     <div class="card-actions">
       <button class="action-btn" :class="{ 'is-liked': isLiked }" @click.stop="emit('like', $event, video.id)">
         <span class="action-icon like-icon">
-          <svg viewBox="0 0 24 24" width="16" height="16" :fill="isLiked ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>
+          <svg viewBox="0 0 24 24" width="15" height="15" :fill="isLiked ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>
         </span>
         <span class="action-count">{{ fmtCount(interactions[video.id]?.likes) }}</span>
       </button>
       <button class="action-btn" :class="{ 'is-faved': isFaved }" @click.stop="emit('favorite', $event, video.id)">
         <span class="action-icon fav-icon">
-          <svg viewBox="0 0 24 24" width="16" height="16" :fill="isFaved ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+          <svg viewBox="0 0 24 24" width="15" height="15" :fill="isFaved ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
         </span>
         <span class="action-count">{{ fmtCount(interactions[video.id]?.favorites) }}</span>
       </button>
       <button class="action-btn" @click.stop="emit('share', $event, video.id)">
         <span class="action-icon">
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><path d="M22 2L15 22L11 13L2 9L22 2Z"/></svg>
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><path d="M22 2L15 22L11 13L2 9L22 2Z"/></svg>
         </span>
       </button>
-      <button v-if="video.group_id" class="action-btn action-wish" :class="{ 'is-wished': wishlistStatus }" :disabled="wishlistStatus" @click.stop="!wishlistStatus && emit('wishlist', $event, video.group_id)">
+      <span class="action-spacer"></span>
+      <button v-if="video.group_id" class="action-btn action-wish" :class="{ 'is-wished': wishlistStatus }" :disabled="wishlistStatus" @click.stop="!wishlistStatus && emit('wishlist', $event, video.group_id, video.id)">
         <span class="action-icon wish-icon">
-          <svg viewBox="0 0 24 24" width="16" height="16" :fill="wishlistStatus ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13"/><path d="M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7"/><path d="M7.5 8a2.5 2.5 0 0 1 0-5A4.8 8 0 0 1 12 8a4.8 8 0 0 1 4.5-5 2.5 2.5 0 0 1 0 5"/></svg>
+          <svg viewBox="0 0 24 24" width="15" height="15" :fill="wishlistStatus ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13"/><path d="M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7"/><path d="M7.5 8a2.5 2.5 0 0 1 0-5A4.8 8 0 0 1 12 8a4.8 8 0 0 1 4.5-5 2.5 2.5 0 0 1 0 5"/></svg>
         </span>
-        <span class="action-count">{{ wishlistStatus ? '已在心愿单' : '心愿' }}</span>
       </button>
       <button class="action-btn action-remix" @click.stop="emit('remix', $event, video)">
         <span class="action-icon">
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>
         </span>
-        <span class="action-count">二创</span>
       </button>
     </div>
   </div>
@@ -124,18 +124,21 @@ const fmtDur = (s: number) => {
 }
 .card-group {
   font-size: 11px; color: #aaa;
-  display: block; white-space: nowrap; overflow: hidden;
+  display: flex; align-items: center; gap: 4px;
+  white-space: nowrap; overflow: hidden;
   text-overflow: ellipsis; max-width: 100%;
 }
-.card-actions { display: flex; gap: 2px; padding: 4px 8px 10px; }
+.card-vid-id { font-family: monospace; color: #bbb; font-size: 10px; }
+.card-actions { display: flex; align-items: center; gap: 0; padding: 4px 8px 10px; }
+.action-spacer { flex: 1; }
 .action-btn {
-  display: flex; align-items: center; gap: 3px;
-  background: none; border: none; padding: 4px 8px;
+  display: flex; align-items: center; gap: 2px;
+  background: none; border: none; padding: 4px 6px;
   font-size: 12px; color: #999; cursor: pointer;
   border-radius: 6px; transition: all 0.15s;
 }
 .action-btn:hover { background: #f5f5f5; color: #7c4dff; }
-.action-icon { font-size: 14px; }
+.action-icon { font-size: 14px; display: flex; align-items: center; }
 .action-count { font-size: 11px; }
 .action-remix .action-icon { color: #7c4dff; }
 

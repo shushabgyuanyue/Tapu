@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, inject, watch } from 'vue';
-import { getWishlist, removeFromWishlist, setWishlistDefault, fetchGroups, fetchSeries, purchaseByGroup, pledgeGroup, isLoggedIn, addToWishlist } from '../api';
+import { getWishlist, removeFromWishlist, fetchGroups, fetchSeries, purchaseByGroup, pledgeGroup, isLoggedIn, addToWishlist } from '../api';
 import { chinaRegions } from '../data/chinaRegions';
 import NavBar from '../components/NavBar.vue';
 import BottomNav from '../components/BottomNav.vue';
@@ -18,13 +18,12 @@ const shopBuying = ref<string>('');
 // Wishlist state
 const items = ref<any[]>([]);
 const wishlistLoading = ref(true);
-const expandedGroup = ref('');
-const loadingVideos = ref(false);
 
 // Address modal state
 const showAddressModal = ref(false);
 const pendingPurchaseGroupId = ref('');
-const addressForm = ref({ recipient_name: '', phone: '', province: '', city: '', district: '', address: '' });
+const pendingDefaultVideoId = ref('');
+const addressForm = ref({ recipient_name: '', phone: '', province: '', city: '', district: '', address: '', default_video_id: '' });
 
 // Cascade address selectors
 const availableCities = computed(() => {
@@ -59,22 +58,23 @@ const loadWishlist = async () => {
 
 const switchSeries = (id: string) => { activeSeries.value = id; };
 
-const openAddressModal = (groupId: string) => {
+const openAddressModal = (groupId: string, defaultVideoId?: string) => {
   if (!isLoggedIn()) { toast?.show('请先登录再购买', 2500, 'error'); return; }
   pendingPurchaseGroupId.value = groupId;
-  addressForm.value = { recipient_name: '', phone: '', province: '', city: '', district: '', address: '' };
+  pendingDefaultVideoId.value = defaultVideoId || '';
+  addressForm.value = { recipient_name: '', phone: '', province: '', city: '', district: '', address: '', default_video_id: defaultVideoId || '' };
   showAddressModal.value = true;
 };
 
 const submitPurchase = async () => {
-  const { recipient_name, phone, address } = addressForm.value;
+  const { recipient_name, phone, address, default_video_id } = addressForm.value;
   if (!recipient_name || !phone || !address) {
     toast?.show('请填写收件人、手机号和地址', 2500, 'error');
     return;
   }
   shopBuying.value = pendingPurchaseGroupId.value;
   showAddressModal.value = false;
-  const data = await purchaseByGroup(pendingPurchaseGroupId.value, addressForm.value);
+  const data = await purchaseByGroup(pendingPurchaseGroupId.value, addressForm.value, default_video_id || undefined);
   shopBuying.value = '';
   if (data.success) {
     toast?.show('下单成功，官方将尽快发货', 3000, 'success');
@@ -103,32 +103,11 @@ const handlePledge = async (group: any) => {
 const handleAddWishlist = async (group: any) => {
   await addToWishlist(group.id);
   toast?.show(`已将「${group.name}」加入心愿单`, 2500, 'heart');
+  // Reload wishlist to reflect the new item
+  items.value = await getWishlist();
 };
 
 // Wishlist actions
-const toggleExpand = async (item: any) => {
-  if (expandedGroup.value === item.group_id) {
-    expandedGroup.value = '';
-    return;
-  }
-  expandedGroup.value = item.group_id;
-};
-
-const selectDefault = async (groupId: string, videoId: string) => {
-  await setWishlistDefault(groupId, videoId);
-  const item = items.value.find(i => i.group_id === groupId);
-  if (item) {
-    item.default_video_id = videoId;
-    const vid = item.preview_videos?.find((v: any) => v.id === videoId);
-    if (vid) {
-      item.video_title = vid.title;
-      item.video_poster = vid.poster_url;
-    }
-  }
-  expandedGroup.value = '';
-  toast?.show('已绑定默认视频');
-};
-
 const handleRemove = async (groupId: string) => {
   await removeFromWishlist(groupId);
   items.value = items.value.filter(i => i.group_id !== groupId);
@@ -136,10 +115,15 @@ const handleRemove = async (groupId: string) => {
 };
 
 const handlePurchase = (item: any) => {
-  openAddressModal(item.group_id);
+  openAddressModal(item.group_id, item.default_video_id);
 };
 
 onMounted(() => { loadShop(); loadWishlist(); });
+
+// Reload wishlist data when switching to wishlist tab
+watch(activeTab, (tab) => {
+  if (tab === 'wishlist') loadWishlist();
+});
 </script>
 
 <!-- TEMPLATE_PLACEHOLDER -->
@@ -221,7 +205,7 @@ onMounted(() => { loadShop(); loadWishlist(); });
       </div>
       <TransitionGroup v-else name="wish-list" tag="div" class="w-list">
         <div v-for="(item, idx) in items" :key="item.group_id" class="w-card" :style="{ '--i': idx }">
-          <div class="w-card-main" @click="toggleExpand(item)">
+          <div class="w-card-main">
             <div class="w-card-cover">
               <img v-if="item.video_poster" :src="item.video_poster" alt="" />
               <div v-else class="w-card-placeholder">♥</div>
@@ -229,28 +213,13 @@ onMounted(() => { loadShop(); loadWishlist(); });
             <div class="w-card-info">
               <h3 class="w-card-name">{{ item.group_name }}</h3>
               <p class="w-card-default" v-if="item.video_title">默认: {{ item.video_title }}</p>
-              <p class="w-card-default w-card-none" v-else>未绑定默认视频</p>
+              <p class="w-card-default w-card-none" v-else>未指定默认内容</p>
             </div>
             <button class="w-card-remove" @click.stop="handleRemove(item.group_id)">×</button>
           </div>
           <div class="w-card-purchase">
             <button class="w-buy-btn" @click.stop="handlePurchase(item)">购买</button>
           </div>
-          <!-- Expanded video picker using preview_videos -->
-          <Transition name="expand">
-            <div v-if="expandedGroup === item.group_id" class="w-picker">
-              <p class="w-picker-title">选择默认播放视频</p>
-              <div class="w-picker-grid" v-if="item.preview_videos && item.preview_videos.length > 0">
-                <div v-for="vid in item.preview_videos" :key="vid.id" class="w-picker-item" :class="{ active: item.default_video_id === vid.id }" @click="selectDefault(item.group_id, vid.id)">
-                  <img v-if="vid.poster_url" :src="vid.poster_url" alt="" />
-                  <div v-else class="w-picker-placeholder"></div>
-                  <span class="w-picker-label">{{ vid.title }}</span>
-                  <span v-if="item.default_video_id === vid.id" class="w-picker-check">✓</span>
-                </div>
-              </div>
-              <p class="w-picker-empty" v-else>该 IP 暂无可用视频</p>
-            </div>
-          </Transition>
         </div>
       </TransitionGroup>
     </div>
@@ -294,6 +263,10 @@ onMounted(() => { loadShop(); loadWishlist(); });
           <div class="addr-field">
             <label>详细地址</label>
             <input v-model="addressForm.address" placeholder="街道、门牌号等" />
+          </div>
+          <div class="addr-field">
+            <label>默认内容ID（可选）</label>
+            <input v-model="addressForm.default_video_id" placeholder="不填则使用官方指定默认" />
           </div>
           <div class="addr-actions">
             <button class="addr-cancel" @click="showAddressModal = false">取消</button>

@@ -1,5 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router';
-import { loginByKey, getProfile, isLoggedIn } from '../api';
+import { getProfile, isLoggedIn } from '../api';
 
 const routes = [
   {
@@ -89,20 +89,19 @@ const router = createRouter({
   routes,
 });
 
-// Auto-login via URL key parameter
+// Key parameter handling: key is only used for playback resolve and asset binding
 router.beforeEach(async (to, _from, next) => {
   const key = to.query.key as string | undefined;
   if (key && to.path === '/play') {
-    // /play?key=xxx: login silently, keep key for PlayerView to resolve
-    try { await loginByKey(key); } catch {}
+    // /play?key=xxx: PlayerView uses resolveByKey directly
     return next();
   }
   if (key && to.path === '/assets') {
-    // /assets?key=xxx: keep key for AssetsPage to use for binding (don't auto-login)
+    // /assets?key=xxx: AssetsPage uses key for binding
     return next();
   }
   if (key) {
-    try { await loginByKey(key); } catch {}
+    // Other routes: strip key param, no login
     const query = { ...to.query };
     delete query.key;
     return next({ path: to.path, query, replace: true });

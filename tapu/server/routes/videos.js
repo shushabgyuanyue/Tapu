@@ -24,7 +24,21 @@ const upload = multer({
 });
 
 function getEntityId(req) {
-  return req.headers['x-entity-id'] || req.query.entity_id || null;
+  // Only trust entity_id from verified key, not from spoofable headers
+  return req.verifiedEntityId || null;
+}
+
+// Middleware to optionally verify key from header/query for entity context
+function optionalKeyVerify(req, res, next) {
+  const key = req.headers['x-entity-key'] || req.query.key;
+  if (key) {
+    const payload = verifyEntityKey(key);
+    if (payload) {
+      req.verifiedEntityId = payload.entity_id;
+      req.verifiedGroupId = payload.group_id;
+    }
+  }
+  next();
 }
 
 // Upload video (requires auth)
@@ -60,16 +74,20 @@ router.post('/upload', authRequired, upload.single('video'), async (req, res) =>
 });
 
 // List videos
-router.get('/', async (req, res) => {
+router.get('/', optionalKeyVerify, async (req, res) => {
   const db = await getDb();
-  const { group_id, series_id, sort, q, page, limit: limitStr } = req.query;
+  const { group_id, series_id, sort, q, page, limit: limitStr, all } = req.query;
   const currentEntityId = getEntityId(req);
 
   const pageNum = Math.max(1, parseInt(page) || 1);
   const limit = Math.min(50, Math.max(1, parseInt(limitStr) || 20));
   const offset = (pageNum - 1) * limit;
 
-  const privacyCondition = currentEntityId ? `(v.is_private = 0 OR v.entity_id = '${currentEntityId}')` : `v.is_private = 0`;
+  // Admin/creator can see all videos including private
+  let privacyCondition = '1=1';
+  if (!all) {
+    privacyCondition = currentEntityId ? `(v.is_private = 0 OR v.entity_id = '${currentEntityId}')` : `v.is_private = 0`;
+  }
 
   let where = `WHERE ${privacyCondition}`;
   const params = [];
@@ -116,27 +134,30 @@ router.get('/', async (req, res) => {
 });
 
 // Get single video
-router.get('/:id', async (req, res) => {
+router.get('/:id', optionalKeyVerify, async (req, res) => {
   const db = await getDb();
   const results = db.exec('SELECT * FROM videos WHERE id = ?', [req.params.id]);
   const videos = resultToObjects(results);
-  
+
   if (videos.length === 0) {
     return res.status(404).json({ error: 'Video not found' });
   }
 
   const video = videos[0];
-  const currentEntityId = getEntityId(req);
 
-  if (video.is_private === 1 && video.entity_id !== currentEntityId) {
-    return res.status(403).json({ error: '私有作品非持有者无法查看' });
+  // Private videos require verified key with matching entity_id
+  if (video.is_private === 1) {
+    const verifiedEntityId = getEntityId(req);
+    if (!verifiedEntityId || video.entity_id !== verifiedEntityId) {
+      return res.status(403).json({ error: '私有作品需要通过 key 验证后才能播放' });
+    }
   }
 
   res.json(video);
 });
 
 // Get sibling videos in the same group (for swipe feed)
-router.get('/:id/siblings', async (req, res) => {
+router.get('/:id/siblings', optionalKeyVerify, async (req, res) => {
   const db = await getDb();
   const results = db.exec('SELECT group_id FROM videos WHERE id = ?', [req.params.id]);
   const current = resultToObjects(results);
@@ -149,8 +170,9 @@ router.get('/:id/siblings', async (req, res) => {
     return res.json([]);
   }
 
-  const currentEntityId = getEntityId(req);
-  const privacyCondition = currentEntityId ? `(is_private = 0 OR entity_id = '${currentEntityId}')` : `is_private = 0`;
+  // Only show private videos if key is verified and entity matches
+  const verifiedEntityId = getEntityId(req);
+  const privacyCondition = verifiedEntityId ? `(is_private = 0 OR entity_id = '${verifiedEntityId}')` : `is_private = 0`;
 
   const siblings = db.exec(
     `SELECT id, title, file_path, poster_url, duration FROM videos WHERE group_id = ? AND status = ? AND id != ? AND ${privacyCondition} ORDER BY created_at DESC`,
@@ -208,12 +230,12 @@ router.post('/resolve', async (req, res) => {
     defaultVideoId = group.official_default_video_id;
   }
 
-  // 3. Fetch all videos for this group (include private since user has key)
+  // 3. Fetch videos for this group: public + this entity's private only (filter out other entities' private videos)
   let results = db.exec(
-    `SELECT * FROM videos WHERE group_id = ? AND status = 'ready' ORDER BY
+    `SELECT * FROM videos WHERE group_id = ? AND status = 'ready' AND (is_private = 0 OR entity_id = ?) ORDER BY
       CASE WHEN id = ? THEN 0 WHEN entity_id = ? THEN 1 ELSE 2 END,
       created_at DESC`,
-    [group_id, defaultVideoId || '', entity_id]
+    [group_id, entity_id, defaultVideoId || '', entity_id]
   );
 
   const videos = resultToObjects(results);

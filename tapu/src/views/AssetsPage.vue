@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, inject } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
-import { getProfile, getEntities, getPurchases, isLoggedIn, bindEntity, unbindEntity } from '../api';
+import { getProfile, getEntities, getPurchases, isLoggedIn, bindEntity, unbindEntity, getEntityDefault, setEntityDefault } from '../api';
 import NavBar from '../components/NavBar.vue';
 import BottomNav from '../components/BottomNav.vue';
 
@@ -43,6 +43,7 @@ onMounted(async () => {
   entities.value = e;
   purchases.value = pr;
   loading.value = false;
+  loadEntityDefaults();
 
   // Auto-bind if key was provided via URL
   if (keyFromUrl) {
@@ -83,6 +84,41 @@ const handleUnbind = async (entityId: string) => {
     entities.value = await getEntities();
   }
 };
+
+// Default video management
+const entityDefaults = ref<Record<string, { video_id: string | null; video_title: string | null }>>({});
+const editingDefault = ref('');
+const editDefaultInput = ref('');
+
+const loadEntityDefaults = async () => {
+  for (const e of entities.value) {
+    const data = await getEntityDefault(e.id);
+    entityDefaults.value[e.id] = data;
+  }
+};
+
+const startEditDefault = (entityId: string) => {
+  editingDefault.value = entityId;
+  editDefaultInput.value = entityDefaults.value[entityId]?.video_id || '';
+};
+
+const saveDefault = async (entityId: string) => {
+  if (!editDefaultInput.value.trim()) {
+    toast?.show('请输入内容ID');
+    return;
+  }
+  const data = await setEntityDefault(entityId, editDefaultInput.value.trim());
+  if (data.success) {
+    toast?.show('默认内容已更新');
+    entityDefaults.value[entityId] = { video_id: editDefaultInput.value.trim(), video_title: null };
+    // Reload to get video title
+    const updated = await getEntityDefault(entityId);
+    entityDefaults.value[entityId] = updated;
+    editingDefault.value = '';
+  } else {
+    toast?.show(data.error || '更新失败');
+  }
+};
 </script>
 <!-- TEMPLATE_PLACEHOLDER -->
 
@@ -110,14 +146,30 @@ const handleUnbind = async (entityId: string) => {
         <p v-if="bindMsg" :class="['bind-msg', { error: bindError }]">{{ bindMsg }}</p>
 
         <div v-if="entities.length === 0" class="assets-empty">暂无绑定的IP</div>
-        <div v-for="e in entities" :key="e.id" class="assets-card">
-          <div class="assets-card-info">
-            <span class="assets-card-name">{{ e.group_name || 'IP' }}</span>
-            <span class="assets-card-series" v-if="e.series_name">{{ e.series_name }}</span>
+        <div v-for="e in entities" :key="e.id" class="assets-card assets-card--entity">
+          <div class="assets-card-top">
+            <div class="assets-card-info">
+              <span class="assets-card-name">{{ e.group_name || 'IP' }}</span>
+              <span class="assets-card-series" v-if="e.series_name">{{ e.series_name }}</span>
+            </div>
+            <div class="assets-card-right">
+              <span class="assets-card-id">{{ e.id.slice(0, 8) }}...</span>
+              <button class="unbind-btn" @click="handleUnbind(e.id)">解绑</button>
+            </div>
           </div>
-          <div class="assets-card-right">
-            <span class="assets-card-id">{{ e.id.slice(0, 8) }}...</span>
-            <button class="unbind-btn" @click="handleUnbind(e.id)">解绑</button>
+          <div class="assets-card-default">
+            <span class="default-label">默认内容:</span>
+            <template v-if="editingDefault === e.id">
+              <input v-model="editDefaultInput" placeholder="输入内容ID" class="default-input" />
+              <button class="default-save" @click="saveDefault(e.id)">保存</button>
+              <button class="default-cancel" @click="editingDefault = ''">取消</button>
+            </template>
+            <template v-else>
+              <span class="default-value" v-if="entityDefaults[e.id]?.video_title">{{ entityDefaults[e.id].video_title }}</span>
+              <span class="default-value default-none" v-else-if="entityDefaults[e.id]?.video_id">ID: {{ entityDefaults[e.id].video_id.slice(0, 8) }}</span>
+              <span class="default-value default-none" v-else>官方默认</span>
+              <button class="default-edit" @click="startEditDefault(e.id)">修改</button>
+            </template>
           </div>
         </div>
       </div>
@@ -207,6 +259,34 @@ const handleUnbind = async (entityId: string) => {
   background: #fff; padding: 4px 10px; border-radius: 6px; cursor: pointer;
 }
 .unbind-btn:hover { color: #e53935; border-color: #fce4e4; }
+
+.assets-card--entity { flex-direction: column; gap: 8px; }
+.assets-card-top { display: flex; align-items: center; justify-content: space-between; width: 100%; }
+.assets-card-default {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  padding-top: 6px; border-top: 1px solid #f5f5f5;
+}
+.default-label { font-size: 12px; color: #999; flex-shrink: 0; }
+.default-value { font-size: 12px; color: #333; }
+.default-none { color: #bbb; font-style: italic; }
+.default-edit {
+  font-size: 11px; color: #7c4dff; background: none; border: 1px solid #e0d4ff;
+  padding: 2px 8px; border-radius: 4px; cursor: pointer; margin-left: auto;
+}
+.default-edit:hover { background: #f8f5ff; }
+.default-input {
+  flex: 1; padding: 4px 8px; border: 1px solid #e0d4ff; border-radius: 6px;
+  font-size: 12px; outline: none; font-family: monospace;
+}
+.default-input:focus { border-color: #7c4dff; }
+.default-save {
+  font-size: 11px; color: #fff; background: #7c4dff; border: none;
+  padding: 3px 10px; border-radius: 4px; cursor: pointer;
+}
+.default-cancel {
+  font-size: 11px; color: #999; background: none; border: 1px solid #eee;
+  padding: 3px 8px; border-radius: 4px; cursor: pointer;
+}
 
 @media (max-width: 640px) {
   .assets-content { padding: 16px; }

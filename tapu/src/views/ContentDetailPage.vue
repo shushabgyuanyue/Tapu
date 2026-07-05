@@ -135,7 +135,10 @@ const goBack = () => {
 
       <div class="detail-info">
         <h1 class="detail-title">{{ video.title }}</h1>
-        <span class="detail-group" v-if="video.group_name">{{ video.group_name }}</span>
+        <div class="detail-meta">
+          <span class="detail-group" v-if="video.group_name">{{ video.group_name }}</span>
+          <span class="detail-id">ID: {{ video.id.slice(0, 8) }}</span>
+        </div>
       </div>
 
       <div class="detail-actions">
@@ -232,10 +235,12 @@ const goBack = () => {
 
 .detail-info { padding: 16px 0; }
 .detail-title { font-size: 18px; font-weight: 700; margin: 0 0 6px; }
+.detail-meta { display: flex; align-items: center; gap: 8px; }
 .detail-group {
   font-size: 12px; color: #7c4dff; background: #f3eeff;
   padding: 3px 10px; border-radius: 6px;
 }
+.detail-id { font-size: 11px; color: #999; font-family: monospace; }
 
 .detail-actions {
   display: flex; gap: 8px; padding: 12px 0; border-top: 1px solid #f0f0f0;

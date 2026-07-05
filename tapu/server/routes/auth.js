@@ -79,43 +79,6 @@ router.post('/login', async (req, res) => {
   }
 });
 
-// Login by entity key (子账户 → 验证后返回 token)
-router.post('/login-by-key', async (req, res) => {
-  try {
-    const { key } = req.body;
-    if (!key) return res.status(400).json({ error: 'key is required' });
-
-    const payload = verifyEntityKey(key);
-    if (!payload) return res.status(400).json({ error: '无效的密钥' });
-
-    const { user_id, group_id, entity_id } = payload;
-    const db = await getDb();
-
-    // Verify entity exists
-    const entityResults = db.exec('SELECT * FROM entities WHERE id = ?', [entity_id]);
-    const entities = resultToObjects(entityResults);
-    if (entities.length === 0) {
-      return res.status(400).json({ error: '该密钥对应的实体不存在' });
-    }
-
-    // Return user token if user exists
-    const userResults = db.exec('SELECT id, username, is_creator FROM users WHERE id = ?', [user_id]);
-    const users = resultToObjects(userResults);
-    const user = users[0] || null;
-
-    res.json({
-      success: true,
-      token: user_id,
-      user,
-      entity_id,
-      group_id,
-    });
-  } catch (error) {
-    console.error('Login by key error:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
 // Bind entity to current user account
 router.post('/bind-entity', authRequired, async (req, res) => {
   try {
@@ -274,6 +237,58 @@ router.post('/verify-key', (req, res) => {
   } catch (error) {
     console.error('Verify key error:', error);
     res.status(400).json({ error: 'Invalid or corrupted key' });
+  }
+});
+
+// Get default video for an entity
+router.get('/entity-default/:entityId', authRequired, async (req, res) => {
+  try {
+    const db = await getDb();
+    // Verify entity belongs to user
+    const entityResults = db.exec('SELECT user_id, group_id FROM entities WHERE id = ?', [req.params.entityId]);
+    const entities = resultToObjects(entityResults);
+    if (entities.length === 0 || entities[0].user_id !== req.user.id) {
+      return res.status(403).json({ error: '无权查看该实体' });
+    }
+    const results = db.exec(
+      `SELECT ud.video_id, v.title as video_title FROM user_defaults ud
+       LEFT JOIN videos v ON ud.video_id = v.id
+       WHERE ud.entity_id = ? ORDER BY ud.created_at DESC LIMIT 1`,
+      [req.params.entityId]
+    );
+    const defaults = resultToObjects(results);
+    res.json(defaults.length > 0 ? defaults[0] : { video_id: null, video_title: null });
+  } catch (error) {
+    console.error('Get entity default error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Set default video for an entity
+router.put('/entity-default/:entityId', authRequired, async (req, res) => {
+  try {
+    const { video_id } = req.body;
+    if (!video_id) return res.status(400).json({ error: 'video_id is required' });
+
+    const db = await getDb();
+    // Verify entity belongs to user
+    const entityResults = db.exec('SELECT user_id, group_id FROM entities WHERE id = ?', [req.params.entityId]);
+    const entities = resultToObjects(entityResults);
+    if (entities.length === 0 || entities[0].user_id !== req.user.id) {
+      return res.status(403).json({ error: '无权操作该实体' });
+    }
+    const group_id = entities[0].group_id;
+
+    // Delete old default and insert new
+    db.run('DELETE FROM user_defaults WHERE entity_id = ?', [req.params.entityId]);
+    db.run('INSERT INTO user_defaults (entity_id, video_id, group_id) VALUES (?, ?, ?)',
+      [req.params.entityId, video_id, group_id]);
+    saveDb();
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Set entity default error:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 

@@ -47,18 +47,6 @@ export async function register(username: string, password: string) {
   return res.json();
 }
 
-export async function loginByKey(key: string) {
-  const res = await fetch(`${BASE}/auth/login-by-key`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ key }),
-  });
-  const data = await res.json();
-  if (data.success && data.token) {
-    setToken(data.token);
-  }
-  return data;
-}
 
 export async function bindEntity(key: string) {
   const res = await fetch(`${BASE}/auth/bind-entity`, {
@@ -179,13 +167,14 @@ export async function setOfficialDefault(groupId: string, videoId: string) {
 }
 
 // ===== Videos =====
-export async function fetchVideos(groupId?: string, sort?: string, q?: string, page?: number, seriesId?: string) {
+export async function fetchVideos(groupId?: string, sort?: string, q?: string, page?: number, seriesId?: string, all?: boolean) {
   const params = new URLSearchParams();
   if (groupId) params.set('group_id', groupId);
   if (seriesId) params.set('series_id', seriesId);
   if (sort) params.set('sort', sort);
   if (q) params.set('q', q);
   if (page) params.set('page', String(page));
+  if (all) params.set('all', '1');
   const qs = params.toString();
   const res = await fetch(`${BASE}/videos${qs ? '?' + qs : ''}`);
   return res.json();
@@ -390,11 +379,11 @@ export async function getPledgeStatus(groupId: string) {
   return res.json();
 }
 
-export async function purchaseByGroup(groupId: string, addressInfo?: { recipient_name: string; phone: string; province?: string; city?: string; district?: string; address: string }) {
+export async function purchaseByGroup(groupId: string, addressInfo?: { recipient_name: string; phone: string; province?: string; city?: string; district?: string; address: string }, defaultVideoId?: string) {
   const res = await fetch(`${BASE}/purchases/by-group`, {
     method: 'POST',
     headers: authHeaders(),
-    body: JSON.stringify({ group_id: groupId, ...addressInfo }),
+    body: JSON.stringify({ group_id: groupId, ...addressInfo, default_video_id: defaultVideoId || undefined }),
   });
   return res.json();
 }
@@ -435,6 +424,21 @@ export async function unbindEntity(entityId: string) {
     method: 'POST',
     headers: authHeaders(),
     body: JSON.stringify({ entity_id: entityId }),
+  });
+  return res.json();
+}
+
+// ===== Entity Default Video =====
+export async function getEntityDefault(entityId: string) {
+  const res = await fetch(`${BASE}/auth/entity-default/${entityId}`, { headers: authHeaders() });
+  return res.json();
+}
+
+export async function setEntityDefault(entityId: string, videoId: string) {
+  const res = await fetch(`${BASE}/auth/entity-default/${entityId}`, {
+    method: 'PUT',
+    headers: authHeaders(),
+    body: JSON.stringify({ video_id: videoId }),
   });
   return res.json();
 }

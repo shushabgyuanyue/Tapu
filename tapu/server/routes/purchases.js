@@ -18,7 +18,7 @@ function resultToObjects(results) {
 // Purchase by group - create order with shipping address
 router.post('/by-group', authRequired, async (req, res) => {
   try {
-    const { group_id, recipient_name, phone, province, city, district, address } = req.body;
+    const { group_id, recipient_name, phone, province, city, district, address, default_video_id } = req.body;
     if (!group_id) {
       return res.status(400).json({ error: 'group_id is required' });
     }
@@ -29,7 +29,7 @@ router.post('/by-group', authRequired, async (req, res) => {
     const db = await getDb();
 
     // Get group info (stock_limit)
-    const groupResults = db.exec('SELECT stock_limit FROM groups WHERE id = ?', [group_id]);
+    const groupResults = db.exec('SELECT stock_limit, official_default_video_id FROM groups WHERE id = ?', [group_id]);
     const groupRows = resultToObjects(groupResults);
     if (groupRows.length === 0) {
       return res.status(404).json({ error: 'IP 不存在' });
@@ -70,12 +70,21 @@ router.post('/by-group', authRequired, async (req, res) => {
       [order_id, req.user.id, group_id, entity_id, entity_key, recipient_name, phone, province || '', city || '', district || '', address]
     );
 
+    // Set default video for this entity (user choice > official default)
+    const videoId = default_video_id || groupRows[0].official_default_video_id;
+    if (videoId) {
+      db.run(
+        'INSERT INTO user_defaults (entity_id, video_id, group_id) VALUES (?, ?, ?)',
+        [entity_id, videoId, group_id]
+      );
+    }
+
     // Remove from wishlist if present
     db.run('DELETE FROM wishlist WHERE group_id = ? AND fingerprint IN (SELECT id FROM users WHERE id = ?)', [group_id, req.user.id]);
 
     saveDb();
 
-    res.json({ success: true, order_id });
+    res.json({ success: true, order_id, entity_key });
   } catch (error) {
     console.error('Purchase by group error:', error);
     res.status(500).json({ error: 'Internal server error' });

@@ -178,10 +178,10 @@ const openRemix = (e: Event, video: any) => { e.stopPropagation(); remixTarget.v
 const closeRemix = () => { showRemix.value = false; remixTarget.value = null; };
 const submitRemix = () => { closeRemix(); };
 
-const handleWishlist = async (e: Event, groupId: string) => {
+const handleWishlist = async (e: Event, groupId: string, videoId?: string) => {
   e.stopPropagation();
   if (wishlistStatus.value[groupId]) return;
-  await addToWishlist(groupId);
+  await addToWishlist(groupId, videoId);
   wishlistStatus.value[groupId] = true;
   const group = groups.value.find(g => g.id === groupId);
   toast?.show(`已将「${group?.name || 'IP'}」加入心愿单 ♥`);

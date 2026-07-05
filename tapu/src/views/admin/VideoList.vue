@@ -39,7 +39,7 @@ const uploadGroupsFiltered = computed(() => {
 
 const loadData = async () => {
   const [result, grps, srs] = await Promise.all([
-    fetchVideos(filterGroup.value || undefined),
+    fetchVideos(filterGroup.value || undefined, undefined, undefined, undefined, undefined, true),
     fetchGroups(),
     fetchSeries(),
   ]);
@@ -224,7 +224,9 @@ const fmtDur = (s: number) => {
         </div>
         <div class="item-body">
           <div class="item-title">{{ v.title }}</div>
-          <div class="item-meta">{{ v.group_name || '未分组' }} · {{ fmtDur(v.duration) }} · {{ fmtSize(v.file_size) }}</div>
+          <div class="item-meta">
+            <span class="item-id" title="内容ID">ID: {{ v.id.slice(0, 8) }}</span> · {{ v.group_name || '未分组' }} · {{ fmtDur(v.duration) }} · {{ fmtSize(v.file_size) }}
+          </div>
         </div>
         <span class="item-badge" :class="'badge-' + v.status">
           {{ v.status === 'ready' ? '就绪' : v.status === 'processing' ? '转码中' : '失败' }}
@@ -317,6 +319,7 @@ const fmtDur = (s: number) => {
 .item-body { flex: 1; min-width: 0; }
 .item-title { font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .item-meta { font-size: 12px; color: var(--text-muted); margin-top: 3px; }
+.item-id { font-family: monospace; color: #7c4dff; cursor: pointer; }
 
 .item-badge { padding: 3px 10px; border-radius: 99px; font-size: 11px; font-weight: 500; flex-shrink: 0; }
 .badge-ready { background: #ecfdf5; color: #059669; }
