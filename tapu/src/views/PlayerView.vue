@@ -20,6 +20,7 @@ const isSwiping = ref(false);
 const startY = ref(0);
 const startTime = ref(0);
 const isAnimating = ref(false);
+const noTransition = ref(false);
 
 // Video refs - we render multiple video elements for smooth transition
 const videoRefs = ref<Record<number, HTMLVideoElement>>({});
@@ -43,7 +44,7 @@ const trackStyle = computed(() => {
   const offset = base + translateY.value;
   return {
     transform: `translateY(${offset}px)`,
-    transition: isSwiping.value ? 'none' : 'transform 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
+    transition: (isSwiping.value || noTransition.value) ? 'none' : 'transform 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
   };
 });
 
@@ -119,11 +120,18 @@ const onResize = () => { viewportHeight.value = window.innerHeight; };
 const onVideoCanPlay = (idx: number) => {
   if (idx === currentIndex.value && !isLoaded.value) {
     isLoaded.value = true;
-    // Autoplay muted (browser policy compliant)
     const v = videoRefs.value[idx];
     if (v) {
       v.muted = true;
-      v.play().catch(() => {});
+      // Safari needs explicit load + play
+      const playPromise = v.play();
+      if (playPromise) {
+        playPromise.catch(() => {
+          // Safari autoplay blocked - user interaction needed
+          v.load();
+          v.play().catch(() => {});
+        });
+      }
     }
   }
 };
@@ -134,6 +142,10 @@ const syncPlayback = () => {
     const idx = parseInt(idxStr);
     if (idx === currentIndex.value) {
       el.muted = !userHasUnmuted.value;
+      // Safari: ensure source is loaded before play
+      if (el.readyState < 2) {
+        el.load();
+      }
       el.play().catch(() => {});
     } else {
       el.pause();
@@ -165,13 +177,7 @@ const onTouchMove = (e: TouchEvent) => {
   if (!isSwiping.value) return;
   e.preventDefault();
   const diff = e.touches[0].clientY - startY.value;
-  // Rubber-band effect at boundaries
-  if ((currentIndex.value === 0 && diff > 0) ||
-      (currentIndex.value === feed.value.length - 1 && diff < 0)) {
-    translateY.value = diff * 0.3;
-  } else {
-    translateY.value = diff;
-  }
+  translateY.value = diff;
 };
 
 const onTouchEnd = () => {
@@ -183,13 +189,15 @@ const onTouchEnd = () => {
   const velocity = Math.abs(dist) / elapsed;
   const threshold = viewportHeight.value * 0.2;
 
-  // Swipe up (next) or fast flick
-  if ((dist < -threshold || (velocity > 0.5 && dist < -30)) && currentIndex.value < feed.value.length - 1) {
-    goTo(currentIndex.value + 1);
+  // Swipe up (next) or fast flick — infinite loop
+  if (dist < -threshold || (velocity > 0.5 && dist < -30)) {
+    const next = (currentIndex.value + 1) % feed.value.length;
+    goTo(next);
   }
-  // Swipe down (prev) or fast flick
-  else if ((dist > threshold || (velocity > 0.5 && dist > 30)) && currentIndex.value > 0) {
-    goTo(currentIndex.value - 1);
+  // Swipe down (prev) or fast flick — infinite loop
+  else if (dist > threshold || (velocity > 0.5 && dist > 30)) {
+    const prev = (currentIndex.value - 1 + feed.value.length) % feed.value.length;
+    goTo(prev);
   }
   // Snap back
   else {
@@ -201,13 +209,15 @@ const onTouchEnd = () => {
 let wheelCooldown = false;
 const onWheel = (e: WheelEvent) => {
   if (wheelCooldown || isAnimating.value || feed.value.length <= 1) return;
-  if (e.deltaY > 40 && currentIndex.value < feed.value.length - 1) {
+  if (e.deltaY > 40) {
     wheelCooldown = true;
-    goTo(currentIndex.value + 1);
+    const next = (currentIndex.value + 1) % feed.value.length;
+    goTo(next);
     setTimeout(() => { wheelCooldown = false; }, 600);
-  } else if (e.deltaY < -40 && currentIndex.value > 0) {
+  } else if (e.deltaY < -40) {
     wheelCooldown = true;
-    goTo(currentIndex.value - 1);
+    const prev = (currentIndex.value - 1 + feed.value.length) % feed.value.length;
+    goTo(prev);
     setTimeout(() => { wheelCooldown = false; }, 600);
   }
 };
@@ -215,11 +225,24 @@ const onWheel = (e: WheelEvent) => {
 const goTo = (index: number) => {
   isAnimating.value = true;
   translateY.value = 0;
-  currentIndex.value = index;
 
-  // Ad logic: count swipes and show ad card
+  // Detect wrap-around (jump from last to first or first to last)
+  const isWrap = Math.abs(index - currentIndex.value) > 1;
+  if (isWrap) {
+    noTransition.value = true;
+    currentIndex.value = index;
+    // Force layout, then re-enable transition
+    requestAnimationFrame(() => {
+      noTransition.value = false;
+    });
+  } else {
+    currentIndex.value = index;
+  }
+
+  // Ad logic: show ad after completing a full cycle or reaching ad interval
   swipeCount.value++;
-  if (adEnabled.value && (swipeCount.value >= adInterval.value || index >= feed.value.length - 1)) {
+  const completedCycle = index === 0 && swipeCount.value > 1;
+  if (adEnabled.value && (completedCycle || swipeCount.value >= adInterval.value)) {
     swipeCount.value = 0;
     showAdCard.value = true;
   }
@@ -234,7 +257,7 @@ const goTo = (index: number) => {
   setTimeout(() => {
     isAnimating.value = false;
     syncPlayback();
-  }, 380);
+  }, isWrap ? 50 : 380);
 };
 
 const dismissAd = () => {
@@ -331,7 +354,7 @@ const onDoubleTap = () => {
           class="emotion-video"
           :src="video.file_path"
           :poster="video.poster_url || undefined"
-          preload="auto"
+          :preload="Math.abs(idx - currentIndex) <= 1 ? 'auto' : 'none'"
           loop
           muted
           playsinline
@@ -384,10 +407,7 @@ const onDoubleTap = () => {
       </div>
     </transition>
 
-    <!-- Video counter -->
-    <div v-if="feed.length > 1 && isLoaded" class="feed-counter">
-      {{ currentIndex + 1 }} / {{ feed.length }}
-    </div>
+
   </div>
 </template>
 
@@ -493,13 +513,6 @@ const onDoubleTap = () => {
   background: rgba(0, 0, 0, 0.7); color: #fff;
   padding: 8px 20px; border-radius: 20px;
   font-size: 13px; font-weight: 500; z-index: 25; pointer-events: none;
-}
-
-.feed-counter {
-  position: absolute; top: 16px; right: 16px;
-  background: rgba(0, 0, 0, 0.4); color: rgba(255, 255, 255, 0.8);
-  padding: 4px 10px; border-radius: 12px;
-  font-size: 12px; z-index: 15;
 }
 
 .fade-enter-active, .fade-leave-active { transition: opacity 0.3s ease; }

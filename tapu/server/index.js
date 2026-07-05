@@ -50,6 +50,7 @@ app.use('/uploads', (req, res, next) => {
         'Accept-Ranges': 'bytes',
         'Content-Length': chunkSize,
         'Content-Type': 'video/mp4',
+        'Cache-Control': 'public, max-age=86400',
       });
       fs.createReadStream(filePath, { start, end }).pipe(res);
     } else {
@@ -57,6 +58,7 @@ app.use('/uploads', (req, res, next) => {
         'Content-Length': fileSize,
         'Content-Type': 'video/mp4',
         'Accept-Ranges': 'bytes',
+        'Cache-Control': 'public, max-age=86400',
       });
       fs.createReadStream(filePath).pipe(res);
     }
