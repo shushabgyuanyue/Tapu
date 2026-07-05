@@ -55,6 +55,19 @@ onMounted(async () => {
   viewportHeight.value = window.innerHeight;
   window.addEventListener('resize', onResize);
 
+  // Register first-interaction listeners for WeChat/restricted browsers
+  document.addEventListener('touchstart', onFirstInteraction, { once: true });
+  document.addEventListener('click', onFirstInteraction, { once: true });
+
+  // WeChat WeixinJSBridge: auto-play on ready
+  if ((window as any).WeixinJSBridge) {
+    (window as any).WeixinJSBridge.invoke('getNetworkType', {}, () => { tryAutoplay(); });
+  } else {
+    document.addEventListener('WeixinJSBridgeReady', () => {
+      tryAutoplay();
+    }, { once: true });
+  }
+
   // Load ad config
   try {
     const [enabledRes, intervalRes] = await Promise.all([
@@ -113,6 +126,8 @@ onMounted(async () => {
 
 onUnmounted(() => {
   window.removeEventListener('resize', onResize);
+  document.removeEventListener('touchstart', onFirstInteraction);
+  document.removeEventListener('click', onFirstInteraction);
 });
 
 const onResize = () => { viewportHeight.value = window.innerHeight; };
@@ -120,20 +135,36 @@ const onResize = () => { viewportHeight.value = window.innerHeight; };
 const onVideoCanPlay = (idx: number) => {
   if (idx === currentIndex.value && !isLoaded.value) {
     isLoaded.value = true;
-    const v = videoRefs.value[idx];
-    if (v) {
-      v.muted = true;
-      // Safari needs explicit load + play
-      const playPromise = v.play();
-      if (playPromise) {
-        playPromise.catch(() => {
-          // Safari autoplay blocked - user interaction needed
-          v.load();
-          v.play().catch(() => {});
-        });
-      }
-    }
+    tryAutoplay();
   }
+};
+
+// Attempt autoplay; if blocked (WeChat/Safari), wait for user touch
+let autoplaySucceeded = false;
+const tryAutoplay = () => {
+  const v = videoRefs.value[currentIndex.value];
+  if (!v || autoplaySucceeded) return;
+  v.muted = true;
+  const p = v.play();
+  if (p) {
+    p.then(() => {
+      autoplaySucceeded = true;
+    }).catch(() => {
+      // Autoplay blocked — will play on first user interaction
+    });
+  }
+};
+
+// WeChat & restricted browsers: use first touch/click to kick off playback
+const onFirstInteraction = () => {
+  if (autoplaySucceeded) return;
+  const v = videoRefs.value[currentIndex.value];
+  if (v && v.paused) {
+    v.muted = true;
+    v.play().then(() => { autoplaySucceeded = true; }).catch(() => {});
+  }
+  document.removeEventListener('touchstart', onFirstInteraction);
+  document.removeEventListener('click', onFirstInteraction);
 };
 
 // Play current, pause others
