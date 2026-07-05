@@ -99,7 +99,7 @@ const handleShare = async () => {
 };
 
 const handleWishlist = async () => {
-  if (!video.value?.group_id || wishlistActive.value) return;
+  if (!video.value?.group_id) return;
   // Check purchasability by fetching group info
   try {
     const groups = await fetchGroups();

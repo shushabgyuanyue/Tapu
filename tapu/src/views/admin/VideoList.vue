@@ -223,9 +223,9 @@ const handleDelete = async (id: string) => {
   await loadData();
 };
 
-const goPlay = (id: string) => { window.open(`/play/${id}`, '_blank'); };
-const copyLink = (id: string) => { navigator.clipboard.writeText(`${window.location.origin}/play/${id}`); };
-const copyContentId = (id: string) => { navigator.clipboard.writeText(formatContentId(id)); };
+const goPlay = (id: string) => { window.open(`/content/${id}`, '_blank'); };
+const copyLink = (id: string) => { navigator.clipboard.writeText(`${window.location.origin}/content/${id}`); showToast('链接已复制'); };
+const copyContentId = (id: string) => { navigator.clipboard.writeText(formatContentId(id)); showToast('内容 ID 已复制'); };
 
 const resolveGroup = (groupId?: string) => groups.value.find(g => g.id === groupId);
 const canOpenShopActions = (video: any) => video.status === 'ready' && !video.is_private && !!video.group_id;
@@ -235,14 +235,22 @@ const canPurchaseVideo = (video: any) => {
   return group?.sale_status === 'purchasable';
 };
 
+const toastMsg = ref('');
+let toastTimer: any = null;
+const showToast = (msg: string) => {
+  toastMsg.value = msg;
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { toastMsg.value = ''; }, 2500);
+};
+
 const handleAddWishlist = async (video: any) => {
   if (!canOpenShopActions(video)) return;
   const result = await addToWishlist(video.group_id, video.id);
   wishlistActiveMap.value[video.group_id] = !!result?.inWishlist;
   wishlistCounts.value[video.group_id] = result?.count || 0;
-  alert(result?.added === false
-    ? `「${video.group_name || '该 IP'}」已在心愿单，当前 ${result?.count || 0} 人已加入`
-    : `已将「${video.group_name || '该 IP'}」加入心愿单，当前 ${result?.count || 0} 人已加入`);
+  showToast(result?.added === false
+    ? `「${video.group_name || '该 IP'}」已在心愿单 · ${result?.count || 0} 人`
+    : `已加入心愿单 · ${result?.count || 0} 人`);
 };
 
 const handlePurchase = (video: any) => {
@@ -319,9 +327,7 @@ const fmtDur = (s: number) => {
     <!-- Filter -->
     <div class="list-toolbar">
       <div class="toolbar-head">
-        <span class="toolbar-kicker">创作者内容</span>
-        <h2 class="toolbar-title">全部内容 <span class="count">{{ totalVideos }}</span></h2>
-        <p class="toolbar-hint">支持按标题、系列、IP、内容 ID 模糊搜索；卡片点击即可预览，系列/IP 无数据时自动隐藏。</p>
+        <h2 class="toolbar-title">内容管理 <span class="count">{{ totalVideos }}</span></h2>
       </div>
       <div class="toolbar-right">
         <label class="search-box">
@@ -329,7 +335,7 @@ const fmtDur = (s: number) => {
             <circle cx="11" cy="11" r="7"></circle>
             <path d="M20 20l-3.5-3.5"></path>
           </svg>
-          <input v-model="filterQuery" class="inp inp-search" placeholder="模糊搜索标题 / 系列 / IP / 内容ID" />
+          <input v-model="filterQuery" class="inp inp-search" placeholder="搜索标题 / 系列 / IP / ID" />
         </label>
         <div class="toolbar-filters">
           <select v-model="filterSeries" @change="resetPage(); loadData()" class="sel sel-sm">
@@ -341,9 +347,9 @@ const fmtDur = (s: number) => {
             <option v-for="g in filteredGroupsForSelect" :key="g.id" :value="g.id">{{ g.name }}</option>
           </select>
           <select v-model="filterPrivate" @change="resetPage(); loadData()" class="sel sel-sm">
-            <option value="">全部可见性</option>
-            <option value="0">公开内容</option>
-            <option value="1">私有内容</option>
+            <option value="">可见性</option>
+            <option value="0">公开</option>
+            <option value="1">私有</option>
           </select>
         </div>
       </div>
@@ -357,52 +363,54 @@ const fmtDur = (s: number) => {
         class="video-item"
         @click="v.status === 'ready' && goPlay(v.id)"
       >
-        <div class="item-thumb-wrap">
-          <div class="item-thumb">
-            <img v-if="v.poster_url" :src="v.poster_url" />
-            <div v-else class="thumb-placeholder"></div>
-          </div>
-          <div class="item-preview-hint" v-if="v.status === 'ready'">
-            <span>点击预览</span>
-            <span class="preview-arrow">↗</span>
-          </div>
+        <div class="item-thumb">
+          <img v-if="v.poster_url" :src="v.poster_url" />
+          <div v-else class="thumb-placeholder"></div>
+          <span v-if="v.duration" class="thumb-dur">{{ fmtDur(v.duration) }}</span>
+          <span class="item-badge" :class="'badge-' + v.status" v-if="v.status !== 'ready'">
+            {{ v.status === 'processing' ? '转码中' : '失败' }}
+          </span>
         </div>
         <div class="item-body">
-          <div class="item-headline">
-            <div class="item-title">{{ v.title }}</div>
-            <span class="item-badge" :class="'badge-' + v.status">
-              {{ v.status === 'ready' ? '就绪' : v.status === 'processing' ? '转码中' : '失败' }}
-            </span>
-          </div>
+          <div class="item-title">{{ v.title }}</div>
           <div class="item-tags" v-if="v.series_name || v.group_name">
-            <span v-if="v.series_name" class="item-tag item-tag-series">系列 · {{ v.series_name }}</span>
-            <span v-if="v.group_name" class="item-tag item-tag-group">IP · {{ v.group_name }}</span>
+            <span v-if="v.series_name" class="item-tag tag-series">{{ v.series_name }}</span>
+            <span v-if="v.group_name" class="item-tag tag-group">{{ v.group_name }}</span>
           </div>
           <div class="item-meta">
-            <button class="item-id" title="点击复制完整内容ID" @click.stop="copyContentId(v.id)">内容ID · {{ formatShortContentId(v.id) }}</button>
-            <span class="item-private" v-if="v.is_private">私有</span>
-            <span class="item-meta-pill" v-if="v.duration">{{ fmtDur(v.duration) }}</span>
-            <span class="item-meta-pill" v-if="v.file_size">{{ fmtSize(v.file_size) }}</span>
+            <button class="meta-id" title="复制内容ID" @click.stop="copyContentId(v.id)">
+              <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              {{ formatShortContentId(v.id) }}
+            </button>
+            <span class="meta-pill" v-if="v.is_private">私有</span>
+            <span class="meta-pill meta-size" v-if="v.file_size">{{ fmtSize(v.file_size) }}</span>
           </div>
         </div>
-        <div class="item-side" @click.stop>
-          <div class="item-actions item-actions-utility">
-            <button v-if="v.status === 'ready'" @click="copyLink(v.id)" class="act-btn act-ghost">复制链接</button>
-            <button @click="handleDelete(v.id)" class="act-btn act-danger">删除</button>
-          </div>
-          <div class="item-actions item-actions-commerce" v-if="canOpenShopActions(v)">
-            <button @click="handleAddWishlist(v)" class="act-btn act-wish" :class="{ 'act-wish-active': wishlistActiveMap[v.group_id] }">
-              <span>{{ wishlistActiveMap[v.group_id] ? '已在心愿单' : '加入心愿单' }}</span>
-              <span class="act-count">{{ wishlistCounts[v.group_id] || 0 }}</span>
-            </button>
-            <button v-if="canPurchaseVideo(v)" @click="handlePurchase(v)" class="act-btn act-buy">购买所属 IP</button>
-          </div>
+        <div class="item-actions" @click.stop>
+          <button v-if="v.status === 'ready'" class="icon-btn" title="复制链接" @click="copyLink(v.id)">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+          </button>
+          <button v-if="canOpenShopActions(v)" class="icon-btn icon-wish" :class="{ active: wishlistActiveMap[v.group_id] }" title="加入心愿单" @click="handleAddWishlist(v)">
+            <svg viewBox="0 0 24 24" width="16" height="16" :fill="wishlistActiveMap[v.group_id] ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="2"><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13"/><path d="M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7"/></svg>
+            <span class="icon-count" v-if="wishlistCounts[v.group_id]">{{ wishlistCounts[v.group_id] }}</span>
+          </button>
+          <button v-if="canPurchaseVideo(v)" class="icon-btn icon-buy" title="购买" @click="handlePurchase(v)">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+          </button>
+          <button class="icon-btn icon-del" title="删除" @click="handleDelete(v.id)">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+          </button>
         </div>
       </div>
       <div v-if="displayVideos.length === 0" class="empty-state">
         <p>{{ filterQuery || filterSeries || filterGroup || filterPrivate ? '没有找到符合筛选条件的内容' : '还没有内容，上传第一个试试' }}</p>
       </div>
     </div>
+
+    <!-- Inline toast -->
+    <Transition name="toast">
+      <div v-if="toastMsg" class="inline-toast">{{ toastMsg }}</div>
+    </Transition>
 
     <!-- Pagination -->
     <AdminPagination v-model="page" :total="totalVideos" :page-size="pageSize" @update:page-size="pageSize = $event" />
@@ -411,18 +419,18 @@ const fmtDur = (s: number) => {
 </template>
 
 <style scoped>
-.upload-section { margin-bottom: 32px; }
+.upload-section { margin-bottom: 28px; }
 
 .drop-zone {
   background: #fff;
   border: 2px dashed #e0e0e0;
   border-radius: 16px;
-  padding: 44px 24px;
+  padding: 40px 24px;
   text-align: center;
   transition: all 0.2s;
 }
 .drop-zone.active { border-color: var(--accent); background: #f8f5ff; }
-.drop-zone.has-file { border-style: solid; border-color: #e0e0e0; padding: 24px; }
+.drop-zone.has-file { border-style: solid; border-color: #e0e0e0; padding: 20px; }
 
 .drop-icon { color: #ccc; margin-bottom: 12px; }
 .drop-text { font-size: 15px; color: #999; margin: 0 0 8px; }
@@ -446,142 +454,136 @@ const fmtDur = (s: number) => {
 .btn-upload {
   padding: 8px 20px; background: var(--accent); color: #fff; border: none;
   border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer;
-  transition: background 0.12s, transform 0.1s;
-  box-shadow: 0 2px 8px rgba(124, 77, 255, 0.2);
+  transition: background 0.12s;
 }
-.btn-upload:hover { background: var(--accent-hover); transform: translateY(-1px); }
-.btn-sm { padding: 6px 12px; }
+.btn-upload:hover { background: var(--accent-hover); }
 
 .uploading-state { display: flex; align-items: center; justify-content: center; gap: 12px; color: #888; font-size: 14px; padding: 20px; }
 .upload-spinner { width: 20px; height: 20px; border: 2px solid #eee; border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
+/* Toolbar */
 .list-toolbar {
-  display: flex; justify-content: space-between; align-items: flex-start; gap: 16px;
-  margin-bottom: 16px; padding: 18px 20px; border: 1px solid var(--border);
-  border-radius: 18px; background: linear-gradient(180deg, #ffffff 0%, #faf8ff 100%);
+  display: flex; justify-content: space-between; align-items: center; gap: 16px;
+  margin-bottom: 16px; padding: 14px 16px;
+  border: 1px solid var(--border); border-radius: 14px; background: #fff;
 }
-.toolbar-head { display: flex; flex-direction: column; gap: 6px; max-width: 360px; }
-.toolbar-kicker {
-  display: inline-flex; width: fit-content; padding: 4px 10px; border-radius: 999px;
-  background: #f3efff; color: var(--accent); font-size: 11px; font-weight: 700; letter-spacing: 0.04em;
-}
-.toolbar-title { font-size: 18px; font-weight: 700; margin: 0; }
-.toolbar-title .count { font-size: 13px; color: var(--text-muted); font-weight: 500; }
-.toolbar-right { display: flex; flex-direction: column; gap: 10px; align-items: stretch; flex: 1; }
-.toolbar-hint { margin: 0; font-size: 12px; color: var(--text-muted); line-height: 1.6; }
+.toolbar-title { font-size: 16px; font-weight: 700; margin: 0; white-space: nowrap; }
+.toolbar-title .count { font-size: 12px; color: var(--text-muted); font-weight: 500; margin-left: 4px; }
+.toolbar-right { display: flex; gap: 10px; align-items: center; flex: 1; flex-wrap: wrap; justify-content: flex-end; }
 .search-box {
-  display: flex; align-items: center; gap: 8px; padding: 0 12px;
-  border: 1px solid var(--border); border-radius: 12px; background: #fff; color: var(--text-muted);
+  display: flex; align-items: center; gap: 6px; padding: 0 12px;
+  border: 1px solid var(--border); border-radius: 10px; background: #fafafa; color: var(--text-muted);
 }
 .search-box svg { flex-shrink: 0; }
-.toolbar-filters { display: flex; gap: 8px; flex-wrap: wrap; }
-.inp-search { min-width: 240px; border: none; padding-left: 0; }
-.inp-search:focus { border-color: transparent; }
+.toolbar-filters { display: flex; gap: 6px; flex-wrap: wrap; }
+.inp-search { min-width: 180px; border: none; padding: 8px 0; background: transparent; font-size: 13px; outline: none; color: #333; }
 
+/* Video list */
 .video-list { background: #fff; border: 1px solid var(--border); border-radius: 14px; overflow: hidden; }
 
 .video-item {
-  display: grid; grid-template-columns: 88px minmax(0, 1fr) 240px;
-  align-items: center; gap: 16px;
-  padding: 16px 18px; border-bottom: 1px solid var(--border-light);
-  cursor: pointer; transition: background 0.12s, transform 0.12s;
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 16px; border-bottom: 1px solid var(--border-light);
+  cursor: pointer; transition: background 0.12s;
 }
 .video-item:last-child { border-bottom: none; }
-.video-item:hover { background: #fcfbff; }
+.video-item:hover { background: #faf9ff; }
 
-.item-thumb-wrap { display: flex; flex-direction: column; gap: 8px; align-items: stretch; }
-.item-thumb { width: 88px; height: 118px; border-radius: 12px; overflow: hidden; background: #f0f0f0; flex-shrink: 0; }
+.item-thumb {
+  position: relative; width: 64px; height: 86px;
+  border-radius: 10px; overflow: hidden; background: #f0f0f0; flex-shrink: 0;
+}
 .item-thumb img { width: 100%; height: 100%; object-fit: cover; }
-.thumb-placeholder { width: 100%; height: 100%; background: linear-gradient(135deg, #f0f0f0, #e8e8e8); }
-.item-preview-hint {
-  display: inline-flex; align-items: center; justify-content: center; gap: 4px;
-  padding: 6px 8px; border-radius: 999px; background: #f6f2ff; color: var(--accent);
-  font-size: 11px; font-weight: 600;
+.thumb-placeholder { width: 100%; height: 100%; background: linear-gradient(135deg, #f5f0ff, #ede5ff); }
+.thumb-dur {
+  position: absolute; bottom: 4px; right: 4px;
+  background: rgba(0,0,0,0.6); color: #fff;
+  font-size: 10px; padding: 1px 5px; border-radius: 4px;
 }
-.preview-arrow { font-size: 12px; }
-
-.item-body { flex: 1; min-width: 0; }
-.item-headline { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 6px; }
-.item-title {
-  font-size: 15px; font-weight: 600; line-height: 1.45;
-  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
-  overflow: hidden;
+.item-badge {
+  position: absolute; top: 4px; left: 4px;
+  padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 600;
 }
-.item-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
-.item-tag {
-  display: inline-flex; align-items: center; padding: 3px 8px; border-radius: 999px;
-  font-size: 11px; font-weight: 600;
-}
-.item-tag-series { background: #f3efff; color: #7c4dff; }
-.item-tag-group { background: #eef4ff; color: #3157a5; }
-.item-meta { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 12px; color: var(--text-muted); margin-top: 10px; }
-.item-meta-pill {
-  display: inline-flex; align-items: center; padding: 4px 9px; border-radius: 999px;
-  background: #f7f7f8; color: #666; font-size: 11px; font-weight: 500;
-}
-.item-id {
-  font-family: monospace; color: #7c4dff; cursor: pointer; border: none; background: #f6f2ff;
-  border-radius: 999px; padding: 4px 10px; font-size: 11px;
-}
-.item-private {
-  display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 999px;
-  background: #fff1f2; color: #e11d48; font-size: 11px; font-weight: 600;
-}
-
-.item-badge { padding: 4px 10px; border-radius: 99px; font-size: 11px; font-weight: 600; flex-shrink: 0; white-space: nowrap; }
-.badge-ready { background: #ecfdf5; color: #059669; }
 .badge-processing { background: #fef9c3; color: #a16207; }
 .badge-error { background: #fef2f2; color: #dc2626; }
 
-.item-side { display: flex; flex-direction: column; gap: 10px; align-items: stretch; }
-.item-actions { display: flex; gap: 8px; flex-shrink: 0; flex-wrap: wrap; justify-content: flex-end; }
-.item-actions-utility { justify-content: flex-end; }
-.item-actions-commerce { justify-content: flex-end; }
+.item-body { flex: 1; min-width: 0; }
+.item-title {
+  font-size: 14px; font-weight: 600; line-height: 1.4;
+  display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical;
+  overflow: hidden; margin-bottom: 4px;
+}
+.item-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 4px; }
+.item-tag {
+  display: inline-flex; padding: 2px 7px; border-radius: 999px;
+  font-size: 10px; font-weight: 600;
+}
+.tag-series { background: #f3efff; color: #7c4dff; }
+.tag-group { background: #f0f4ff; color: #3b6db5; }
+.item-meta { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.meta-id {
+  display: inline-flex; align-items: center; gap: 3px;
+  font-family: monospace; color: #999; cursor: pointer; border: none;
+  background: #f5f5f5; border-radius: 999px; padding: 2px 8px; font-size: 10px;
+  transition: background 0.12s, color 0.12s;
+}
+.meta-id:hover { background: #f3efff; color: #7c4dff; }
+.meta-pill {
+  font-size: 10px; color: #bbb; padding: 2px 6px; background: #f9f9f9; border-radius: 999px;
+}
+.meta-pill.meta-size { }
 
-.act-btn {
-  background: #f5f5f5; border: 1px solid transparent; padding: 8px 12px; font-size: 11px;
-  color: #666; cursor: pointer; border-radius: 999px; display: inline-flex; align-items: center; gap: 6px;
-  justify-content: center; transition: all 0.12s ease;
+/* Icon actions */
+.item-actions { display: flex; gap: 4px; align-items: center; flex-shrink: 0; }
+.icon-btn {
+  width: 32px; height: 32px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  border: none; background: #f5f5f5; color: #999;
+  cursor: pointer; transition: all 0.15s; position: relative;
 }
-.act-btn:hover { background: #eee; color: #333; }
-.act-btn:disabled { opacity: 0.4; }
-.act-ghost { background: #fff; border-color: var(--border); }
-.act-ghost:hover { background: #f7f7f8; border-color: #ddd; }
-.act-wish { background: #fff3f7; color: #c2185b; }
-.act-wish:hover { background: #ffe4ee; color: #ad1457; }
-.act-wish-active { background: #f6f6f8; color: #888; border-color: #ececf0; }
-.act-buy { background: linear-gradient(135deg, #7c4dff 0%, #5f33d6 100%); color: #fff; box-shadow: 0 6px 16px rgba(124, 77, 255, 0.18); }
-.act-buy:hover { background: #dbeafe; color: #0d47a1; }
-.act-danger:hover { background: #fef2f2; color: #dc2626; }
-.act-count {
-  min-width: 18px; height: 18px; padding: 0 6px; border-radius: 999px;
-  background: rgba(255,255,255,0.9); display: inline-flex; align-items: center; justify-content: center;
-  font-size: 10px; font-weight: 700;
+.icon-btn:hover { background: #ede5ff; color: #7c4dff; }
+.icon-wish { position: relative; }
+.icon-wish.active { color: #7c4dff; background: #f3efff; }
+.icon-wish .icon-count {
+  position: absolute; top: -4px; right: -4px;
+  min-width: 16px; height: 16px; padding: 0 4px;
+  background: #7c4dff; color: #fff; font-size: 9px; font-weight: 700;
+  border-radius: 999px; display: flex; align-items: center; justify-content: center;
 }
+.icon-buy:hover { background: #f3efff; color: #7c4dff; }
+.icon-del:hover { background: #fef2f2; color: #dc2626; }
+
+/* Inline toast */
+.inline-toast {
+  position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%);
+  background: #333; color: #fff; font-size: 13px;
+  padding: 10px 20px; border-radius: 999px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+  z-index: 9999; white-space: nowrap;
+}
+.toast-enter-active { transition: all 0.3s ease; }
+.toast-leave-active { transition: all 0.2s ease; }
+.toast-enter-from { opacity: 0; transform: translateX(-50%) translateY(10px); }
+.toast-leave-to { opacity: 0; transform: translateX(-50%) translateY(-10px); }
 
 .inp { padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 13px; background: #fff; color: #1a1a1a; outline: none; flex: 1; min-width: 100px; }
 .inp:focus { border-color: #ccc; }
 .sel { padding: 7px 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 13px; background: #fff; color: #666; outline: none; }
-.sel-sm { font-size: 12px; }
+.sel-sm { font-size: 12px; padding: 6px 8px; }
 
 .empty-state { text-align: center; padding: 48px 20px; color: var(--text-muted); font-size: 14px; }
 
 @media (max-width: 640px) {
   .upload-options { flex-direction: column; align-items: stretch; }
-  .list-toolbar { flex-direction: column; gap: 12px; align-items: stretch; padding: 16px; }
-  .toolbar-head { max-width: none; }
-  .toolbar-right { width: 100%; }
-  .toolbar-filters { flex-direction: column; }
-  .search-box { width: 100%; }
+  .list-toolbar { flex-direction: column; gap: 10px; align-items: stretch; padding: 12px; }
+  .toolbar-right { flex-direction: column; align-items: stretch; }
+  .toolbar-filters { flex-wrap: nowrap; overflow-x: auto; }
   .inp-search { min-width: 0; width: 100%; }
-  .video-item {
-    grid-template-columns: 72px minmax(0, 1fr);
-    gap: 12px; padding: 12px;
-  }
-  .item-thumb { width: 72px; height: 96px; }
-  .item-headline { flex-direction: column; align-items: flex-start; }
-  .item-side { grid-column: 1 / -1; }
-  .item-actions { justify-content: flex-start; }
+  .video-item { padding: 10px 12px; gap: 10px; }
+  .item-thumb { width: 56px; height: 74px; border-radius: 8px; }
+  .item-title { font-size: 13px; }
+  .item-actions { gap: 2px; }
+  .icon-btn { width: 28px; height: 28px; }
 }
 </style>

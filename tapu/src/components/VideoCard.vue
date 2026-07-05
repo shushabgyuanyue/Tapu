@@ -68,7 +68,7 @@ const fmtDur = (s: number) => {
         </span>
       </button>
       <span class="action-spacer"></span>
-      <button v-if="video.group_id" class="action-btn action-wish" :class="{ 'is-wished': wishlistStatus }" :disabled="wishlistStatus" @click.stop="!wishlistStatus && emit('wishlist', $event, video.group_id, video.id)">
+      <button v-if="video.group_id" class="action-btn action-wish" :class="{ 'is-wished': wishlistStatus }" @click.stop="emit('wishlist', $event, video.group_id, video.id)">
         <span class="action-icon wish-icon">
           <svg viewBox="0 0 24 24" width="15" height="15" :fill="wishlistStatus ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13"/><path d="M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7"/><path d="M7.5 8a2.5 2.5 0 0 1 0-5A4.8 8 0 0 1 12 8a4.8 8 0 0 1 4.5-5 2.5 2.5 0 0 1 0 5"/></svg>
         </span>
@@ -164,9 +164,9 @@ const fmtDur = (s: number) => {
   100% { transform: rotate(360deg) scale(1); }
 }
 /* Wishlist */
-.action-wish.is-wished { opacity: 0.6; cursor: default; }
-.action-wish.is-wished .wish-icon { color: #999; }
-.action-wish.is-wished:hover { background: #fafafb; color: #999; border-color: transparent; }
+.action-wish.is-wished { background: #f3efff; color: #7c4dff; border-color: #e8defe; }
+.action-wish.is-wished .wish-icon { color: #7c4dff; }
+.action-wish.is-wished:hover { background: #ede5ff; }
 
 @media (max-width: 640px) {
   .card-info { padding: 8px 10px 4px; }
