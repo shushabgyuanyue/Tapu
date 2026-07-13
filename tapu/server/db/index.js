@@ -296,14 +296,14 @@ export async function getDb() {
       markdown_source TEXT,
       total_days INTEGER DEFAULT 30,
       starts_on TEXT,
-      release_cron TEXT DEFAULT '0 8 * * *',
+      release_cron TEXT DEFAULT '*/1 * * * *',
       release_timezone TEXT DEFAULT 'Asia/Shanghai',
       status TEXT DEFAULT 'draft',
       imported_at DATETIME,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (world_id) REFERENCES daily_sticker_worlds(id) ON DELETE CASCADE
     )`,
-    "ALTER TABLE daily_sticker_story_arcs ADD COLUMN release_cron TEXT DEFAULT '0 8 * * *'",
+    "ALTER TABLE daily_sticker_story_arcs ADD COLUMN release_cron TEXT DEFAULT '*/1 * * * *'",
     "ALTER TABLE daily_sticker_story_arcs ADD COLUMN release_timezone TEXT DEFAULT 'Asia/Shanghai'",
     `CREATE TABLE IF NOT EXISTS daily_sticker_templates (
       code TEXT PRIMARY KEY,
@@ -453,7 +453,8 @@ export async function getDb() {
   try {
     db.run(`INSERT OR IGNORE INTO site_config (key, value) VALUES ('community_enabled', 'false')`);
     db.run(`INSERT OR IGNORE INTO site_config (key, value) VALUES ('wishlist_enabled', 'false')`);
-    db.run(`INSERT OR IGNORE INTO site_config (key, value) VALUES ('daily_sticker_release_cron', '0 8 * * *')`);
+    db.run(`INSERT OR IGNORE INTO site_config (key, value) VALUES ('daily_sticker_release_cron', '*/1 * * * *')`);
+    db.run(`UPDATE site_config SET value = '*/1 * * * *' WHERE key = 'daily_sticker_release_cron' AND value = '0 8 * * *'`);
     db.run(`INSERT OR IGNORE INTO site_config (key, value) VALUES ('daily_sticker_release_timezone', 'Asia/Shanghai')`);
   } catch (e) { /* ignore */ }
 

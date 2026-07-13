@@ -27,7 +27,7 @@ const storyArcs = ref<any[]>([]);
 const entries = ref<any[]>([]);
 const tokens = ref<any[]>([]);
 const visualStyles = ref<any[]>([]);
-const settings = ref({ release_cron: '0 8 * * *', release_timezone: 'Asia/Shanghai' });
+const settings = ref({ release_cron: '*/1 * * * *', release_timezone: 'Asia/Shanghai' });
 const activeStoryArcId = ref('');
 const selectedDay = ref(1);
 const msg = ref('');
@@ -116,7 +116,7 @@ const loadAll = async () => {
   visualStyles.value = Array.isArray(styleRows) ? styleRows : [];
   if (settingRows && !settingRows.error) {
     settings.value = {
-      release_cron: settingRows.release_cron || '0 8 * * *',
+      release_cron: settingRows.release_cron || '*/1 * * * *',
       release_timezone: settingRows.release_timezone || 'Asia/Shanghai',
     };
   }
@@ -421,9 +421,9 @@ onMounted(loadAll);
     <section v-if="activePanel === 'settings'" class="settings-grid">
       <article class="panel">
         <h3>全局发布设置</h3>
-        <p class="hint">目前支持日级 cron，例如 `0 8 * * *` 表示每天 08:00 后切到新的一天。</p>
+        <p class="hint">支持分钟级测试 cron，例如 `*/1 * * * *` 表示每 1 分钟切换；生产可用日级 cron，例如 `0 8 * * *`。</p>
         <div class="form-grid">
-          <label><span>默认 cron</span><input v-model="settings.release_cron" placeholder="0 8 * * *" /></label>
+          <label><span>默认 cron</span><input v-model="settings.release_cron" placeholder="*/1 * * * *" /></label>
           <label><span>默认时区</span><input v-model="settings.release_timezone" placeholder="Asia/Shanghai" /></label>
         </div>
         <div class="actions"><button class="primary" @click="saveGlobalSettings">保存全局设置</button></div>
@@ -433,7 +433,7 @@ onMounted(loadAll);
         <h3>当前故事发布设置</h3>
         <div class="form-grid">
           <label><span>起始日</span><input v-model="activeStoryArc.starts_on" type="date" /></label>
-          <label><span>故事 cron</span><input v-model="activeStoryArc.release_cron" placeholder="0 8 * * *" /></label>
+          <label><span>故事 cron</span><input v-model="activeStoryArc.release_cron" placeholder="*/1 * * * *" /></label>
           <label><span>时区</span><input v-model="activeStoryArc.release_timezone" placeholder="Asia/Shanghai" /></label>
           <label>
             <span>状态</span>

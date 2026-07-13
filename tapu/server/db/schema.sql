@@ -259,7 +259,7 @@ CREATE TABLE IF NOT EXISTS daily_sticker_story_arcs (
   markdown_source TEXT,
   total_days INTEGER DEFAULT 30,
   starts_on TEXT,
-  release_cron TEXT DEFAULT '0 8 * * *',
+  release_cron TEXT DEFAULT '*/1 * * * *',
   release_timezone TEXT DEFAULT 'Asia/Shanghai',
   status TEXT DEFAULT 'draft',
   imported_at DATETIME,

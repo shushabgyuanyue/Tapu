@@ -5,6 +5,8 @@ import { authRequired } from '../middleware/auth.js';
 import { createUniqueToken, normalizeEntityToken, resultToObjects } from '../services/tokens.js';
 
 const router = Router();
+const DEFAULT_DAILY_STICKER_RELEASE_CRON = '*/1 * * * *';
+const DEFAULT_DAILY_STICKER_RELEASE_TIMEZONE = 'Asia/Shanghai';
 
 function adminOnly(req, res, next) {
   if (req.user.username !== 'admin') {
@@ -41,16 +43,38 @@ function setConfigValue(db, key, value) {
   }
 }
 
-function parseDailyCron(cron) {
+function parseReleaseCron(cron) {
   const parts = String(cron || '').trim().split(/\s+/);
-  if (parts.length !== 5) return { minute: 0, hour: 8, valid: false };
-  const minute = Number(parts[0]);
-  const hour = Number(parts[1]);
-  const isDaily = parts[2] === '*' && parts[3] === '*' && parts[4] === '*';
-  if (!Number.isInteger(minute) || !Number.isInteger(hour) || minute < 0 || minute > 59 || hour < 0 || hour > 23 || !isDaily) {
-    return { minute: 0, hour: 8, valid: false };
+  if (parts.length !== 5) return { valid: false, mode: 'daily', minute: 0, hour: 8 };
+  const [minuteExpr, hourExpr, dayExpr, monthExpr, weekExpr] = parts;
+  const isEveryDay = dayExpr === '*' && monthExpr === '*' && weekExpr === '*';
+  if (!isEveryDay) return { valid: false, mode: 'daily', minute: 0, hour: 8 };
+
+  if (hourExpr === '*') {
+    if (minuteExpr === '*') {
+      return { valid: true, mode: 'minute_interval', intervalMinutes: 1 };
+    }
+    const intervalMatch = minuteExpr.match(/^(?:\*|0)\/([1-9]\d*)$/);
+    if (intervalMatch) {
+      const intervalMinutes = Number(intervalMatch[1]);
+      if (Number.isInteger(intervalMinutes) && intervalMinutes >= 1 && intervalMinutes <= 59) {
+        return { valid: true, mode: 'minute_interval', intervalMinutes };
+      }
+    }
+    return { valid: false, mode: 'minute_interval', intervalMinutes: 1 };
   }
-  return { minute, hour, valid: true };
+
+  const minute = Number(minuteExpr);
+  const hour = Number(hourExpr);
+  if (!Number.isInteger(minute) || !Number.isInteger(hour) || minute < 0 || minute > 59 || hour < 0 || hour > 23) {
+    return { valid: false, mode: 'daily', minute: 0, hour: 8 };
+  }
+  return { valid: true, mode: 'daily', minute, hour };
+}
+
+function validReleaseCronOrDefault(cron) {
+  const parsed = parseReleaseCron(cron);
+  return parsed.valid ? { cron, parsed } : { cron: DEFAULT_DAILY_STICKER_RELEASE_CRON, parsed: parseReleaseCron(DEFAULT_DAILY_STICKER_RELEASE_CRON) };
 }
 
 function localParts(date, timeZone) {
@@ -68,7 +92,7 @@ function localParts(date, timeZone) {
     year: Number(parts.year),
     month: Number(parts.month),
     day: Number(parts.day),
-    hour: Number(parts.hour),
+    hour: Number(parts.hour) === 24 ? 0 : Number(parts.hour),
     minute: Number(parts.minute),
   };
 }
@@ -83,14 +107,60 @@ function previousDateKey(dateKey) {
   return date.toISOString().slice(0, 10);
 }
 
-function releaseDateKey({ cron, timeZone }) {
-  const { minute, hour } = parseDailyCron(cron);
-  const parts = localParts(new Date(), timeZone || 'Asia/Shanghai');
+function partsFromDateKey(dateKey) {
+  const match = String(dateKey || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return null;
+  return {
+    year: Number(match[1]),
+    month: Number(match[2]),
+    day: Number(match[3]),
+    hour: 0,
+    minute: 0,
+  };
+}
+
+function localMinuteSerial(parts) {
+  return Math.floor(Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour || 0, parts.minute || 0) / (60 * 1000));
+}
+
+function minutesSinceLocalDate(dateKey, currentParts) {
+  const startParts = partsFromDateKey(dateKey);
+  if (!startParts || !currentParts) return null;
+  return localMinuteSerial(currentParts) - localMinuteSerial(startParts);
+}
+
+function buildReleaseContext({ cron, timeZone, dateOverride }) {
+  const safe = validReleaseCronOrDefault(cron || DEFAULT_DAILY_STICKER_RELEASE_CRON);
+  const parsed = safe.parsed;
+  const timezone = timeZone || DEFAULT_DAILY_STICKER_RELEASE_TIMEZONE;
+  const parts = partsFromDateKey(dateOverride) || localParts(new Date(), timezone);
   const currentKey = dateKeyFromParts(parts);
-  if (parts.hour < hour || (parts.hour === hour && parts.minute < minute)) {
-    return previousDateKey(currentKey);
+
+  if (parsed.mode === 'minute_interval') {
+    return {
+      cron: safe.cron,
+      cron_mode: parsed.mode,
+      interval_minutes: parsed.intervalMinutes,
+      timezone,
+      date_key: currentKey,
+      local_parts: parts,
+      slot_index: Math.floor(localMinuteSerial(parts) / parsed.intervalMinutes),
+    };
   }
-  return currentKey;
+
+  let dateKey = currentKey;
+  if (!dateOverride && (parts.hour < parsed.hour || (parts.hour === parsed.hour && parts.minute < parsed.minute))) {
+    dateKey = previousDateKey(currentKey);
+  }
+  return {
+    cron: safe.cron,
+    cron_mode: parsed.mode,
+    release_minute: parsed.minute,
+    release_hour: parsed.hour,
+    timezone,
+    date_key: dateKey,
+    local_parts: parts,
+  };
 }
 
 function cleanString(value) {
@@ -196,27 +266,37 @@ function getEntryForDate(db, personaId, entryDate) {
   ))[0] || null;
 }
 
-function resolveStoryDay(tokenRow, entryDate, queryDay) {
+function resolveStoryProgress(tokenRow, releaseContext, queryDay, storyArc) {
   const explicitDay = parseOptionalInt(queryDay);
-  if (explicitDay && explicitDay > 0) return explicitDay;
+  if (explicitDay && explicitDay > 0) {
+    return { raw_day: explicitDay, lookup_day: explicitDay, current_day: explicitDay };
+  }
   if (tokenRow.progress_mode === 'story_day' && tokenRow.story_start_date) {
-    const diff = daysBetween(tokenRow.story_start_date, entryDate);
+    const diff = releaseContext.cron_mode === 'minute_interval'
+      ? minutesSinceLocalDate(tokenRow.story_start_date, releaseContext.local_parts)
+      : daysBetween(tokenRow.story_start_date, releaseContext.date_key);
     if (diff === null) return null;
-    return diff + 1 + (Number(tokenRow.day_offset) || 0);
+    const interval = releaseContext.cron_mode === 'minute_interval' ? releaseContext.interval_minutes || 1 : 1;
+    const rawDay = Math.max(1, Math.floor(diff / interval) + 1 + (Number(tokenRow.day_offset) || 0));
+    const totalDays = Number(storyArc?.total_days);
+    const shouldLoop = releaseContext.cron_mode === 'minute_interval' && Number.isInteger(totalDays) && totalDays > 0;
+    const lookupDay = shouldLoop ? ((rawDay - 1) % totalDays) + 1 : rawDay;
+    return { raw_day: rawDay, lookup_day: lookupDay, current_day: lookupDay };
   }
   return null;
 }
 
-function getEntryForToken(db, tokenRow, entryDate, queryDay) {
+function getEntryForToken(db, tokenRow, releaseContext, queryDay, storyArc) {
   const published = "status = 'published'";
+  const entryDate = releaseContext.date_key;
   if (tokenRow.story_arc_id) {
-    const storyDay = resolveStoryDay(tokenRow, entryDate, queryDay);
-    if (storyDay) {
+    const storyProgress = resolveStoryProgress(tokenRow, releaseContext, queryDay, storyArc);
+    if (storyProgress?.lookup_day) {
       const byDay = resultToObjects(db.exec(
         `SELECT * FROM daily_sticker_entries
          WHERE story_arc_id = ? AND day_index = ? AND ${published}
          LIMIT 1`,
-        [tokenRow.story_arc_id, storyDay]
+        [tokenRow.story_arc_id, storyProgress.lookup_day]
       ))[0];
       if (byDay) return byDay;
     }
@@ -284,13 +364,13 @@ function buildStickerAsset(db, tokenRow) {
   const persona = getPersona(db, tokenRow.persona_id);
   const world = getWorld(db, tokenRow.world_id);
   const storyArc = getStoryArc(db, tokenRow.story_arc_id);
-  const defaultCron = getConfigValue(db, 'daily_sticker_release_cron', '0 8 * * *');
-  const defaultTimezone = getConfigValue(db, 'daily_sticker_release_timezone', 'Asia/Shanghai');
+  const defaultCron = getConfigValue(db, 'daily_sticker_release_cron', DEFAULT_DAILY_STICKER_RELEASE_CRON);
+  const defaultTimezone = getConfigValue(db, 'daily_sticker_release_timezone', DEFAULT_DAILY_STICKER_RELEASE_TIMEZONE);
   const effectiveCron = storyArc?.release_cron || defaultCron;
   const effectiveTimezone = storyArc?.release_timezone || defaultTimezone;
-  const entryDate = releaseDateKey({ cron: effectiveCron, timeZone: effectiveTimezone });
-  const entry = getEntryForToken(db, tokenRow, entryDate);
-  const progressDay = resolveStoryDay(tokenRow, entryDate);
+  const releaseContext = buildReleaseContext({ cron: effectiveCron, timeZone: effectiveTimezone });
+  const entry = getEntryForToken(db, tokenRow, releaseContext, undefined, storyArc);
+  const progress = resolveStoryProgress(tokenRow, releaseContext, undefined, storyArc);
 
   return {
     ...tokenRow,
@@ -298,8 +378,9 @@ function buildStickerAsset(db, tokenRow) {
     world,
     story_arc: storyArc,
     current_entry: entry ? { ...entry, assets: getEntryAssets(db, entry.id) } : null,
-    current_day: progressDay || entry?.day_index || null,
-    release: { cron: effectiveCron, timezone: effectiveTimezone },
+    current_day: progress?.current_day || entry?.day_index || null,
+    current_story_day_raw: progress?.raw_day || null,
+    release: releaseContext,
   };
 }
 
@@ -350,12 +431,17 @@ router.get('/resolve', async (req, res) => {
     const persona = getPersona(db, tokenRow.persona_id);
     const world = getWorld(db, tokenRow.world_id);
     const storyArc = getStoryArc(db, tokenRow.story_arc_id);
-    const defaultCron = getConfigValue(db, 'daily_sticker_release_cron', '0 8 * * *');
-    const defaultTimezone = getConfigValue(db, 'daily_sticker_release_timezone', 'Asia/Shanghai');
+    const defaultCron = getConfigValue(db, 'daily_sticker_release_cron', DEFAULT_DAILY_STICKER_RELEASE_CRON);
+    const defaultTimezone = getConfigValue(db, 'daily_sticker_release_timezone', DEFAULT_DAILY_STICKER_RELEASE_TIMEZONE);
     const effectiveCron = storyArc?.release_cron || defaultCron;
     const effectiveTimezone = storyArc?.release_timezone || defaultTimezone;
-    const entryDate = cleanString(req.query.date) || releaseDateKey({ cron: effectiveCron, timeZone: effectiveTimezone });
-    const entry = getEntryForToken(db, tokenRow, entryDate, req.query.day);
+    const releaseContext = buildReleaseContext({
+      cron: effectiveCron,
+      timeZone: effectiveTimezone,
+      dateOverride: cleanString(req.query.date),
+    });
+    const entry = getEntryForToken(db, tokenRow, releaseContext, req.query.day, storyArc);
+    const progress = resolveStoryProgress(tokenRow, releaseContext, req.query.day, storyArc);
     const assets = getEntryAssets(db, entry?.id);
 
     db.run(
@@ -377,8 +463,10 @@ router.get('/resolve', async (req, res) => {
       world,
       story_arc: storyArc,
       entry: entry ? { ...entry, assets } : null,
-      requested_date: entryDate,
-      release: { cron: effectiveCron, timezone: effectiveTimezone },
+      current_day: progress?.current_day || entry?.day_index || null,
+      current_story_day_raw: progress?.raw_day || null,
+      requested_date: releaseContext.date_key,
+      release: releaseContext,
     });
   } catch (error) {
     console.error('Resolve daily sticker error:', error);
@@ -493,12 +581,12 @@ router.get('/visual-styles', authRequired, adminOnly, async (_req, res) => {
 router.get('/settings', authRequired, adminOnly, async (_req, res) => {
   try {
     const db = await getDb();
-    const release_cron = getConfigValue(db, 'daily_sticker_release_cron', '0 8 * * *');
-    const release_timezone = getConfigValue(db, 'daily_sticker_release_timezone', 'Asia/Shanghai');
+    const release_cron = getConfigValue(db, 'daily_sticker_release_cron', DEFAULT_DAILY_STICKER_RELEASE_CRON);
+    const release_timezone = getConfigValue(db, 'daily_sticker_release_timezone', DEFAULT_DAILY_STICKER_RELEASE_TIMEZONE);
     res.json({
       release_cron,
       release_timezone,
-      cron_valid: parseDailyCron(release_cron).valid,
+      cron_valid: parseReleaseCron(release_cron).valid,
     });
   } catch (error) {
     console.error('Get daily sticker settings error:', error);
@@ -508,11 +596,11 @@ router.get('/settings', authRequired, adminOnly, async (_req, res) => {
 
 router.put('/settings', authRequired, adminOnly, async (req, res) => {
   try {
-    const releaseCron = cleanString(req.body.release_cron) || '0 8 * * *';
-    const releaseTimezone = cleanString(req.body.release_timezone) || 'Asia/Shanghai';
-    const parsed = parseDailyCron(releaseCron);
+    const releaseCron = cleanString(req.body.release_cron) || DEFAULT_DAILY_STICKER_RELEASE_CRON;
+    const releaseTimezone = cleanString(req.body.release_timezone) || DEFAULT_DAILY_STICKER_RELEASE_TIMEZONE;
+    const parsed = parseReleaseCron(releaseCron);
     if (!parsed.valid) {
-      return res.status(400).json({ error: '目前仅支持日级 cron，例如 0 8 * * *' });
+      return res.status(400).json({ error: '支持分钟级 cron（如 */1 * * * *）或日级 cron（如 0 8 * * *）' });
     }
     const db = await getDb();
     setConfigValue(db, 'daily_sticker_release_cron', releaseCron);
@@ -654,8 +742,8 @@ router.post('/story-arcs', authRequired, adminOnly, async (req, res) => {
     const worldId = cleanString(req.body.world_id);
     const title = cleanString(req.body.title);
     if (!worldId || !title) return res.status(400).json({ error: 'world_id and title are required' });
-    const releaseCron = cleanString(req.body.release_cron) || '0 8 * * *';
-    if (!parseDailyCron(releaseCron).valid) return res.status(400).json({ error: '目前仅支持日级 cron，例如 0 8 * * *' });
+    const releaseCron = cleanString(req.body.release_cron) || DEFAULT_DAILY_STICKER_RELEASE_CRON;
+    if (!parseReleaseCron(releaseCron).valid) return res.status(400).json({ error: '支持分钟级 cron（如 */1 * * * *）或日级 cron（如 0 8 * * *）' });
 
     const db = await getDb();
     const id = uuidv4();
@@ -674,7 +762,7 @@ router.post('/story-arcs', authRequired, adminOnly, async (req, res) => {
         parsePositiveInt(req.body.total_days, 30),
         cleanString(req.body.starts_on) || null,
         releaseCron,
-        cleanString(req.body.release_timezone) || 'Asia/Shanghai',
+        cleanString(req.body.release_timezone) || DEFAULT_DAILY_STICKER_RELEASE_TIMEZONE,
         cleanString(req.body.status) || 'draft',
       ]
     );
@@ -688,8 +776,8 @@ router.post('/story-arcs', authRequired, adminOnly, async (req, res) => {
 
 router.put('/story-arcs/:id', authRequired, adminOnly, async (req, res) => {
   try {
-    const releaseCron = cleanString(req.body.release_cron) || '0 8 * * *';
-    if (!parseDailyCron(releaseCron).valid) return res.status(400).json({ error: '目前仅支持日级 cron，例如 0 8 * * *' });
+    const releaseCron = cleanString(req.body.release_cron) || DEFAULT_DAILY_STICKER_RELEASE_CRON;
+    if (!parseReleaseCron(releaseCron).valid) return res.status(400).json({ error: '支持分钟级 cron（如 */1 * * * *）或日级 cron（如 0 8 * * *）' });
     const db = await getDb();
     db.run(
       `UPDATE daily_sticker_story_arcs
@@ -706,7 +794,7 @@ router.put('/story-arcs/:id', authRequired, adminOnly, async (req, res) => {
         parsePositiveInt(req.body.total_days, 30),
         cleanString(req.body.starts_on) || null,
         releaseCron,
-        cleanString(req.body.release_timezone) || 'Asia/Shanghai',
+        cleanString(req.body.release_timezone) || DEFAULT_DAILY_STICKER_RELEASE_TIMEZONE,
         cleanString(req.body.status) || 'draft',
         req.params.id,
       ]
