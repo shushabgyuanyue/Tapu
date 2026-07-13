@@ -530,23 +530,25 @@ const saveDefault = async (entityId: string, videoId = editDefaultInput.value) =
 .assets-page {
   min-height: 100vh;
   background:
-    radial-gradient(circle at 10% 4%, rgba(255, 79, 216, 0.30), transparent 28%),
-    radial-gradient(circle at 88% 6%, rgba(124, 77, 255, 0.28), transparent 28%),
-    linear-gradient(180deg, #0d0712 0%, #1a1023 32%, #fff8fb 32%, #fff 100%);
+    linear-gradient(120deg, rgba(255, 255, 255, 0.035) 0 1px, transparent 1px 88px),
+    linear-gradient(0deg, rgba(255, 255, 255, 0.026) 0 1px, transparent 1px 88px),
+    radial-gradient(circle at 10% 4%, rgba(255, 79, 216, 0.34), transparent 28%),
+    radial-gradient(circle at 88% 6%, rgba(124, 77, 255, 0.32), transparent 28%),
+    linear-gradient(180deg, #09060d 0%, #1a1023 34%, #fff8fb 34%, #fff 100%);
   color: #15131f;
   font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif;
 }
 
 .assets-shell {
-  max-width: 1120px;
+  max-width: 1180px;
   margin: 0 auto;
   padding: 30px 24px 70px;
 }
 
 .assets-hero {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 240px;
-  gap: 18px;
+  grid-template-columns: minmax(0, 1fr) 260px;
+  gap: 20px;
   align-items: stretch;
   margin-bottom: 18px;
 }
@@ -562,16 +564,31 @@ const saveDefault = async (entityId: string, videoId = editDefaultInput.value) =
 .sticker-card,
 .gallery-card {
   border: 1px solid rgba(255, 255, 255, 0.18);
-  border-radius: 26px;
-  box-shadow: 0 18px 46px rgba(18, 7, 28, 0.14);
+  border-radius: 30px;
+  box-shadow: 0 24px 66px rgba(18, 7, 28, 0.16);
 }
 
 .assets-hero > div:first-child {
+  position: relative;
+  overflow: hidden;
   padding: 34px;
   color: #fff;
   background:
-    linear-gradient(135deg, rgba(255, 79, 216, 0.16), transparent 36%),
-    linear-gradient(145deg, #17091f, #2a1534 62%, #100916);
+    radial-gradient(circle at 100% 0%, rgba(255, 79, 216, 0.18), transparent 34%),
+    linear-gradient(135deg, rgba(255, 79, 216, 0.18), transparent 36%),
+    linear-gradient(145deg, #15081c, #2d1638 62%, #0f0814);
+}
+
+.assets-hero > div:first-child::after {
+  content: "Private Gallery";
+  position: absolute;
+  right: 28px;
+  bottom: 22px;
+  color: rgba(255, 255, 255, 0.10);
+  font-size: clamp(30px, 5vw, 62px);
+  font-weight: 950;
+  letter-spacing: -0.08em;
+  pointer-events: none;
 }
 
 .eyebrow {
@@ -644,7 +661,9 @@ const saveDefault = async (entityId: string, videoId = editDefaultInput.value) =
   color: #fff;
   text-align: center;
   background:
-    radial-gradient(circle at 50% 24%, rgba(255, 255, 255, 0.14), transparent 32%),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.055) 0 1px, transparent 1px 34px),
+    linear-gradient(0deg, rgba(255, 255, 255, 0.045) 0 1px, transparent 1px 34px),
+    radial-gradient(circle at 50% 24%, rgba(255, 255, 255, 0.16), transparent 32%),
     linear-gradient(145deg, #24102e, #100916);
 }
 
@@ -741,8 +760,8 @@ const saveDefault = async (entityId: string, videoId = editDefaultInput.value) =
   margin-bottom: 16px;
   border-color: rgba(255, 79, 216, 0.16);
   background:
-    radial-gradient(circle at 0% 0%, rgba(255, 79, 216, 0.10), transparent 32%),
-    rgba(255, 255, 255, 0.94);
+    radial-gradient(circle at 0% 0%, rgba(255, 79, 216, 0.12), transparent 32%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.97), rgba(255, 249, 253, 0.94));
 }
 
 .bind-box {
@@ -838,13 +857,14 @@ const saveDefault = async (entityId: string, videoId = editDefaultInput.value) =
 }
 
 .assets-tabs {
-  display: inline-flex;
+  display: flex;
   gap: 5px;
   padding: 6px;
   margin-bottom: 18px;
   border: 1px solid rgba(124, 77, 255, 0.12);
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.84);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: 0 14px 34px rgba(82, 34, 98, 0.08);
   overflow-x: auto;
 }
 
@@ -868,40 +888,79 @@ const saveDefault = async (entityId: string, videoId = editDefaultInput.value) =
 .gallery-section {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 14px;
+  gap: 18px;
 }
 
 .gallery-card {
+  position: relative;
   overflow: hidden;
   cursor: pointer;
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
+.gallery-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(135deg, rgba(255, 79, 216, 0.13), transparent 38%, rgba(124, 77, 255, 0.10));
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+
 .gallery-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 22px 52px rgba(84, 34, 104, 0.15);
+  transform: translateY(-5px);
+  box-shadow: 0 30px 72px rgba(84, 34, 104, 0.18);
+}
+
+.gallery-card:hover::before {
+  opacity: 1;
 }
 
 .gallery-art {
+  position: relative;
   display: grid;
   place-items: center;
-  min-height: 230px;
+  min-height: 250px;
   background:
-    radial-gradient(circle at 50% 22%, rgba(255, 255, 255, 0.18), transparent 30%),
-    linear-gradient(145deg, #21102a, #0c0611);
+    linear-gradient(90deg, rgba(255, 255, 255, 0.055) 0 1px, transparent 1px 34px),
+    linear-gradient(0deg, rgba(255, 255, 255, 0.045) 0 1px, transparent 1px 34px),
+    radial-gradient(circle at 50% 22%, rgba(255, 255, 255, 0.20), transparent 30%),
+    radial-gradient(circle at 12% 86%, rgba(255, 79, 216, 0.18), transparent 34%),
+    linear-gradient(145deg, #23102d, #0a0610);
+}
+
+.gallery-art::after {
+  content: "";
+  position: absolute;
+  inset: auto 20% 28px;
+  height: 16px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.30);
+  filter: blur(12px);
 }
 
 .gallery-art img {
-  width: min(68%, 210px);
-  max-height: 210px;
+  position: relative;
+  z-index: 1;
+  width: min(66%, 220px);
+  max-height: 220px;
   object-fit: contain;
   filter: drop-shadow(0 26px 32px rgba(0, 0, 0, 0.34));
+  transition: transform 0.2s ease;
+}
+
+.gallery-card:hover .gallery-art img {
+  transform: translateY(-5px) rotate(-1deg) scale(1.03);
 }
 
 .gallery-card > div:last-child {
+  position: relative;
+  z-index: 1;
   display: grid;
-  gap: 5px;
-  padding: 15px;
+  gap: 6px;
+  padding: 17px;
 }
 
 .gallery-card span,
@@ -916,7 +975,7 @@ const saveDefault = async (entityId: string, videoId = editDefaultInput.value) =
 .purchase-card h3,
 .sticker-card h3 {
   margin: 0;
-  font-size: 20px;
+  font-size: 21px;
   letter-spacing: -0.03em;
 }
 
@@ -943,22 +1002,25 @@ const saveDefault = async (entityId: string, videoId = editDefaultInput.value) =
 
 .asset-card {
   display: grid;
-  grid-template-columns: 190px 1fr;
+  grid-template-columns: 210px 1fr;
   overflow: hidden;
 }
 
 .asset-cover {
+  position: relative;
   display: grid;
   place-items: center;
-  min-height: 220px;
+  min-height: 236px;
   background:
-    radial-gradient(circle at 50% 22%, rgba(255, 255, 255, 0.16), transparent 30%),
-    linear-gradient(145deg, #21102a, #0c0611);
+    linear-gradient(90deg, rgba(255, 255, 255, 0.055) 0 1px, transparent 1px 34px),
+    linear-gradient(0deg, rgba(255, 255, 255, 0.045) 0 1px, transparent 1px 34px),
+    radial-gradient(circle at 50% 22%, rgba(255, 255, 255, 0.18), transparent 30%),
+    linear-gradient(145deg, #23102d, #0c0611);
 }
 
 .asset-cover img {
-  width: min(72%, 155px);
-  max-height: 170px;
+  width: min(70%, 172px);
+  max-height: 186px;
   object-fit: contain;
   filter: drop-shadow(0 24px 28px rgba(0, 0, 0, 0.30));
 }
@@ -966,7 +1028,7 @@ const saveDefault = async (entityId: string, videoId = editDefaultInput.value) =
 .asset-info {
   display: grid;
   gap: 12px;
-  padding: 18px;
+  padding: 20px;
 }
 
 .asset-card-top,
@@ -1037,12 +1099,16 @@ const saveDefault = async (entityId: string, videoId = editDefaultInput.value) =
 }
 
 .sticker-art {
+  position: relative;
   display: grid;
   place-items: center;
-  min-height: 230px;
+  min-height: 250px;
   padding: 18px;
   background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.055) 0 1px, transparent 1px 34px),
+    linear-gradient(0deg, rgba(255, 255, 255, 0.045) 0 1px, transparent 1px 34px),
     radial-gradient(circle at 48% 24%, rgba(255, 255, 255, 0.26), transparent 31%),
+    radial-gradient(circle at 12% 88%, rgba(255, 79, 216, 0.18), transparent 34%),
     linear-gradient(145deg, #24102e, #0f0915);
 }
 
@@ -1065,7 +1131,9 @@ const saveDefault = async (entityId: string, videoId = editDefaultInput.value) =
   gap: 3px;
   padding: 12px;
   border-radius: 16px;
-  background: #fff4fb;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(255, 79, 216, 0.10), transparent 32%),
+    #fff4fb;
 }
 
 .sticker-current strong {
@@ -1159,7 +1227,7 @@ const saveDefault = async (entityId: string, videoId = editDefaultInput.value) =
 
   .gallery-art,
   .sticker-art {
-    min-height: 200px;
+    min-height: 210px;
   }
 }
 </style>

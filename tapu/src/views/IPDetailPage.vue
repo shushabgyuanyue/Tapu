@@ -267,15 +267,17 @@ onMounted(loadData);
 .ip-detail {
   min-height: 100vh;
   background:
-    radial-gradient(circle at 12% 5%, rgba(255, 79, 216, 0.28), transparent 28%),
-    radial-gradient(circle at 86% 0%, rgba(124, 77, 255, 0.28), transparent 29%),
-    linear-gradient(180deg, #0d0712 0%, #1b1023 38%, #fff8fb 38%, #ffffff 100%);
+    linear-gradient(120deg, rgba(255, 255, 255, 0.035) 0 1px, transparent 1px 90px),
+    linear-gradient(0deg, rgba(255, 255, 255, 0.025) 0 1px, transparent 1px 90px),
+    radial-gradient(circle at 12% 5%, rgba(255, 79, 216, 0.32), transparent 28%),
+    radial-gradient(circle at 86% 0%, rgba(124, 77, 255, 0.32), transparent 29%),
+    linear-gradient(180deg, #09060d 0%, #1a1023 40%, #fff8fb 40%, #ffffff 100%);
   color: #1b1322;
   font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif;
 }
 
 .ip-shell {
-  max-width: 1120px;
+  max-width: 1180px;
   margin: 0 auto;
   padding: 28px 24px 76px;
 }
@@ -301,8 +303,8 @@ onMounted(loadData);
 
 .ip-hero {
   display: grid;
-  grid-template-columns: 360px minmax(0, 1fr);
-  gap: 18px;
+  grid-template-columns: minmax(310px, 0.78fr) minmax(0, 1fr);
+  gap: 20px;
   align-items: stretch;
   margin-bottom: 18px;
 }
@@ -312,26 +314,49 @@ onMounted(loadData);
 .panel,
 .content-section {
   border: 1px solid rgba(255, 255, 255, 0.18);
-  border-radius: 28px;
-  box-shadow: 0 20px 54px rgba(16, 6, 22, 0.18);
+  border-radius: 32px;
+  box-shadow: 0 28px 76px rgba(16, 6, 22, 0.20);
 }
 
 .hero-visual {
   position: relative;
   display: grid;
   place-items: center;
-  min-height: 420px;
+  min-height: 480px;
   overflow: hidden;
   background:
-    radial-gradient(circle at 50% 28%, rgba(255, 255, 255, 0.16), transparent 30%),
-    linear-gradient(145deg, #23102d, #09050c);
+    linear-gradient(90deg, rgba(255, 255, 255, 0.05) 0 1px, transparent 1px 36px),
+    linear-gradient(0deg, rgba(255, 255, 255, 0.045) 0 1px, transparent 1px 36px),
+    radial-gradient(circle at 50% 28%, rgba(255, 255, 255, 0.18), transparent 29%),
+    radial-gradient(circle at 18% 86%, rgba(255, 79, 216, 0.18), transparent 36%),
+    linear-gradient(145deg, #26112f, #08050b);
+}
+
+.hero-visual::before {
+  content: "";
+  position: absolute;
+  inset: 26px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 24px;
+}
+
+.hero-visual::after {
+  content: "";
+  position: absolute;
+  inset: auto 18% 42px;
+  height: 20px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.34);
+  filter: blur(14px);
 }
 
 .hero-visual img {
-  width: min(76%, 280px);
-  max-height: 330px;
+  position: relative;
+  z-index: 1;
+  width: min(74%, 310px);
+  max-height: 360px;
   object-fit: contain;
-  filter: drop-shadow(0 34px 42px rgba(0, 0, 0, 0.36));
+  filter: drop-shadow(0 38px 46px rgba(0, 0, 0, 0.38));
 }
 
 .drop-badge {
@@ -341,20 +366,36 @@ onMounted(loadData);
   padding: 8px 12px;
   border-radius: 999px;
   color: #ffe7f8;
-  background: rgba(255, 79, 216, 0.18);
+  backdrop-filter: blur(14px);
+  background: rgba(255, 79, 216, 0.20);
   font-size: 12px;
   font-weight: 950;
 }
 
 .hero-copy {
+  position: relative;
+  overflow: hidden;
   display: grid;
   align-content: center;
-  gap: 14px;
-  padding: clamp(24px, 4vw, 38px);
+  gap: 15px;
+  padding: clamp(28px, 4.6vw, 48px);
   color: #fff;
   background:
-    linear-gradient(135deg, rgba(255, 79, 216, 0.14), transparent 36%),
-    linear-gradient(150deg, #17091e, #2a1534 58%, #100916);
+    radial-gradient(circle at 100% 0%, rgba(255, 79, 216, 0.18), transparent 34%),
+    linear-gradient(135deg, rgba(255, 79, 216, 0.15), transparent 36%),
+    linear-gradient(150deg, #15081c, #2d1638 58%, #0f0814);
+}
+
+.hero-copy::after {
+  content: "WhatMint Archive";
+  position: absolute;
+  right: 28px;
+  bottom: 24px;
+  color: rgba(255, 255, 255, 0.10);
+  font-size: clamp(28px, 5vw, 58px);
+  font-weight: 950;
+  letter-spacing: -0.08em;
+  pointer-events: none;
 }
 
 .eyebrow,
@@ -370,7 +411,7 @@ onMounted(loadData);
   margin: 0;
   font-size: clamp(34px, 5vw, 58px);
   line-height: 0.98;
-  letter-spacing: -0.065em;
+  letter-spacing: -0.075em;
 }
 
 .hero-copy p {
@@ -390,7 +431,8 @@ onMounted(loadData);
   padding: 7px 10px;
   border-radius: 999px;
   color: #fff;
-  background: rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(10px);
+  background: rgba(255, 255, 255, 0.13);
   font-size: 12px;
   font-weight: 900;
 }
@@ -457,7 +499,8 @@ onMounted(loadData);
 .primary {
   border: none;
   color: #fff;
-  background: linear-gradient(135deg, #ff4fd8, #7c4dff);
+  background: linear-gradient(135deg, #ff4fd8, #7c4dff 62%, #17101f);
+  box-shadow: 0 14px 28px rgba(124, 77, 255, 0.24);
 }
 
 .primary:disabled {
@@ -479,21 +522,21 @@ onMounted(loadData);
 
 .detail-grid {
   display: grid;
-  grid-template-columns: 1.25fr 0.75fr;
-  gap: 14px;
-  margin-bottom: 16px;
+  grid-template-columns: 1.18fr 0.82fr;
+  gap: 18px;
+  margin-bottom: 18px;
 }
 
 .panel,
 .content-section {
   background:
-    radial-gradient(circle at 100% 0%, rgba(255, 79, 216, 0.06), transparent 30%),
-    rgba(255, 255, 255, 0.94);
-  box-shadow: 0 18px 44px rgba(98, 42, 113, 0.10);
+    radial-gradient(circle at 100% 0%, rgba(255, 79, 216, 0.08), transparent 30%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.97), rgba(255, 249, 253, 0.94));
+  box-shadow: 0 22px 54px rgba(98, 42, 113, 0.11);
 }
 
 .panel {
-  padding: 22px;
+  padding: 26px;
 }
 
 .panel h2,
@@ -509,6 +552,11 @@ onMounted(loadData);
   line-height: 1.9;
 }
 
+.story-panel p:first-of-type {
+  color: #2d2133;
+  font-size: 16px;
+}
+
 .specs-panel {
   display: grid;
   align-content: start;
@@ -520,7 +568,7 @@ onMounted(loadData);
   justify-content: space-between;
   gap: 16px;
   padding: 12px 0;
-  border-bottom: 1px solid #f0e8f2;
+  border-bottom: 1px solid #f1e8f3;
 }
 
 .spec-row span {
@@ -536,7 +584,7 @@ onMounted(loadData);
 }
 
 .content-section {
-  padding: 22px;
+  padding: 26px;
 }
 
 .section-head {
@@ -563,7 +611,7 @@ onMounted(loadData);
 .content-card {
   overflow: hidden;
   border: 1px solid #f0e8f2;
-  border-radius: 20px;
+  border-radius: 22px;
   background: #fff;
   cursor: pointer;
   transition: transform 0.18s ease, box-shadow 0.18s ease;
@@ -577,7 +625,9 @@ onMounted(loadData);
 .content-cover {
   position: relative;
   aspect-ratio: 4 / 5;
-  background: #f8f0f9;
+  background:
+    radial-gradient(circle at 50% 18%, rgba(255, 255, 255, 0.60), transparent 32%),
+    linear-gradient(145deg, #f8e8f7, #eae2ff);
 }
 
 .content-cover img {
@@ -629,7 +679,7 @@ onMounted(loadData);
   }
 
   .hero-visual {
-    min-height: 340px;
+    min-height: 360px;
   }
 }
 
@@ -650,7 +700,7 @@ onMounted(loadData);
   }
 
   .hero-visual {
-    min-height: 260px;
+    min-height: 280px;
   }
 
   .hero-copy {

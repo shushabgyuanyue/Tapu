@@ -73,3 +73,20 @@ entrypoint: tapu/src/main.ts
   - `git diff --check`
 - post-mortem:
   - 本轮未做移动端真机 NFC 长时间停留测试；自动刷新逻辑仅在无 `day/date` 预览参数时启用，避免后台预览指定天数被自动跳转。
+## 2026-07-14 Codex Increment 3
+
+- domain: product-flow, auth-asset, frontend, daily-sticker, docs
+- ref: 60c1295
+- todo:
+  - [x] 用临时 DB、临时上传目录、真实 HTTP 服务跑通情绪 IP 订单/token/绑定/上传/默认内容/NFC resolve/转赠完整流程，测试结束后删除临时数据和脚本。
+  - [x] 用临时 DB 跑通日常贴纸人格、世界、故事、条目、token、绑定、按天预览与分钟级 cron 配置流程。
+  - [x] 修复持有人设置实体默认内容时 `entity_ownership_events` 缺少 token/order 信息的问题，增强后续实体传承审计价值。
+  - [x] 继续优化商城、资产展馆、IP 详情页视觉，使其更接近高端商城与个人收藏展馆，并保持首页黑/紫/粉情绪 IP 方向。
+  - [x] 更新 `DOMAINS.md` 与 `docs/business-flow.md`，明确私有内容 NFC 未登录不泄露、登录持有人后可播放的产品口径。
+- evidence:
+  - 临时 DB 真实服务 HTTP flow：entity order/token/bind/private default/transfer PASS；daily sticker persona/world/story/token/bind/day preview PASS。
+  - `npm run build`
+  - `git diff --check`
+- post-mortem:
+  - 私有内容与“碰一下直接播放”存在产品口径张力：当前规则是公开内容可匿名播放，私有内容必须登录持有人账号。后续若希望实体 token 本身授权播放私有内容，需要重新评估隐私风险和分享边界。
+  - `AssetsPage.vue`、`DailyStickerManage.vue`、`IPDetailPage.vue` 仍超过 500 行；本轮只做低风险高收益修复，下一轮可优先拆组件。

@@ -169,3 +169,26 @@ token 持有历史，为实体传承做数据基础。当前事件包括：
 - 将资产页继续拆为 `BindTokenCard`、`AssetCard`、`StickerAssetCard`、`TransferPanel`、`DefaultContentPicker`，降低维护成本；当前资产页仍超过 500 行，是下一轮前端重构优先级最高的页面之一。
 - 将官方日常贴纸管理继续拆为故事预览、内容编辑、Token/NFC、发布设置四个子组件；当前文件较长但业务边界清晰。
 - 增加可重复运行的 E2E 测试脚本，但需要先决定是否引入测试框架和测试数据策略。
+## 2026-07-14 流程复测与口径更新
+
+### 情绪 IP 主流程复测
+
+- 使用临时 DB、临时上传目录和真实 HTTP 服务完成复测，测试结束后已删除临时数据和脚本。
+- 覆盖链路：用户外部购买获得订单号；官方录入订单并生成 128-bit token；订单记录包含 `nfc_written_at` 与 `token_delivered_at`；token 可搜索；未绑定 token 可设置公开默认内容；用户登录后绑定 token；其他账号无法抢绑；持有人可上传私有内容并设为默认；转赠后旧持有人不可修改，新持有人可修改。
+- 本轮修复：持有人通过 `/auth/entity-default/:entityId` 修改默认内容时，`entity_ownership_events` 的 `content_default_set` 事件现在会携带 token/order 信息，便于后续实体持有传承审计。
+
+### 日常贴纸流程复测
+
+- 覆盖链路：官方创建人格、世界、故事、每日条目、token；公开 `/sticker?key=<token>` resolve 可按 `day` 预览不同故事；默认分钟级 cron 为 `*/1 * * * *`；用户绑定后贴纸进入资产展馆；已绑定 token 防止其他账号抢绑。
+- 日常贴纸没有转赠主流程需求；当前更接近低成本入口和展馆资产归属，不承担情绪 IP 的转赠关系玩法。
+
+### 私有内容与 NFC 播放口径
+
+- 当前安全规则：公开内容可通过 `/play?key=<token>` 匿名播放；私有内容必须登录实体持有人账号或 admin 才能查看。
+- 因此，“碰一下直接播放”默认指公开内容。若默认内容是私有内容，匿名 NFC 不会直接泄露私有视频，应引导用户登录持有人账号。
+- 如果未来希望 token 本身授权私有内容播放，需要重新设计分享边界、撤销机制和泄露风险处理。
+
+### 前端维护建议
+
+- `AssetsPage.vue`、`DailyStickerManage.vue`、`IPDetailPage.vue` 均已超过 500 行，后续继续开发时优先拆组件。
+- 建议拆分方向：资产页拆 `BindTokenCard`、`AssetGallery`、`EntityAssetCard`、`StickerAssetCard`、`TransferPanel`、`DefaultContentPanel`；日常贴纸管理拆故事预览、内容编辑、token/NFC、发布设置；IP 详情拆 hero、故事档案、规格、内容预览。

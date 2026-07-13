@@ -106,3 +106,24 @@
 - `tapu/src/views/official/AppealManage.vue`
 - `tapu/src/views/official/OwnershipManage.vue`
 - `tapu/src/views/official/SiteSettings.vue`
+## 2026-07-14 Codex Domain Update
+
+### product-flow
+
+- 已用临时 DB + 临时上传目录 + 真实 HTTP 服务复测情绪 IP 主链路：外部订单录入生成 128-bit token，订单可按订单号/token 搜索，NFC 写入与 token 发放时间戳存在，未绑定 token 可设置公开默认内容，绑定后防抢绑，持有人可上传私有内容并设默认，转赠后旧持有人失权、新持有人可修改。
+- 产品口径明确：`/play?key=<token>` 可匿名播放公开内容；私有内容不会因持有 token 而匿名泄露，必须登录实体持有人账号或 admin 后才可查看。
+
+### auth-asset
+
+- `entity_ownership_events` 是实体传承审计链的核心记录；`content_default_set` 事件必须尽量带上 `token` 与 `order_id`，便于从订单、token、内容变更三个维度追踪。
+- 本轮修复了持有人通过 `/auth/entity-default/:entityId` 修改默认内容时事件缺 token/order 的问题。
+
+### daily-sticker
+
+- 已用临时 DB 复测日常贴纸应用链路：官方创建人格、世界、故事、每日条目和 token；公开 resolve 可按 `day` 预览；token 绑定后进入用户资产；已绑定 token 防止其他账号抢绑。
+- 默认分钟级 cron `*/1 * * * *` 可用于测试，正式内容仍建议按故事节奏设置。
+
+### frontend
+
+- 商城、资产展馆、IP 详情页已继续靠近“高端商城 + 社交收藏展馆”的视觉方向，并保持首页黑/紫/粉品牌氛围。
+- 仍需关注体量：`AssetsPage.vue`、`DailyStickerManage.vue`、`IPDetailPage.vue` 已超过 500 行。下一轮若继续开发同域，优先拆为业务组件，避免样式和流程逻辑继续堆在页面文件。
