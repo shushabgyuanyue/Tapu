@@ -15,6 +15,8 @@ const uploadTitle = ref('');
 const uploadSeriesId = ref('');
 const uploadGroupId = ref('');
 const uploadIsPrivate = ref(false);
+const uploadEntityKey = ref('');
+const uploadBindAsDefault = ref(true);
 const selectedFile = ref<File | null>(null);
 const dragOver = ref(false);
 const filterQuery = ref('');
@@ -193,13 +195,32 @@ const clearFile = () => { selectedFile.value = null; };
 
 const handleSubmit = async () => {
   if (!selectedFile.value) return;
+  if (uploadIsPrivate.value && !uploadEntityKey.value.trim()) {
+    alert('私有内容需要填写实体 token，确保只有持有者可以查看');
+    return;
+  }
   uploading.value = true;
-  await uploadVideo(selectedFile.value, uploadTitle.value || selectedFile.value.name, uploadGroupId.value || undefined, uploadIsPrivate.value);
+  const result = await uploadVideo(
+    selectedFile.value,
+    uploadTitle.value || selectedFile.value.name,
+    uploadGroupId.value || undefined,
+    uploadIsPrivate.value,
+    {
+      entityKey: uploadEntityKey.value.trim() || undefined,
+      setAsDefault: !!uploadEntityKey.value.trim() && uploadBindAsDefault.value,
+    }
+  );
   uploading.value = false;
+  if (result?.error) {
+    alert(result.error);
+    return;
+  }
   uploadTitle.value = '';
   uploadSeriesId.value = '';
   uploadGroupId.value = '';
   uploadIsPrivate.value = false;
+  uploadEntityKey.value = '';
+  uploadBindAsDefault.value = true;
   selectedFile.value = null;
   await loadData();
   startPolling();
@@ -284,7 +305,9 @@ const fmtDur = (s: number) => {
               <option value="">不分组</option>
               <option v-for="g in uploadGroupsFiltered" :key="g.id" :value="g.id">{{ g.name }}</option>
             </select>
+            <input v-model="uploadEntityKey" placeholder="实体 token（可选，填写后直接绑定）" class="inp inp-token" />
             <label class="private-toggle"><input type="checkbox" v-model="uploadIsPrivate" /><span>仅持有者可见</span></label>
+            <label class="private-toggle"><input type="checkbox" v-model="uploadBindAsDefault" :disabled="!uploadEntityKey.trim()" /><span>设为实体默认</span></label>
             <button @click="handleSubmit" class="btn-upload">上传</button>
           </div>
         </template>
@@ -417,6 +440,7 @@ const fmtDur = (s: number) => {
 .file-remove { background: none; border: none; font-size: 20px; color: #ccc; cursor: pointer; }
 
 .upload-options { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.inp-token { min-width: min(100%, 260px); flex: 1 1 260px; }
 .private-toggle { display: flex; align-items: center; gap: 4px; font-size: 12px; color: #666; cursor: pointer; white-space: nowrap; }
 .private-toggle input { margin: 0; }
 

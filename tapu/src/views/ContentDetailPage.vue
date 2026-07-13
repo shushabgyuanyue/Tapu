@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, inject, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { batchInteractions, fetchVideo, interact, isLoggedIn } from '../api';
+import { batchInteractions, fetchVideo, interact, isLoggedIn, setEntityDefaultByToken } from '../api';
 import NavBar from '../components/NavBar.vue';
 
 const route = useRoute();
@@ -16,6 +16,10 @@ const isFaved = ref(false);
 const videoEl = ref<HTMLVideoElement | null>(null);
 const showRemixPanel = ref(false);
 const promptCopied = ref(false);
+const tokenKey = ref('');
+const tokenBinding = ref(false);
+const tokenBindMsg = ref('');
+const tokenBindError = ref(false);
 
 const formatContentId = (id?: string) => id ? id.replace(/-/g, '').toUpperCase() : '-';
 
@@ -104,6 +108,32 @@ const copyContentId = async () => {
   toast?.show('内容 ID 已复制', 1800, 'success');
 };
 
+const bindCurrentContentToToken = async () => {
+  if (!video.value?.id) return;
+  tokenBindMsg.value = '';
+  tokenBindError.value = false;
+
+  const key = tokenKey.value.trim();
+  if (!key) {
+    tokenBindMsg.value = '请输入实体 token';
+    tokenBindError.value = true;
+    return;
+  }
+
+  tokenBinding.value = true;
+  const result = await setEntityDefaultByToken(key, video.value.id);
+  tokenBinding.value = false;
+
+  if (result?.success) {
+    tokenBindMsg.value = '已写入实体，碰一下就会优先播放这条内容';
+    tokenKey.value = '';
+    toast?.show('实体默认内容已更新', 2200, 'success');
+  } else {
+    tokenBindMsg.value = result?.error || '绑定失败，请确认 token 是否正确';
+    tokenBindError.value = true;
+  }
+};
+
 const remixPrompt = computed(() => {
   if (!video.value) return '';
   return `请基于参考视频，将视频中的小狗替换为我上传的宠物图片中的角色。要求：1）保持原视频动作、场景和运镜不变；2）替换角色需要自然融合；3）输出相同时长和比例的视频。参考视频标题：「${video.value.title}」`;
@@ -189,6 +219,21 @@ const goBack = () => {
 
       <p class="detail-action-hint">点击“绑定到实体”会跳转到我的资产，并把当前内容作为默认内容候选带过去。</p>
 
+      <section class="token-bind-panel">
+        <div>
+          <span class="token-bind-kicker">NFC Token</span>
+          <h2>直接写入实体</h2>
+          <p>如果实体还没有绑定账号，可以输入 token，把当前内容直接设为它的默认播放内容。</p>
+        </div>
+        <div class="token-bind-box">
+          <input v-model="tokenKey" placeholder="输入实体 token" />
+          <button :disabled="tokenBinding" @click="bindCurrentContentToToken">
+            {{ tokenBinding ? '写入中...' : '写入' }}
+          </button>
+        </div>
+        <p v-if="tokenBindMsg" :class="['token-bind-msg', { error: tokenBindError }]">{{ tokenBindMsg }}</p>
+      </section>
+
       <section class="remix-section">
         <button class="remix-toggle" @click="showRemixPanel = !showRemixPanel">
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>
@@ -245,7 +290,10 @@ const goBack = () => {
 <style scoped>
 .detail-page {
   min-height: 100vh;
-  background: #fefefe;
+  background:
+    radial-gradient(circle at 16% 8%, rgba(124, 77, 255, 0.16), transparent 28%),
+    radial-gradient(circle at 88% 18%, rgba(255, 77, 106, 0.14), transparent 26%),
+    linear-gradient(180deg, #100f16 0%, #191622 38%, #fff8fb 38%, #fff 100%);
   font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif;
 }
 
@@ -292,6 +340,7 @@ const goBack = () => {
 
 .detail-info h1 {
   margin: 0 0 8px;
+  color: #fff;
   font-size: 20px;
   font-weight: 850;
 }
@@ -306,8 +355,8 @@ const goBack = () => {
 .detail-meta span {
   padding: 4px 10px;
   border-radius: 999px;
-  background: #f4f1ff;
-  color: #6b47c9;
+  background: rgba(255, 255, 255, 0.12);
+  color: #f4eaff;
   font-size: 12px;
   font-weight: 700;
 }
@@ -316,8 +365,8 @@ const goBack = () => {
   padding: 4px 10px;
   border: none;
   border-radius: 999px;
-  background: #f5f5f5;
-  color: #777;
+  background: rgba(255, 255, 255, 0.9);
+  color: #7c4dff;
   cursor: pointer;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 11px;
@@ -328,7 +377,7 @@ const goBack = () => {
   flex-wrap: wrap;
   gap: 10px;
   padding: 14px 0;
-  border-top: 1px solid #f0f0f0;
+  border-top: 1px solid rgba(255, 255, 255, 0.14);
 }
 
 .act-btn {
@@ -336,7 +385,7 @@ const goBack = () => {
   align-items: center;
   gap: 6px;
   padding: 10px 14px;
-  border: 1px solid #eee;
+  border: 1px solid rgba(124, 77, 255, 0.14);
   border-radius: 999px;
   background: #fff;
   color: #666;
@@ -357,17 +406,97 @@ const goBack = () => {
 }
 
 .act-btn-bind {
-  border-color: #d9ead7;
-  background: #f6fbf4;
-  color: #2d6a37;
+  border-color: rgba(255, 77, 106, 0.28);
+  background: linear-gradient(135deg, #7c4dff, #ff4d6a);
+  color: #fff;
   font-weight: 800;
 }
 
 .detail-action-hint {
   margin: 0 0 18px;
-  color: #7a8474;
+  color: rgba(255, 255, 255, 0.72);
   font-size: 12px;
   line-height: 1.6;
+}
+
+.token-bind-panel {
+  display: grid;
+  gap: 12px;
+  margin: 0 0 18px;
+  padding: 18px;
+  border: 1px solid rgba(124, 77, 255, 0.14);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 96% 0%, rgba(255, 77, 106, 0.16), transparent 36%),
+    #fff;
+  box-shadow: 0 18px 42px rgba(20, 15, 30, 0.08);
+}
+
+.token-bind-kicker {
+  color: #ff4d6a;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.token-bind-panel h2 {
+  margin: 4px 0;
+  color: #15131f;
+  font-size: 18px;
+  font-weight: 900;
+}
+
+.token-bind-panel p {
+  margin: 0;
+  color: #776f85;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.token-bind-box {
+  display: flex;
+  gap: 10px;
+}
+
+.token-bind-box input {
+  min-width: 0;
+  flex: 1;
+  padding: 11px 13px;
+  border: 1px solid #eee8ff;
+  border-radius: 14px;
+  color: #15131f;
+  font-size: 13px;
+  outline: none;
+}
+
+.token-bind-box input:focus {
+  border-color: #7c4dff;
+  box-shadow: 0 0 0 3px rgba(124, 77, 255, 0.12);
+}
+
+.token-bind-box button {
+  padding: 0 18px;
+  border: none;
+  border-radius: 14px;
+  background: #15131f;
+  color: #fff;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.token-bind-box button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.token-bind-msg {
+  color: #2e7d32;
+}
+
+.token-bind-msg.error {
+  color: #d9295f;
 }
 
 .remix-section {
@@ -382,7 +511,7 @@ const goBack = () => {
   padding: 14px 16px;
   border: 1px solid #f0f0f0;
   border-radius: 14px;
-  background: linear-gradient(135deg, #faf7ff, #f5f0ff);
+  background: linear-gradient(135deg, #faf7ff, #fff0f5);
   color: #7c4dff;
   cursor: pointer;
   font-size: 14px;
@@ -532,6 +661,14 @@ const goBack = () => {
 
   .detail-video {
     max-height: 400px;
+  }
+
+  .token-bind-box {
+    flex-direction: column;
+  }
+
+  .token-bind-box button {
+    min-height: 42px;
   }
 }
 </style>

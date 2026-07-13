@@ -135,8 +135,8 @@ router.post('/external', authRequired, adminOnly, async (req, res) => {
 
     db.run(
       `INSERT INTO orders
-        (id, buyer_user_id, group_id, entity_id, entity_key, recipient_name, phone, address, status, external_order_no, order_source)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        (id, buyer_user_id, group_id, entity_id, entity_key, recipient_name, phone, address, status, external_order_no, order_source, nfc_written_at, token_delivered_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
       [
         orderNo,
         req.user.id,

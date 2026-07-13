@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800">
+  <rect width="1200" height="800" fill="#f4eadf"/>
+  <rect x="120" y="130" width="960" height="520" rx="28" fill="#d4b99e"/>
+  <g fill="#efe3d2">
+    <rect x="180" y="180" width="120" height="360" rx="8"/>
+    <rect x="320" y="220" width="96" height="320" rx="8"/>
+    <rect x="438" y="166" width="144" height="374" rx="8"/>
+    <rect x="604" y="198" width="110" height="342" rx="8"/>
+    <rect x="734" y="150" width="132" height="390" rx="8"/>
+    <rect x="888" y="232" width="90" height="308" rx="8"/>
+  </g>
+  <g stroke="#7d695c" stroke-width="5" opacity=".26">
+    <path d="M210 210v300M364 240v260M500 190v320M662 220v280M800 180v340M930 250v250"/>
+  </g>
+  <circle cx="598" cy="360" r="118" fill="#fff9ef" opacity=".62"/>
+  <g transform="translate(500 315)">
+    <path d="M54 30c34-70 112-70 146 0" fill="none" stroke="#fff" stroke-width="30" stroke-linecap="round"/>
+    <ellipse cx="44" cy="112" rx="38" ry="62" fill="#fff" stroke="#d0c5bd" stroke-width="5"/>
+    <ellipse cx="210" cy="112" rx="38" ry="62" fill="#fff" stroke="#d0c5bd" stroke-width="5"/>
+  </g>
+  <text x="160" y="710" fill="#4f433e" font-family="Georgia, serif" font-size="32">quiet is where every sound finds its shelf</text>
+</svg>

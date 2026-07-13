@@ -13,6 +13,11 @@ const routes = [
     component: () => import('../views/PlayerView.vue'),
   },
   {
+    path: '/sticker',
+    name: 'daily-sticker',
+    component: () => import('../views/DailyStickerPage.vue'),
+  },
+  {
     path: '/community',
     name: 'community',
     component: () => import('../views/CommunityPage.vue'),
@@ -31,6 +36,11 @@ const routes = [
     path: '/shop',
     name: 'shop',
     component: () => import('../views/ShopPage.vue'),
+  },
+  {
+    path: '/shop/ip/:id',
+    name: 'shop-ip-detail',
+    component: () => import('../views/IPDetailPage.vue'),
   },
   {
     path: '/wishlist',
@@ -88,6 +98,7 @@ const routes = [
     children: [
       { path: '', name: 'official-groups', component: () => import('../views/admin/GroupManage.vue') },
       { path: 'applications', name: 'official-applications', component: () => import('../views/official/ApplicationManage.vue') },
+      { path: 'daily-stickers', name: 'official-daily-stickers', component: () => import('../views/official/DailyStickerManage.vue') },
       { path: 'orders', name: 'official-orders', component: () => import('../views/official/OrderManage.vue') },
       { path: 'appeals', name: 'official-appeals', component: () => import('../views/official/AppealManage.vue') },
       { path: 'ownership', name: 'official-ownership', component: () => import('../views/official/OwnershipManage.vue') },
@@ -131,8 +142,12 @@ router.beforeEach(async (to, _from, next) => {
       return next('/shop');
     }
   }
-  if (key && to.path === '/play') {
-    // /play?key=xxx: PlayerView uses resolveByKey directly
+  if (key && to.path.startsWith('/play')) {
+    // /play?key=xxx and /play/:id?key=xxx keep token context for NFC playback.
+    return next();
+  }
+  if (key && to.path === '/sticker') {
+    // Daily sticker NFC links resolve publicly without login.
     return next();
   }
   if (key && to.path === '/assets') {

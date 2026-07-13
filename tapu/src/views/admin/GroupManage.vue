@@ -24,6 +24,18 @@ const formCrowdfundGoal = ref(0);
 const formCrowdfundDeadline = ref('');
 const formPrice = ref(0);
 const formStockLimit = ref(0);
+const formCoverUrl = ref('');
+const formHeroUrl = ref('');
+const formProductImageUrl = ref('');
+const formDescription = ref('');
+const formStory = ref('');
+const formDesigner = ref('');
+const formMaterial = ref('');
+const formSizeLabel = ref('');
+const formRarityLabel = ref('');
+const formExternalPurchaseUrl = ref('');
+const formDisplayTags = ref('');
+const formThemeColor = ref('#ff4fd8');
 const showSeriesForm = ref(false);
 const seriesFormName = ref('');
 const seriesFormApplicationId = ref('');
@@ -69,6 +81,18 @@ const openCreate = () => {
   formCrowdfundDeadline.value = '';
   formPrice.value = 0;
   formStockLimit.value = 0;
+  formCoverUrl.value = '';
+  formHeroUrl.value = '';
+  formProductImageUrl.value = '';
+  formDescription.value = '';
+  formStory.value = '';
+  formDesigner.value = '';
+  formMaterial.value = '';
+  formSizeLabel.value = '';
+  formRarityLabel.value = '';
+  formExternalPurchaseUrl.value = '';
+  formDisplayTags.value = '';
+  formThemeColor.value = '#ff4fd8';
   showForm.value = true;
 };
 
@@ -80,6 +104,18 @@ const openEdit = (g: any) => {
   formCrowdfundDeadline.value = g.crowdfund_deadline || '';
   formPrice.value = g.price || 0;
   formStockLimit.value = g.stock_limit || 0;
+  formCoverUrl.value = g.cover_url || '';
+  formHeroUrl.value = g.hero_url || '';
+  formProductImageUrl.value = g.product_image_url || '';
+  formDescription.value = g.description || '';
+  formStory.value = g.story || '';
+  formDesigner.value = g.designer || '';
+  formMaterial.value = g.material || '';
+  formSizeLabel.value = g.size_label || '';
+  formRarityLabel.value = g.rarity_label || '';
+  formExternalPurchaseUrl.value = g.external_purchase_url || '';
+  formDisplayTags.value = g.display_tags || '';
+  formThemeColor.value = g.theme_color || '#ff4fd8';
   showForm.value = true;
 };
 
@@ -90,12 +126,24 @@ const submitForm = async () => {
     crowdfund_deadline: formCrowdfundDeadline.value || undefined,
     price: formPrice.value,
     stock_limit: formStockLimit.value,
+    cover_url: formCoverUrl.value.trim() || undefined,
+    hero_url: formHeroUrl.value.trim() || undefined,
+    product_image_url: formProductImageUrl.value.trim() || undefined,
+    description: formDescription.value.trim() || undefined,
+    story: formStory.value.trim() || undefined,
+    designer: formDesigner.value.trim() || undefined,
+    material: formMaterial.value.trim() || undefined,
+    size_label: formSizeLabel.value.trim() || undefined,
+    rarity_label: formRarityLabel.value.trim() || undefined,
+    external_purchase_url: formExternalPurchaseUrl.value.trim() || undefined,
+    display_tags: formDisplayTags.value.trim() || undefined,
+    theme_color: formThemeColor.value.trim() || '#ff4fd8',
   };
   let result;
   if (editingId.value) {
     result = await updateGroup(editingId.value, formName.value.trim(), formSeriesId.value || undefined, opts);
   } else {
-    result = await createGroup(formName.value.trim(), formSeriesId.value || undefined);
+    result = await createGroup(formName.value.trim(), formSeriesId.value || undefined, opts);
   }
   if (result.error) {
     alert(result.error);
@@ -300,6 +348,28 @@ onMounted(loadData);
                 <option value="">不属于任何系列</option>
                 <option v-for="s in seriesList" :key="s.id" :value="s.id">{{ s.name }}</option>
               </select>
+              <label class="gm-form-label">商品图 URL</label>
+              <input v-model="formProductImageUrl" placeholder="/shop/figures/tissue-puppy.svg 或外部图片 URL" />
+              <label class="gm-form-label">封面 URL</label>
+              <input v-model="formCoverUrl" placeholder="用于商城卡片兜底展示" />
+              <label class="gm-form-label">详情主视觉 URL</label>
+              <input v-model="formHeroUrl" placeholder="用于 IP 详情页头图，可留空" />
+              <label class="gm-form-label">一句话介绍</label>
+              <input v-model="formDescription" placeholder="例如：把关系实体化的纸巾小狗" />
+              <label class="gm-form-label">IP 故事</label>
+              <textarea v-model="formStory" placeholder="用于 IP 详情页，可分段描述世界观、玩法和情绪价值"></textarea>
+              <label class="gm-form-label">设计师 / 材质 / 尺寸</label>
+              <div class="gm-form-row">
+                <input v-model="formDesigner" placeholder="设计师" />
+                <input v-model="formMaterial" placeholder="材质" />
+                <input v-model="formSizeLabel" placeholder="尺寸" />
+              </div>
+              <label class="gm-form-label">稀有度 / 标签 / 外部购买链接</label>
+              <input v-model="formRarityLabel" placeholder="例如：首发限量 300" />
+              <input v-model="formDisplayTags" placeholder="逗号分隔，例如：高级贺卡,情绪礼物,可绑定资产" />
+              <input v-model="formExternalPurchaseUrl" placeholder="外部购买链接，可留空" />
+              <label class="gm-form-label">主题色</label>
+              <input v-model="formThemeColor" placeholder="#ff4fd8" />
               <template v-if="editingId">
                 <label class="gm-form-label">价格 (元)</label>
                 <input v-model.number="formPrice" type="number" min="0" step="0.01" placeholder="价格" />
@@ -477,17 +547,20 @@ onMounted(loadData);
 }
 .gm-modal {
   background: #fff; border-radius: 16px; padding: 24px;
-  max-width: 360px; width: 100%; box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+  max-width: 560px; width: 100%; max-height: 86vh; overflow: auto;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.15);
 }
 .gm-modal h3 { margin: 0 0 16px; font-size: 16px; font-weight: 700; }
 .gm-form { display: flex; flex-direction: column; gap: 12px; }
 .gm-form-label { font-size: 12px; font-weight: 600; color: #666; margin-bottom: -8px; }
 .gm-form-hint { font-size: 12px; color: #888; margin: -8px 0 0; }
-.gm-form input, .gm-form select {
+.gm-form input, .gm-form select, .gm-form textarea {
   padding: 10px 14px; border: 1px solid #e8e8e8; border-radius: 8px;
   font-size: 14px; outline: none;
 }
-.gm-form input:focus, .gm-form select:focus { border-color: #7c4dff; }
+.gm-form textarea { min-height: 110px; resize: vertical; line-height: 1.7; }
+.gm-form input:focus, .gm-form select:focus, .gm-form textarea:focus { border-color: #7c4dff; }
+.gm-form-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
 .gm-form-actions { display: flex; gap: 8px; }
 .gm-submit {
   flex: 1; padding: 10px; border: none; border-radius: 8px;
@@ -497,4 +570,8 @@ onMounted(loadData);
 .modal-enter-active { transition: opacity 0.25s ease; }
 .modal-leave-active { transition: opacity 0.2s ease; }
 .modal-enter-from, .modal-leave-to { opacity: 0; }
+
+@media (max-width: 640px) {
+  .gm-form-row { grid-template-columns: 1fr; }
+}
 </style>

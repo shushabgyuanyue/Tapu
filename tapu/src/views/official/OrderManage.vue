@@ -257,6 +257,16 @@ watch(pageSize, () => {
             <span>{{ order.entity_user_id ? '已绑定账号' : '未绑定' }}</span>
           </div>
 
+          <div class="om-row">
+            <span class="om-label">NFC 写入</span>
+            <span>{{ order.nfc_written_at ? order.nfc_written_at : '待确认' }}</span>
+          </div>
+
+          <div class="om-row">
+            <span class="om-label">token 发放</span>
+            <span>{{ order.token_delivered_at ? order.token_delivered_at : '待确认' }}</span>
+          </div>
+
           <div class="om-actions">
             <button v-if="order.status !== 'shipped'" class="om-btn om-btn--ship" @click="markStatus(order.id, 'shipped')">标记发货</button>
             <button v-if="order.status !== 'completed'" class="om-btn om-btn--done" @click="markStatus(order.id, 'completed')">标记完成</button>

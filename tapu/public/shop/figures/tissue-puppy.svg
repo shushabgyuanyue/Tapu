@@ -1,0 +1,19 @@
+<svg width="900" height="1100" viewBox="0 0 900 1100" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="900" height="1100" rx="72" fill="#170B22"/>
+  <circle cx="222" cy="185" r="150" fill="#FF4FD8" opacity=".28"/>
+  <circle cx="742" cy="260" r="190" fill="#7C4DFF" opacity=".30"/>
+  <circle cx="620" cy="850" r="250" fill="#FFB4D8" opacity=".18"/>
+  <ellipse cx="450" cy="870" rx="285" ry="70" fill="#07030B" opacity=".42"/>
+  <path d="M270 390c-45-84 25-166 105-112 26-96 177-96 204 0 80-54 150 28 105 112 78 45 98 170 37 251-59 79-152 116-271 116s-212-37-271-116c-61-81-41-206 37-251Z" fill="#FFF7FB"/>
+  <path d="M315 284c-30-66 37-127 92-73 16 16 27 41 26 74-43-11-82-11-118-1Z" fill="#FFE0EF"/>
+  <path d="M585 284c30-66-37-127-92-73-16 16-27 41-26 74 43-11 82-11 118-1Z" fill="#FFE0EF"/>
+  <rect x="310" y="515" width="280" height="155" rx="45" fill="#F5EBF1"/>
+  <path d="M350 535c62-24 137-24 200 0" stroke="#DCC7D5" stroke-width="16" stroke-linecap="round"/>
+  <circle cx="365" cy="432" r="22" fill="#27152E"/>
+  <circle cx="535" cy="432" r="22" fill="#27152E"/>
+  <path d="M420 480c24 20 43 20 66 0" stroke="#27152E" stroke-width="14" stroke-linecap="round"/>
+  <circle cx="320" cy="486" r="28" fill="#FF8ABF" opacity=".55"/>
+  <circle cx="580" cy="486" r="28" fill="#FF8ABF" opacity=".55"/>
+  <path d="M255 742c48 75 116 111 195 111s147-36 195-111" stroke="#FF4FD8" stroke-width="20" stroke-linecap="round" opacity=".72"/>
+  <path d="M250 925h400" stroke="#FFFFFF" stroke-width="2" opacity=".18"/>
+</svg>

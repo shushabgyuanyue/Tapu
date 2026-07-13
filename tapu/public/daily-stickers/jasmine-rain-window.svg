@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800">
+  <rect width="1200" height="800" fill="#f7f0e8"/>
+  <rect x="170" y="90" width="860" height="560" rx="36" fill="#e8dfe6" stroke="#cabdc6" stroke-width="8"/>
+  <rect x="235" y="150" width="730" height="430" rx="22" fill="#cfdce2"/>
+  <g stroke="#ffffff" stroke-width="5" opacity=".56">
+    <path d="M310 170c-20 112-20 226 0 342M454 160c-40 126-30 270 2 390M810 170c20 116 18 230-4 356M908 165c-4 128-8 264 0 390"/>
+  </g>
+  <path d="M235 480c180-80 330-70 470 20 90 58 174 52 260-10v90H235z" fill="#b6c2cb" opacity=".55"/>
+  <g transform="translate(475 512)">
+    <rect x="0" y="34" width="250" height="68" rx="18" fill="#f9f4ed" stroke="#d6cbbf" stroke-width="5"/>
+    <path d="M74 34c12-70 92-70 104 0" fill="none" stroke="#fff" stroke-width="24" stroke-linecap="round"/>
+    <ellipse cx="62" cy="92" rx="34" ry="52" fill="#fff"/>
+    <ellipse cx="190" cy="92" rx="34" ry="52" fill="#fff"/>
+  </g>
+  <g transform="translate(735 565)" fill="none" stroke="#829378" stroke-width="6" stroke-linecap="round">
+    <path d="M0 82C30 34 82 20 130 0"/>
+    <circle cx="70" cy="23" r="18" fill="#fffdf1" stroke="#d6ceb5"/>
+    <circle cx="104" cy="18" r="16" fill="#fffdf1" stroke="#d6ceb5"/>
+  </g>
+</svg>

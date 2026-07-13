@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { getDb, saveDb } from '../db/index.js';
-import { authRequired, authOptional } from '../middleware/auth.js';
+import { authRequired } from '../middleware/auth.js';
 import { createUniqueEntityToken } from '../services/tokens.js';
 import { recordOwnershipEvent } from '../services/ownership.js';
 
@@ -30,7 +30,7 @@ function parsePositiveInt(value, fallback) {
 }
 
 // List entities by group (admin)
-router.get('/by-group/:groupId', authRequired, async (req, res) => {
+router.get('/by-group/:groupId', authRequired, adminOnly, async (req, res) => {
   try {
     const db = await getDb();
     const results = db.exec(
@@ -45,7 +45,7 @@ router.get('/by-group/:groupId', authRequired, async (req, res) => {
 });
 
 // Create entity (admin)
-router.post('/', authRequired, async (req, res) => {
+router.post('/', authRequired, adminOnly, async (req, res) => {
   try {
     const { group_id, external_order_no } = req.body;
     if (!group_id) return res.status(400).json({ error: 'group_id is required' });
@@ -152,7 +152,7 @@ router.get('/ownership-events', authRequired, adminOnly, async (req, res) => {
 });
 
 // Delete entity
-router.delete('/:id', authRequired, async (req, res) => {
+router.delete('/:id', authRequired, adminOnly, async (req, res) => {
   try {
     const db = await getDb();
     db.run('DELETE FROM entities WHERE id = ?', [req.params.id]);

@@ -119,9 +119,9 @@ defineExpose({ openLogin });
           <Transition name="dropdown">
             <div v-if="showDropdown" class="nav-dropdown">
               <div class="dropdown-user">{{ username }}</div>
-              <router-link to="/account" class="dropdown-item" @click="showDropdown = false">账户设置</router-link>
               <router-link to="/assets" class="dropdown-item" @click="showDropdown = false">我的资产</router-link>
               <router-link to="/appeals" class="dropdown-item" @click="showDropdown = false">解绑申诉</router-link>
+              <router-link to="/account" class="dropdown-item" @click="showDropdown = false">账户设置</router-link>
               <button class="dropdown-item dropdown-item--danger" @click="logout">退出登录</button>
             </div>
           </Transition>

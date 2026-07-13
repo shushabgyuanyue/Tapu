@@ -10,7 +10,7 @@ const filters = ref({
   q: '',
   token: '',
   orderNo: '',
-  eventType: 'transfer',
+  eventType: '',
   dateFrom: '',
   dateTo: '',
 });
@@ -26,6 +26,7 @@ const eventTypes = [
   { value: 'appeal_unbind', label: '申诉解绑' },
   { value: 'official_order_created', label: '外部订单录入' },
   { value: 'token_issued', label: '生成 token' },
+  { value: 'content_default_set', label: '内容写入' },
 ];
 
 const loadEvents = async () => {

@@ -1,9 +1,16 @@
 <script setup lang="ts">
-import { ref, onMounted, computed, inject } from 'vue';
+import { computed, inject, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import {
-  fetchGroup, fetchVideos, getPledgeCount, getPledgeStatus,
-  pledgeGroup, addToWishlist, getWishlistStatus, isLoggedIn, getConfig
+  addToWishlist,
+  fetchGroup,
+  fetchVideos,
+  getConfig,
+  getPledgeCount,
+  getPledgeStatus,
+  getWishlistStatus,
+  isLoggedIn,
+  pledgeGroup,
 } from '../api';
 import NavBar from '../components/NavBar.vue';
 
@@ -22,27 +29,78 @@ const wishlistCount = ref(0);
 const loading = ref(true);
 
 const readyVideos = computed(() => videos.value.filter(v => v.status === 'ready' && !v.is_private));
-const hasStock = computed(() => group.value && group.value.entity_count > 0);
+const canPurchase = computed(() => group.value?.sale_status === 'purchasable');
+const canPledge = computed(() => group.value?.sale_status === 'crowdfunding');
+const coverImage = computed(() => {
+  const item = group.value || {};
+  if (item.product_image_url || item.cover_url || item.official_default_video_poster) {
+    return item.product_image_url || item.cover_url || item.official_default_video_poster;
+  }
+  const name = `${item.name || ''}${item.application_code || ''}`.toLowerCase();
+  if (name.includes('贴纸') || name.includes('sticker')) return '/shop/figures/daily-sticker.svg';
+  if (name.includes('狗') || name.includes('puppy') || name.includes('纸巾')) return '/shop/figures/tissue-puppy.svg';
+  return '/shop/figures/designer-toy-default.svg';
+});
+const heroImage = computed(() => group.value?.hero_url || coverImage.value);
+
+const tags = computed(() => {
+  const rawTags = String(group.value?.display_tags || '')
+    .split(/[，,\s]+/)
+    .map(tag => tag.trim())
+    .filter(Boolean);
+  return rawTags.length ? rawTags : ['情绪应用', '实体入口', '可绑定资产'];
+});
+
+const storyParagraphs = computed(() => {
+  const story = group.value?.story || group.value?.description || '这个 IP 的档案还在补全中。它的核心不是一件商品，而是一个可以被触碰、被收藏、被再次回到的小世界。';
+  return String(story)
+    .split(/\n+/)
+    .map(line => line.trim())
+    .filter(Boolean);
+});
+
+const specs = computed(() => [
+  { label: '系列', value: group.value?.series_name || '未归档系列' },
+  { label: '设计', value: group.value?.designer || 'WhatMint Studio' },
+  { label: '材质', value: group.value?.material || '实体载体 + NFC 芯片' },
+  { label: '尺寸', value: group.value?.size_label || '以实物为准' },
+  { label: '稀有度', value: group.value?.rarity_label || (group.value?.stock_limit ? `限量 ${group.value.stock_limit}` : '常规发售') },
+]);
+
+const progressPercent = computed(() => {
+  const item = group.value || {};
+  if (item.stock_limit > 0) return Math.min(100, ((item.entity_count || 0) / item.stock_limit) * 100);
+  if (item.crowdfund_goal > 0) return Math.min(100, ((item.pledge_count || pledgeCount.value || 0) / item.crowdfund_goal) * 100);
+  return 0;
+});
+
+const statusText = computed(() => {
+  const item = group.value || {};
+  if (item.sale_status === 'purchasable') return `可购买，剩余 ${item.available_count || 0}`;
+  if (item.sale_status === 'crowdfunding') return `众筹中 ${item.pledge_count || pledgeCount.value || 0}/${item.crowdfund_goal || 0}`;
+  if (item.sale_status === 'crowdfund_success') return '众筹成功';
+  if (item.sale_status === 'crowdfund_failed') return '众筹已结束';
+  return '暂不可购买';
+});
 
 const loadData = async () => {
   loading.value = true;
-  const [g, vids, pledge, wishlistFlag] = await Promise.all([
+  const [groupRow, videoRows, pledge, wishlistFlag] = await Promise.all([
     fetchGroup(groupId),
     fetchVideos(groupId),
     getPledgeCount(groupId),
     getConfig('wishlist_enabled'),
   ]);
-  group.value = g;
-  videos.value = vids;
-  pledgeCount.value = pledge.count || 0;
+  group.value = groupRow;
+  videos.value = Array.isArray(videoRows) ? videoRows : [];
+  pledgeCount.value = pledge.count || groupRow.pledge_count || 0;
   wishlistEnabled.value = wishlistFlag.value === 'true' || wishlistFlag.value === true;
 
-  // Load user-specific state
   if (isLoggedIn()) {
     try {
       const status = await getPledgeStatus(groupId);
       hasPledged.value = status.pledged;
-    } catch { /* not logged in */ }
+    } catch { /* anonymous users do not have pledge state */ }
   }
   if (wishlistEnabled.value) {
     const ws = await getWishlistStatus(groupId);
@@ -53,21 +111,26 @@ const loadData = async () => {
   loading.value = false;
 };
 
-const handlePurchase = async () => {
-  toast?.show(`请在官方外部渠道购买「${group.value?.name || '该 IP'}」，收到 token 后到账号资产页绑定。`, 3600, 'success');
+const handlePurchase = () => {
+  if (group.value?.external_purchase_url) {
+    window.open(group.value.external_purchase_url, '_blank', 'noopener,noreferrer');
+    return;
+  }
+  toast?.show(`购买「${group.value?.name || '该 IP'}」请前往外部渠道；收到 token 后在“我的资产”绑定。`, 3600, 'success');
 };
 
 const handlePledge = async () => {
   if (!isLoggedIn()) {
-    alert('请先登录');
+    toast?.show('请先登录后再参与众筹', 2400, 'error');
     return;
   }
   const result = await pledgeGroup(groupId);
   if (result.success) {
     hasPledged.value = true;
-    pledgeCount.value++;
+    pledgeCount.value += 1;
+    toast?.show('已记录你的众筹意向', 2200, 'success');
   } else {
-    alert(result.error || '众筹登记失败');
+    toast?.show(result.error || '众筹登记失败', 2400, 'error');
   }
 };
 
@@ -76,9 +139,13 @@ const handleWishlist = async () => {
   const result = await addToWishlist(groupId);
   inWishlist.value = !!result?.inWishlist;
   wishlistCount.value = result?.count || 0;
-  toast?.show(result?.added === false
-    ? `「${group.value?.name || 'IP'}」已在心愿单，当前 ${wishlistCount.value} 人已加入`
-    : `已将「${group.value?.name || 'IP'}」加入心愿单，当前 ${wishlistCount.value} 人已加入`, 2500, 'heart');
+  toast?.show(
+    result?.added === false
+      ? `「${group.value?.name || 'IP'}」已在心愿单，目前 ${wishlistCount.value} 人想要`
+      : `已加入心愿单，目前 ${wishlistCount.value} 人想要`,
+    2500,
+    'heart'
+  );
 };
 
 const goPlay = (id: string) => {
@@ -103,176 +170,503 @@ onMounted(loadData);
       <div class="ip-spinner"></div>
     </div>
 
-    <template v-else-if="group">
-      <!-- Header -->
-      <div class="ip-header">
-        <h1 class="ip-name">{{ group.name }}</h1>
-        <div class="ip-meta">
-          <span class="ip-series-badge" v-if="group.series_name">{{ group.series_name }}</span>
-          <span class="ip-stock-badge" :class="hasStock ? 'in-stock' : 'crowdfund'">
-            {{ hasStock ? '有货' : '众筹中' }}
-          </span>
+    <main v-else-if="group" class="ip-shell">
+      <section class="ip-hero">
+        <div class="hero-visual">
+          <img :src="heroImage" :alt="group.name" />
+          <span class="drop-badge">{{ statusText }}</span>
         </div>
-      </div>
 
-      <!-- Video Grid -->
-      <div class="ip-grid" v-if="readyVideos.length > 0">
-        <div
-          v-for="v in readyVideos"
-          :key="v.id"
-          class="ip-card"
-          @click="goPlay(v.id)"
-        >
-          <div class="ip-card-cover">
-            <img v-if="v.poster_url" :src="v.poster_url" alt="" />
-            <div v-else class="ip-card-placeholder"></div>
-            <span v-if="v.duration" class="ip-card-dur">{{ fmtDur(v.duration) }}</span>
+        <div class="hero-copy">
+          <span class="eyebrow">{{ group.series_name || group.application_name || 'WhatMint IP' }}</span>
+          <h1>{{ group.name }}</h1>
+          <p>{{ group.description || '一个可以通过实体触碰进入的小世界。购买在外部完成，WhatMint 负责内容、绑定和资产关系。' }}</p>
+
+          <div class="tag-list">
+            <span v-for="tag in tags" :key="tag">{{ tag }}</span>
           </div>
-          <div class="ip-card-info">
-            <span class="ip-card-title">{{ v.title }}</span>
+
+          <div class="price-row">
+            <strong>{{ group.price > 0 ? `¥${Number(group.price).toFixed(0)}` : '外部渠道发售' }}</strong>
+            <span>{{ group.rarity_label || (group.stock_limit ? `限量 ${group.stock_limit}` : '开放登记') }}</span>
+          </div>
+
+          <div class="progress-card" v-if="group.stock_limit > 0 || group.crowdfund_goal > 0">
+            <div class="progress-track">
+              <div class="progress-fill" :style="{ width: progressPercent + '%' }"></div>
+            </div>
+            <span v-if="group.stock_limit > 0">已发放 {{ group.entity_count || 0 }} / {{ group.stock_limit }}</span>
+            <span v-else>众筹 {{ group.pledge_count || pledgeCount }} / {{ group.crowdfund_goal }}</span>
+          </div>
+
+          <div class="hero-actions">
+            <button v-if="canPurchase" class="primary" @click="handlePurchase">外部购买</button>
+            <button v-else-if="canPledge" class="primary" :disabled="hasPledged" @click="handlePledge">
+              {{ hasPledged ? '已登记众筹' : '参与众筹' }}
+            </button>
+            <button v-else class="primary" disabled>暂不可购买</button>
+            <button class="ghost" @click="router.push('/assets')">去我的资产绑定 token</button>
+            <button v-if="wishlistEnabled" class="wish" :class="{ active: inWishlist }" @click="handleWishlist">
+              {{ inWishlist ? '已在心愿单' : '加入心愿单' }} · {{ wishlistCount }}
+            </button>
           </div>
         </div>
-      </div>
-      <div class="ip-empty" v-else>
-        <p>该IP暂无公开内容</p>
-      </div>
+      </section>
 
-      <!-- Purchased key display -->
-      <!-- Sticky Action Bar -->
-      <div class="ip-action-bar">
-        <button v-if="wishlistEnabled" class="ip-wish-btn" :class="{ active: inWishlist }" @click="handleWishlist">
-          <svg viewBox="0 0 24 24" width="18" height="18" :fill="inWishlist ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="2"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>
-          <span>{{ inWishlist ? '已在心愿单' : '加入心愿单' }}</span>
-          <span class="ip-wish-count">{{ wishlistCount }}</span>
-        </button>
-        <button v-if="hasStock" class="ip-buy-btn" @click="handlePurchase">
-          外部购买
-        </button>
-        <button v-else class="ip-pledge-btn" :disabled="hasPledged" @click="handlePledge">
-          {{ hasPledged ? '已登记' : '参与众筹' }}
-          <span class="pledge-count">{{ pledgeCount }}人</span>
-        </button>
-      </div>
-    </template>
+      <section class="detail-grid">
+        <article class="panel story-panel">
+          <span class="panel-kicker">IP Story</span>
+          <h2>小世界档案</h2>
+          <p v-for="paragraph in storyParagraphs" :key="paragraph">{{ paragraph }}</p>
+        </article>
+
+        <article class="panel specs-panel">
+          <span class="panel-kicker">Product Info</span>
+          <h2>产品信息</h2>
+          <div class="spec-row" v-for="spec in specs" :key="spec.label">
+            <span>{{ spec.label }}</span>
+            <strong>{{ spec.value }}</strong>
+          </div>
+        </article>
+      </section>
+
+      <section class="content-section">
+        <div class="section-head">
+          <div>
+            <span class="panel-kicker">Content Preview</span>
+            <h2>官方内容预览</h2>
+          </div>
+          <p>购买后写入 NFC 的是 token 链接，内容可以继续更新，实体仍然是那个实体。</p>
+        </div>
+
+        <div class="content-grid" v-if="readyVideos.length > 0">
+          <article
+            v-for="video in readyVideos"
+            :key="video.id"
+            class="content-card"
+            @click="goPlay(video.id)"
+          >
+            <div class="content-cover">
+              <img v-if="video.poster_url" :src="video.poster_url" :alt="video.title" />
+              <div v-else class="content-placeholder"></div>
+              <span v-if="video.duration">{{ fmtDur(video.duration) }}</span>
+            </div>
+            <strong>{{ video.title }}</strong>
+          </article>
+        </div>
+
+        <div class="ip-empty" v-else>
+          <p>这个 IP 暂无公开内容，后续可在官方管理端补充预览。</p>
+        </div>
+      </section>
+    </main>
   </div>
 </template>
 
 <style scoped>
 .ip-detail {
-  min-height: 100vh; background: #fefefe;
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 12% 5%, rgba(255, 79, 216, 0.28), transparent 28%),
+    radial-gradient(circle at 86% 0%, rgba(124, 77, 255, 0.28), transparent 29%),
+    linear-gradient(180deg, #0d0712 0%, #1b1023 38%, #fff8fb 38%, #ffffff 100%);
+  color: #1b1322;
   font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif;
-  padding-bottom: 80px;
 }
 
-.ip-loading { display: flex; justify-content: center; padding: 80px; }
+.ip-shell {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 28px 24px 76px;
+}
+
+.ip-loading {
+  display: flex;
+  justify-content: center;
+  padding: 80px;
+}
+
 .ip-spinner {
-  width: 24px; height: 24px; border: 2px solid #eee;
-  border-top-color: #7c4dff; border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  border: 2px solid rgba(255, 79, 216, 0.16);
+  border-top-color: #ff4fd8;
+  border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
-@keyframes spin { to { transform: rotate(360deg); } }
 
-.ip-header {
-  max-width: 960px; margin: 0 auto;
-  padding: 28px 24px 16px;
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
-.ip-name { font-size: 24px; font-weight: 800; margin: 0 0 8px; }
-.ip-meta { display: flex; gap: 8px; align-items: center; }
-.ip-series-badge {
-  font-size: 12px; padding: 3px 10px; border-radius: 4px;
-  background: #f5f5f5; color: #666;
-}
-.ip-stock-badge {
-  font-size: 12px; padding: 3px 10px; border-radius: 4px; font-weight: 500;
-}
-.ip-stock-badge.in-stock { background: #ecfdf5; color: #059669; }
-.ip-stock-badge.crowdfund { background: #fef3c7; color: #d97706; }
 
-.ip-grid {
-  max-width: 960px; margin: 0 auto;
-  padding: 0 24px 40px;
+.ip-hero {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  grid-template-columns: 360px minmax(0, 1fr);
+  gap: 18px;
+  align-items: stretch;
+  margin-bottom: 18px;
+}
+
+.hero-visual,
+.hero-copy,
+.panel,
+.content-section {
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 28px;
+  box-shadow: 0 20px 54px rgba(16, 6, 22, 0.18);
+}
+
+.hero-visual {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 420px;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 50% 28%, rgba(255, 255, 255, 0.16), transparent 30%),
+    linear-gradient(145deg, #23102d, #09050c);
+}
+
+.hero-visual img {
+  width: min(76%, 280px);
+  max-height: 330px;
+  object-fit: contain;
+  filter: drop-shadow(0 34px 42px rgba(0, 0, 0, 0.36));
+}
+
+.drop-badge {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  color: #ffe7f8;
+  background: rgba(255, 79, 216, 0.18);
+  font-size: 12px;
+  font-weight: 950;
+}
+
+.hero-copy {
+  display: grid;
+  align-content: center;
+  gap: 14px;
+  padding: clamp(24px, 4vw, 38px);
+  color: #fff;
+  background:
+    linear-gradient(135deg, rgba(255, 79, 216, 0.14), transparent 36%),
+    linear-gradient(150deg, #17091e, #2a1534 58%, #100916);
+}
+
+.eyebrow,
+.panel-kicker {
+  color: #ff9ce8;
+  font-size: 12px;
+  font-weight: 950;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.hero-copy h1 {
+  margin: 0;
+  font-size: clamp(34px, 5vw, 58px);
+  line-height: 0.98;
+  letter-spacing: -0.065em;
+}
+
+.hero-copy p {
+  max-width: 650px;
+  margin: 0;
+  color: rgba(255, 255, 255, 0.72);
+  line-height: 1.8;
+}
+
+.tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.tag-list span {
+  padding: 7px 10px;
+  border-radius: 999px;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.12);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.price-row {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+}
+
+.price-row strong {
+  color: #ffb9ef;
+  font-size: 28px;
+}
+
+.price-row span {
+  color: rgba(255, 255, 255, 0.62);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.progress-card {
+  display: grid;
+  gap: 8px;
+  padding: 13px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.progress-track {
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.progress-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #ff4fd8, #7c4dff);
+}
+
+.hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.primary,
+.ghost,
+.wish {
+  min-height: 40px;
+  padding: 0 16px;
+  border-radius: 15px;
+  font-size: 13px;
+  font-weight: 950;
+  cursor: pointer;
+}
+
+.primary {
+  border: none;
+  color: #fff;
+  background: linear-gradient(135deg, #ff4fd8, #7c4dff);
+}
+
+.primary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.ghost,
+.wish {
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: #fff;
+  background: rgba(255, 255, 255, 0.10);
+}
+
+.wish.active {
+  color: #ffc8f4;
+  border-color: rgba(255, 79, 216, 0.35);
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: 1.25fr 0.75fr;
+  gap: 14px;
+  margin-bottom: 16px;
+}
+
+.panel,
+.content-section {
+  background:
+    radial-gradient(circle at 100% 0%, rgba(255, 79, 216, 0.06), transparent 30%),
+    rgba(255, 255, 255, 0.94);
+  box-shadow: 0 18px 44px rgba(98, 42, 113, 0.10);
+}
+
+.panel {
+  padding: 22px;
+}
+
+.panel h2,
+.content-section h2 {
+  margin: 8px 0 14px;
+  font-size: 25px;
+  letter-spacing: -0.04em;
+}
+
+.story-panel p {
+  margin: 0 0 12px;
+  color: #625768;
+  line-height: 1.9;
+}
+
+.specs-panel {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+}
+
+.spec-row {
+  display: flex;
+  justify-content: space-between;
   gap: 16px;
+  padding: 12px 0;
+  border-bottom: 1px solid #f0e8f2;
 }
 
-.ip-card {
-  cursor: pointer; border-radius: 14px; overflow: hidden;
-  background: #fff; border: 1px solid #f0f0f0;
-  transition: transform 0.2s, box-shadow 0.2s;
-}
-.ip-card:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,0.06); }
-
-.ip-card-cover { position: relative; aspect-ratio: 9/16; background: #f5f5f5; }
-.ip-card-cover img { width: 100%; height: 100%; object-fit: cover; }
-.ip-card-placeholder {
-  width: 100%; height: 100%;
-  background: linear-gradient(160deg, #f3e8ff, #e0d4ff);
-}
-.ip-card-dur {
-  position: absolute; bottom: 6px; right: 6px;
-  background: rgba(0,0,0,0.6); color: #fff;
-  font-size: 11px; padding: 2px 6px; border-radius: 4px;
-}
-.ip-card-info { padding: 8px 10px; }
-.ip-card-title {
-  font-size: 13px; font-weight: 500;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block;
+.spec-row span {
+  color: #8b7f91;
+  font-size: 13px;
+  font-weight: 900;
 }
 
-.ip-empty { text-align: center; padding: 60px 24px; color: #999; font-size: 14px; }
+.spec-row strong {
+  color: #2b1b32;
+  font-size: 13px;
+  text-align: right;
+}
 
-.ip-purchased {
-  max-width: 960px; margin: 0 auto; padding: 0 24px;
+.content-section {
+  padding: 22px;
+}
+
+.section-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 16px;
+}
+
+.section-head p {
+  max-width: 420px;
+  margin: 0;
+  color: #817489;
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.content-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 12px;
+}
+
+.content-card {
+  overflow: hidden;
+  border: 1px solid #f0e8f2;
+  border-radius: 20px;
+  background: #fff;
+  cursor: pointer;
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.content-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 18px 34px rgba(82, 34, 98, 0.12);
+}
+
+.content-cover {
+  position: relative;
+  aspect-ratio: 4 / 5;
+  background: #f8f0f9;
+}
+
+.content-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.content-placeholder {
+  width: 100%;
+  height: 100%;
+  background:
+    radial-gradient(circle at 40% 25%, rgba(255, 79, 216, 0.26), transparent 30%),
+    linear-gradient(145deg, #f8e8f7, #e9e0ff);
+}
+
+.content-cover span {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  padding: 4px 7px;
+  border-radius: 999px;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.54);
+  font-size: 11px;
+  font-weight: 850;
+}
+
+.content-card strong {
+  display: block;
+  padding: 11px 12px 13px;
+  overflow: hidden;
+  color: #2b1b32;
+  font-size: 13px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.ip-empty {
+  padding: 50px 20px;
+  color: #94899b;
   text-align: center;
 }
-.ip-purchased h3 { color: #059669; font-size: 18px; margin: 0 0 12px; }
-.ip-key-label { font-size: 13px; color: #666; margin: 0 0 8px; }
-.ip-key {
-  display: block; padding: 12px 16px; background: #f5f5f5;
-  border-radius: 8px; font-size: 12px; word-break: break-all;
-  margin: 0 0 8px;
-}
-.ip-key-hint { font-size: 12px; color: #999; margin: 0; }
 
-.ip-action-bar {
-  position: fixed; bottom: 0; left: 0; right: 0;
-  background: rgba(255,255,255,0.95); backdrop-filter: blur(10px);
-  border-top: 1px solid #f0f0f0;
-  padding: 12px 24px; display: flex; gap: 12px;
-  justify-content: center; z-index: 50;
+@media (max-width: 960px) {
+  .ip-hero,
+  .detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .hero-visual {
+    min-height: 340px;
+  }
 }
-.ip-wish-btn {
-  display: flex; align-items: center; gap: 6px;
-  padding: 10px 18px; border: 1px solid #eee; border-radius: 10px;
-  background: #fff; font-size: 13px; color: #666; cursor: pointer;
-}
-.ip-wish-btn.active { color: #ff4d6a; border-color: #ffcdd2; }
-.ip-wish-count {
-  min-width: 22px; height: 22px; padding: 0 8px; border-radius: 999px;
-  display: inline-flex; align-items: center; justify-content: center;
-  background: #fff5f7; color: #ff4d6a; font-size: 11px; font-weight: 700;
-}
-.ip-buy-btn {
-  flex: 1; max-width: 240px; padding: 12px 24px;
-  background: #7c4dff; color: #fff; border: none; border-radius: 10px;
-  font-size: 14px; font-weight: 600; cursor: pointer;
-}
-.ip-buy-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-.ip-buy-btn:hover:not(:disabled) { opacity: 0.9; }
-.ip-pledge-btn {
-  flex: 1; max-width: 240px; padding: 12px 24px;
-  background: #ff9800; color: #fff; border: none; border-radius: 10px;
-  font-size: 14px; font-weight: 600; cursor: pointer;
-  display: flex; align-items: center; justify-content: center; gap: 8px;
-}
-.ip-pledge-btn:disabled { opacity: 0.6; cursor: not-allowed; background: #bbb; }
-.pledge-count { font-size: 12px; opacity: 0.8; }
 
 @media (max-width: 640px) {
-  .ip-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; padding: 0 16px 40px; }
-  .ip-header { padding: 20px 16px 12px; }
-  .ip-name { font-size: 20px; }
-  .ip-action-bar { padding: 10px 16px; }
+  .ip-shell {
+    padding: 22px 14px 58px;
+  }
+
+  .ip-hero {
+    gap: 14px;
+  }
+
+  .hero-visual,
+  .hero-copy,
+  .panel,
+  .content-section {
+    border-radius: 26px;
+  }
+
+  .hero-visual {
+    min-height: 260px;
+  }
+
+  .hero-copy {
+    padding: 24px 20px;
+  }
+
+  .hero-actions {
+    display: grid;
+  }
+
+  .section-head {
+    display: grid;
+  }
+
+  .content-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 </style>

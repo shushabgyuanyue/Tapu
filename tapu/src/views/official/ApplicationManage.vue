@@ -17,7 +17,7 @@ const msgError = ref(false);
 
 const presets = [
   { name: '情绪 IP', code: 'emotion-ip', interaction_type: 'tap_to_emotion_content', description: '实体承载情绪表达，触碰后进入对应内容。' },
-  { name: '日常贴纸', code: 'daily-sticker', interaction_type: 'tap_to_fun_content', description: '普通物品贴上 NFC 后展示趣味内容。' },
+  { name: '日常贴纸', code: 'daily-sticker', interaction_type: 'tap_to_fun_content', description: '普通物品贴上 NFC 后展示共享的每日趣味内容。' },
   { name: '传信', code: 'message-box', interaction_type: 'tap_to_message_inbox', description: '实体作为情绪信箱，承载重要节点留言。' },
   { name: '收藏手作', code: 'collectible-craft', interaction_type: 'tap_to_story_archive', description: '给非标作品建立故事、履历和数字生命。' },
 ];
@@ -84,7 +84,7 @@ const submit = async () => {
 };
 
 const removeApp = async (app: any) => {
-  if (!confirm(`确定删除应用「${app.name}」？关联系列会被保留，但会解除应用关联。`)) return;
+  if (!confirm(`确定删除应用「${app.name}」？关联系列会保留，但会解除应用关联。`)) return;
   const result = await deleteApplication(app.id);
   if (result.error) {
     msg.value = result.error;

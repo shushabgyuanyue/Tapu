@@ -8,6 +8,7 @@ import { transcodeVideo } from '../services/transcode.js';
 import { deleteFromR2, getR2KeyFromUrl } from '../services/r2.js';
 import { authOptional, authRequired, verifyEntityKey } from '../middleware/auth.js';
 import { resultToObjects } from '../services/tokens.js';
+import { recordOwnershipEvent } from '../services/ownership.js';
 
 const router = Router();
 
@@ -54,6 +55,60 @@ function canViewEntityPrivate(req, entityId) {
   return !!entityId && !!req.user?.id && (req.user.username === 'admin' || req.user.id === req.verifiedEntityOwnerId);
 }
 
+function isTruthy(value) {
+  return value === true || value === 'true' || value === '1';
+}
+
+function httpError(status, message) {
+  const error = new Error(message);
+  error.status = status;
+  return error;
+}
+
+function resolveEntityKey(req, db) {
+  const key = req.body.entity_key || req.body.key || req.headers['x-entity-key'] || req.query.key;
+  if (!key) return null;
+  const payload = verifyEntityKey(key, db);
+  if (!payload) throw httpError(400, '无效的实体 token');
+  return payload;
+}
+
+function resolveUploadEntity(req, db) {
+  const payload = resolveEntityKey(req, db);
+  const requestedEntityId = payload?.entity_id || req.body.entity_id || null;
+  const requestedGroupId = req.body.group_id || null;
+
+  if (!requestedEntityId) {
+    return { entity: null, entityId: null, groupId: requestedGroupId };
+  }
+
+  const rows = resultToObjects(db.exec(
+    'SELECT id, group_id, user_id, token, entity_key, external_order_no FROM entities WHERE id = ?',
+    [requestedEntityId]
+  ));
+  if (rows.length === 0) throw httpError(400, '实体不存在');
+
+  const entity = rows[0];
+  if (requestedGroupId && entity.group_id && requestedGroupId !== entity.group_id) {
+    throw httpError(400, '实体 token 与选择的 IP 不匹配');
+  }
+
+  if (req.user.username !== 'admin') {
+    if (entity.user_id && entity.user_id !== req.user.id) {
+      throw httpError(403, '无权为该实体管理内容');
+    }
+    if (!entity.user_id && !payload) {
+      throw httpError(403, '未绑定实体需要提供 token 才能上传或绑定内容');
+    }
+  }
+
+  return {
+    entity,
+    entityId: entity.id,
+    groupId: entity.group_id || requestedGroupId,
+  };
+}
+
 // Upload video (requires auth)
 router.post('/upload', authRequired, upload.single('video'), async (req, res) => {
   try {
@@ -64,22 +119,36 @@ router.post('/upload', authRequired, upload.single('video'), async (req, res) =>
     const db = await getDb();
     const id = uuidv4();
     const title = req.body.title || req.file.originalname;
-    const groupId = req.body.group_id || null;
-    const isPrivate = req.body.is_private === 'true' || req.body.is_private === '1' ? 1 : 0;
-    const entityId = req.verifiedEntityId || req.body.entity_id || null;
+    const isPrivate = isTruthy(req.body.is_private) ? 1 : 0;
+    const setAsDefault = isTruthy(req.body.set_as_default);
+    const uploadEntity = resolveUploadEntity(req, db);
+    const groupId = uploadEntity.groupId || null;
+    const entityId = uploadEntity.entityId || null;
 
-    if (entityId && req.user.username !== 'admin') {
-      const owners = resultToObjects(db.exec('SELECT user_id FROM entities WHERE id = ?', [entityId]));
-      if (owners.length === 0) return res.status(400).json({ error: '实体不存在' });
-      if (owners[0].user_id && owners[0].user_id !== req.user.id) {
-        return res.status(403).json({ error: '无权为该实体管理内容' });
-      }
+    if (isPrivate && !entityId) {
+      return res.status(400).json({ error: '私有内容必须绑定到某个实体' });
     }
 
     db.run(
-      'INSERT INTO videos (id, title, group_id, original_filename, file_path, status, is_private, entity_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-      [id, title, groupId, req.file.originalname, '', 'processing', isPrivate, entityId]
+      `INSERT INTO videos
+        (id, title, group_id, original_filename, file_path, status, is_private, entity_id, owner_user_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [id, title, groupId, req.file.originalname, '', 'processing', isPrivate, entityId, req.user.id]
     );
+
+    if (entityId && setAsDefault) {
+      db.run('DELETE FROM user_defaults WHERE entity_id = ?', [entityId]);
+      db.run('INSERT INTO user_defaults (entity_id, video_id, group_id) VALUES (?, ?, ?)', [entityId, id, groupId]);
+      recordOwnershipEvent(db, {
+        entityId,
+        token: uploadEntity.entity?.token || uploadEntity.entity?.entity_key,
+        eventType: 'content_default_set',
+        actorUserId: req.user.id,
+        orderId: uploadEntity.entity?.external_order_no || null,
+        note: '上传内容并设为实体默认内容',
+      });
+    }
+
     saveDb();
 
     // Start transcoding asynchronously
@@ -87,10 +156,10 @@ router.post('/upload', authRequired, upload.single('video'), async (req, res) =>
       console.error(`Transcode failed for ${id}:`, err.message);
     });
 
-    res.json({ id, status: 'processing' });
+    res.json({ id, status: 'processing', entity_id: entityId, default_set: !!(entityId && setAsDefault) });
   } catch (err) {
     console.error('Upload error:', err);
-    res.status(500).json({ error: 'Upload failed' });
+    res.status(err.status || 500).json({ error: err.status ? err.message : 'Upload failed' });
   }
 });
 
@@ -236,10 +305,20 @@ router.get('/:id/siblings', authOptional, optionalKeyVerify, async (req, res) =>
 // Delete video (requires auth)
 router.delete('/:id', authRequired, async (req, res) => {
   const db = await getDb();
-  const results = db.exec('SELECT file_path, poster_url FROM videos WHERE id = ?', [req.params.id]);
+  const results = db.exec('SELECT file_path, poster_url, entity_id, owner_user_id FROM videos WHERE id = ?', [req.params.id]);
   const videos = resultToObjects(results);
 
   if (videos.length > 0) {
+    const video = videos[0];
+    if (req.user.username !== 'admin' && video.owner_user_id !== req.user.id) {
+      const owners = video.entity_id
+        ? resultToObjects(db.exec('SELECT id FROM entities WHERE id = ? AND user_id = ?', [video.entity_id, req.user.id]))
+        : [];
+      if (owners.length === 0) {
+        return res.status(403).json({ error: '无权删除该内容' });
+      }
+    }
+
     const { file_path: filePath, poster_url: posterUrl } = videos[0];
     await removeStoredAsset(filePath);
     await removeStoredAsset(posterUrl);

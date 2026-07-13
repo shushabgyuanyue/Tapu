@@ -20,12 +20,20 @@ export function resultToObjects(results) {
 }
 
 export function createUniqueEntityToken(db) {
+  return createUniqueToken(db, 'entities', 'token', 'entity token');
+}
+
+export function createUniqueToken(db, table, column = 'token', label = 'token') {
+  if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(table) || !/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(column)) {
+    throw new Error('Invalid token lookup target');
+  }
+
   for (let i = 0; i < 8; i++) {
     const token = generateToken128();
-    const existing = db.exec('SELECT id FROM entities WHERE token = ? LIMIT 1', [token]);
+    const existing = db.exec(`SELECT id FROM ${table} WHERE ${column} = ? LIMIT 1`, [token]);
     if (resultToObjects(existing).length === 0) return token;
   }
-  throw new Error('Failed to generate unique entity token');
+  throw new Error(`Failed to generate unique ${label}`);
 }
 
 export function getEntityByToken(db, token) {
