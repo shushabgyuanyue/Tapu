@@ -259,23 +259,25 @@ onMounted(loadData);
 .shop-page {
   min-height: 100vh;
   background:
-    radial-gradient(circle at 8% 6%, rgba(255, 79, 216, 0.32), transparent 30%),
-    radial-gradient(circle at 86% 0%, rgba(124, 77, 255, 0.34), transparent 31%),
-    linear-gradient(180deg, #0c0711 0%, #17101f 42%, #fff7fb 42%, #ffffff 100%);
+    linear-gradient(120deg, rgba(255, 79, 216, 0.10) 0 1px, transparent 1px 92px),
+    linear-gradient(0deg, rgba(124, 77, 255, 0.08) 0 1px, transparent 1px 84px),
+    radial-gradient(circle at 9% 5%, rgba(255, 79, 216, 0.36), transparent 30%),
+    radial-gradient(circle at 88% 3%, rgba(124, 77, 255, 0.38), transparent 32%),
+    linear-gradient(180deg, #09060d 0%, #17101f 44%, #fff7fb 44%, #ffffff 100%);
   color: #1b1322;
   font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif;
 }
 
 .shop-shell {
-  max-width: 1120px;
+  max-width: 1180px;
   margin: 0 auto;
   padding: 30px 24px 70px;
 }
 
 .shop-hero {
   display: grid;
-  grid-template-columns: minmax(0, 1.2fr) 300px;
-  gap: 18px;
+  grid-template-columns: minmax(0, 1.16fr) 340px;
+  gap: 20px;
   align-items: stretch;
   min-height: 320px;
   margin-bottom: 18px;
@@ -283,19 +285,19 @@ onMounted(loadData);
 
 .hero-copy,
 .hero-product {
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  box-shadow: 0 22px 58px rgba(13, 5, 20, 0.22);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow: 0 28px 76px rgba(10, 4, 18, 0.32);
 }
 
 .hero-copy {
   position: relative;
   overflow: hidden;
   padding: clamp(28px, 5vw, 54px);
-  border-radius: 34px;
+  border-radius: 38px;
   color: #fff;
   background:
-    linear-gradient(135deg, rgba(255, 79, 216, 0.18), transparent 34%),
-    linear-gradient(150deg, #16091d, #271333 58%, #100916);
+    linear-gradient(135deg, rgba(255, 79, 216, 0.22), transparent 34%),
+    linear-gradient(150deg, #130817, #2b1534 58%, #0d0711);
 }
 
 .hero-copy::after {
@@ -308,6 +310,15 @@ onMounted(loadData);
   border-radius: 46% 54% 60% 40%;
   background: linear-gradient(135deg, rgba(255, 79, 216, 0.28), rgba(124, 77, 255, 0.22));
   filter: blur(3px);
+}
+
+.hero-copy::before {
+  content: "";
+  position: absolute;
+  inset: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 28px;
+  pointer-events: none;
 }
 
 .eyebrow {
@@ -323,11 +334,11 @@ onMounted(loadData);
 .hero-copy h1 {
   position: relative;
   z-index: 1;
-  max-width: 720px;
+  max-width: 760px;
   margin: 14px 0;
   font-size: clamp(32px, 5vw, 58px);
   line-height: 0.98;
-  letter-spacing: -0.065em;
+  letter-spacing: -0.07em;
 }
 
 .hero-copy p {
@@ -367,15 +378,28 @@ onMounted(loadData);
   display: grid;
   align-content: end;
   gap: 8px;
-  padding: 18px;
-  border-radius: 30px;
+  padding: 20px;
+  border-radius: 34px;
   border: 0;
   color: #fff;
   text-align: left;
   cursor: pointer;
   background:
-    radial-gradient(circle at 50% 28%, rgba(255, 255, 255, 0.13), transparent 32%),
-    linear-gradient(160deg, #21102a, #09050c);
+    radial-gradient(circle at 50% 26%, rgba(255, 255, 255, 0.16), transparent 30%),
+    radial-gradient(circle at 0% 100%, rgba(255, 79, 216, 0.22), transparent 36%),
+    linear-gradient(160deg, #24102d, #08050b);
+}
+
+.hero-product::after {
+  content: "Tap to inspect";
+  position: absolute;
+  right: 18px;
+  top: 18px;
+  color: rgba(255, 255, 255, 0.42);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .hero-product img {
@@ -433,8 +457,8 @@ onMounted(loadData);
 .shop-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 14px;
-  margin-top: 14px;
+  gap: 18px;
+  margin-top: 18px;
 }
 
 .shop-empty {
@@ -465,11 +489,11 @@ onMounted(loadData);
 
   .hero-copy,
   .hero-product {
-    border-radius: 26px;
+    border-radius: 28px;
   }
 
   .hero-copy {
-    padding: 28px 22px;
+    padding: 30px 22px;
   }
 
   .shop-grid {

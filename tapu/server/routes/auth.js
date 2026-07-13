@@ -478,7 +478,7 @@ router.put('/entity-default/:entityId', authRequired, async (req, res) => {
 
     const db = await getDb();
     // Verify entity belongs to user
-    const entityResults = db.exec('SELECT user_id, group_id FROM entities WHERE id = ?', [req.params.entityId]);
+    const entityResults = db.exec('SELECT user_id, group_id, token, entity_key, external_order_no FROM entities WHERE id = ?', [req.params.entityId]);
     const entities = resultToObjects(entityResults);
     if (entities.length === 0 || entities[0].user_id !== req.user.id) {
       return res.status(403).json({ error: '无权操作该实体' });
