@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { resolveDailySticker } from '../api';
 
@@ -7,6 +7,7 @@ const route = useRoute();
 const loading = ref(true);
 const error = ref('');
 const data = ref<any>(null);
+const refreshTimer = ref<number | null>(null);
 
 const token = computed(() => String(route.query.key || '').trim());
 const persona = computed(() => data.value?.persona || {});
@@ -47,12 +48,35 @@ const isVideoLike = (asset: any) => {
   return asset?.asset_type === 'video' || /\.(mp4|webm|mov)$/i.test(url);
 };
 
-const load = async () => {
-  loading.value = true;
+const clearRefreshTimer = () => {
+  if (refreshTimer.value) {
+    window.clearTimeout(refreshTimer.value);
+    refreshTimer.value = null;
+  }
+};
+
+const shouldAutoRefresh = () => !route.query.day && !route.query.date;
+
+const scheduleRefresh = () => {
+  clearRefreshTimer();
+  if (!shouldAutoRefresh()) return;
+  const release = data.value?.release || {};
+  if (release.cron_mode !== 'minute_interval') return;
+
+  const interval = Math.max(1, Number(release.interval_minutes || 1));
+  const now = new Date();
+  const elapsedInHour = now.getMinutes() * 60 * 1000 + now.getSeconds() * 1000 + now.getMilliseconds();
+  const intervalMs = interval * 60 * 1000;
+  const nextDelay = intervalMs - (elapsedInHour % intervalMs) + 1200;
+  refreshTimer.value = window.setTimeout(() => load({ silent: true }), nextDelay);
+};
+
+const load = async (options: { silent?: boolean } = {}) => {
+  if (!options.silent) loading.value = true;
   error.value = '';
   if (!token.value) {
     error.value = '缺少贴纸链接，请确认 NFC 写入地址是否完整。';
-    loading.value = false;
+    if (!options.silent) loading.value = false;
     return;
   }
 
@@ -62,14 +86,21 @@ const load = async () => {
   });
   if (result.error) {
     error.value = result.error;
-    loading.value = false;
+    if (!options.silent) loading.value = false;
     return;
   }
   data.value = result;
   loading.value = false;
+  scheduleRefresh();
 };
 
 onMounted(load);
+onUnmounted(clearRefreshTimer);
+
+watch(() => route.fullPath, () => {
+  clearRefreshTimer();
+  load();
+});
 </script>
 
 <template>
@@ -92,7 +123,7 @@ onMounted(load);
         <p>{{ error }}</p>
       </div>
 
-      <article v-else class="daily-card">
+      <article v-else class="daily-card" :key="entry?.id || `${data?.requested_date}-${data?.current_day}`">
         <div class="card-top">
           <div>
             <span class="eyebrow">{{ dateText }} · {{ modalityLabel }}</span>

@@ -267,17 +267,17 @@ onMounted(loadData);
 .ip-detail {
   min-height: 100vh;
   background:
-    radial-gradient(circle at 12% 6%, rgba(255, 79, 216, 0.26), transparent 28%),
-    radial-gradient(circle at 86% 0%, rgba(124, 77, 255, 0.30), transparent 30%),
-    linear-gradient(180deg, #0d0712 0%, #1b1023 45%, #fff8fb 45%, #ffffff 100%);
+    radial-gradient(circle at 12% 5%, rgba(255, 79, 216, 0.28), transparent 28%),
+    radial-gradient(circle at 86% 0%, rgba(124, 77, 255, 0.28), transparent 29%),
+    linear-gradient(180deg, #0d0712 0%, #1b1023 38%, #fff8fb 38%, #ffffff 100%);
   color: #1b1322;
   font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif;
 }
 
 .ip-shell {
-  max-width: 1180px;
+  max-width: 1120px;
   margin: 0 auto;
-  padding: 30px 24px 80px;
+  padding: 28px 24px 76px;
 }
 
 .ip-loading {
@@ -301,10 +301,10 @@ onMounted(loadData);
 
 .ip-hero {
   display: grid;
-  grid-template-columns: 460px minmax(0, 1fr);
-  gap: 26px;
+  grid-template-columns: 360px minmax(0, 1fr);
+  gap: 18px;
   align-items: stretch;
-  margin-bottom: 24px;
+  margin-bottom: 18px;
 }
 
 .hero-visual,
@@ -312,15 +312,15 @@ onMounted(loadData);
 .panel,
 .content-section {
   border: 1px solid rgba(255, 255, 255, 0.18);
-  border-radius: 34px;
-  box-shadow: 0 26px 70px rgba(16, 6, 22, 0.24);
+  border-radius: 28px;
+  box-shadow: 0 20px 54px rgba(16, 6, 22, 0.18);
 }
 
 .hero-visual {
   position: relative;
   display: grid;
   place-items: center;
-  min-height: 560px;
+  min-height: 420px;
   overflow: hidden;
   background:
     radial-gradient(circle at 50% 28%, rgba(255, 255, 255, 0.16), transparent 30%),
@@ -328,8 +328,8 @@ onMounted(loadData);
 }
 
 .hero-visual img {
-  width: min(78%, 360px);
-  max-height: 470px;
+  width: min(76%, 280px);
+  max-height: 330px;
   object-fit: contain;
   filter: drop-shadow(0 34px 42px rgba(0, 0, 0, 0.36));
 }
@@ -349,8 +349,8 @@ onMounted(loadData);
 .hero-copy {
   display: grid;
   align-content: center;
-  gap: 18px;
-  padding: clamp(26px, 4vw, 46px);
+  gap: 14px;
+  padding: clamp(24px, 4vw, 38px);
   color: #fff;
   background:
     linear-gradient(135deg, rgba(255, 79, 216, 0.14), transparent 36%),
@@ -368,8 +368,8 @@ onMounted(loadData);
 
 .hero-copy h1 {
   margin: 0;
-  font-size: clamp(38px, 6vw, 72px);
-  line-height: 0.94;
+  font-size: clamp(34px, 5vw, 58px);
+  line-height: 0.98;
   letter-spacing: -0.065em;
 }
 
@@ -387,7 +387,7 @@ onMounted(loadData);
 }
 
 .tag-list span {
-  padding: 8px 11px;
+  padding: 7px 10px;
   border-radius: 999px;
   color: #fff;
   background: rgba(255, 255, 255, 0.12);
@@ -403,7 +403,7 @@ onMounted(loadData);
 
 .price-row strong {
   color: #ffb9ef;
-  font-size: 32px;
+  font-size: 28px;
 }
 
 .price-row span {
@@ -446,7 +446,7 @@ onMounted(loadData);
 .primary,
 .ghost,
 .wish {
-  min-height: 44px;
+  min-height: 40px;
   padding: 0 16px;
   border-radius: 15px;
   font-size: 13px;
@@ -480,24 +480,26 @@ onMounted(loadData);
 .detail-grid {
   display: grid;
   grid-template-columns: 1.25fr 0.75fr;
-  gap: 18px;
-  margin-bottom: 20px;
+  gap: 14px;
+  margin-bottom: 16px;
 }
 
 .panel,
 .content-section {
-  background: rgba(255, 255, 255, 0.92);
-  box-shadow: 0 22px 60px rgba(98, 42, 113, 0.12);
+  background:
+    radial-gradient(circle at 100% 0%, rgba(255, 79, 216, 0.06), transparent 30%),
+    rgba(255, 255, 255, 0.94);
+  box-shadow: 0 18px 44px rgba(98, 42, 113, 0.10);
 }
 
 .panel {
-  padding: 24px;
+  padding: 22px;
 }
 
 .panel h2,
 .content-section h2 {
   margin: 8px 0 14px;
-  font-size: 28px;
+  font-size: 25px;
   letter-spacing: -0.04em;
 }
 
@@ -534,7 +536,7 @@ onMounted(loadData);
 }
 
 .content-section {
-  padding: 24px;
+  padding: 22px;
 }
 
 .section-head {
@@ -554,8 +556,8 @@ onMounted(loadData);
 
 .content-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
-  gap: 14px;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 12px;
 }
 
 .content-card {
@@ -574,7 +576,7 @@ onMounted(loadData);
 
 .content-cover {
   position: relative;
-  aspect-ratio: 9 / 14;
+  aspect-ratio: 4 / 5;
   background: #f8f0f9;
 }
 
@@ -627,7 +629,7 @@ onMounted(loadData);
   }
 
   .hero-visual {
-    min-height: 420px;
+    min-height: 340px;
   }
 }
 
@@ -648,7 +650,7 @@ onMounted(loadData);
   }
 
   .hero-visual {
-    min-height: 340px;
+    min-height: 260px;
   }
 
   .hero-copy {

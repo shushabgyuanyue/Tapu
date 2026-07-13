@@ -119,6 +119,7 @@ token 持有历史，为实体传承做数据基础。当前事件包括：
 | 资产页 | `tapu/src/views/AssetsPage.vue` |
 | 内容详情直写 token | `tapu/src/views/ContentDetailPage.vue` |
 | 商城展示页 | `tapu/src/views/ShopPage.vue`、`tapu/src/components/shop/ShopFilterBar.vue`、`tapu/src/components/shop/ShopProductCard.vue` |
+| 日常贴纸触碰页 | `tapu/src/views/DailyStickerPage.vue` |
 | NFC 播放器 | `tapu/src/views/PlayerView.vue` |
 | 官方订单页 | `tapu/src/views/official/OrderManage.vue` |
 | 持有记录页 | `tapu/src/views/official/OwnershipManage.vue` |
@@ -157,6 +158,9 @@ token 持有历史，为实体传承做数据基础。当前事件包括：
 - 社区和心愿单默认关闭，由官方管理开关控制。
 - `/assets` 顶部和空展馆态都有“绑定新资产 / 去绑定 token”入口；同一输入框会智能尝试实体 IP 与日常贴纸 token，仍保留单独绑定按钮。
 - 商城页已拆出 `ShopFilterBar` 与 `ShopProductCard`，页面本体保留数据编排和业务动作；后续扩展商品信息时优先扩展组件，不要把卡片逻辑写回页面。
+- 日常贴纸触碰页在分钟级 `release.cron_mode = minute_interval` 时会自动排程静默刷新，并用当前 entry key 重新触发卡片动画；带 `day/date` 的后台预览链接不会自动跳日。
+- 登录头像菜单顺序为“我的资产 -> 解绑申诉 -> 账户设置”，避免资产绑定入口被账户设置遮挡。
+- 资产展馆与 IP 详情页已收敛大图、阴影和 hero 高度，保持黑/紫/粉视觉方向但降低移动端滚动负担。
 
 ## 8. 后续只有高收益才建议做
 

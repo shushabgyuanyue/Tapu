@@ -58,3 +58,18 @@ entrypoint: tapu/src/main.ts
   - 临时 DB 启动服务 smoke：`/api/groups`、`/api/series`、`/api/config/wishlist_enabled`、`/api/daily-stickers/resolve`。
 - post-mortem:
   - `AssetsPage.vue` 与 `DailyStickerManage.vue` 仍超过 500 行；本轮只修复资产绑定入口并将后续高收益拆分写入文档，避免一次性大拆影响业务闭环。
+
+## 2026-07-14 Codex Increment 2
+
+- domain: frontend, daily-sticker, auth-asset, docs
+- ref: 25aa475
+- todo:
+  - [x] `DailyStickerPage.vue` 支持分钟级发布边界自动静默刷新，避免 NFC 页面必须手动刷新才更换内容/动画。
+  - [x] 账户下拉菜单顺序调整为“我的资产 -> 解绑申诉 -> 账户设置”。
+  - [x] 收敛资产展馆和 IP 详情页的大图、高度、阴影与移动端布局。
+  - [x] 更新 `DOMAINS.md` 与 `docs/business-flow.md`，记录贴纸自动刷新和导航顺序。
+- evidence:
+  - `npm run build`
+  - `git diff --check`
+- post-mortem:
+  - 本轮未做移动端真机 NFC 长时间停留测试；自动刷新逻辑仅在无 `day/date` 预览参数时启用，避免后台预览指定天数被自动跳转。

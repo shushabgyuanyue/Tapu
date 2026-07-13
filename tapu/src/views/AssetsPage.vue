@@ -530,15 +530,15 @@ const saveDefault = async (entityId: string, videoId = editDefaultInput.value) =
 .assets-page {
   min-height: 100vh;
   background:
-    radial-gradient(circle at 10% 6%, rgba(255, 79, 216, 0.28), transparent 30%),
-    radial-gradient(circle at 88% 8%, rgba(124, 77, 255, 0.30), transparent 30%),
-    linear-gradient(180deg, #0d0712 0%, #1a1023 36%, #fff8fb 36%, #fff 100%);
+    radial-gradient(circle at 10% 4%, rgba(255, 79, 216, 0.30), transparent 28%),
+    radial-gradient(circle at 88% 6%, rgba(124, 77, 255, 0.28), transparent 28%),
+    linear-gradient(180deg, #0d0712 0%, #1a1023 32%, #fff8fb 32%, #fff 100%);
   color: #15131f;
   font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif;
 }
 
 .assets-shell {
-  max-width: 1160px;
+  max-width: 1120px;
   margin: 0 auto;
   padding: 30px 24px 70px;
 }
@@ -562,8 +562,8 @@ const saveDefault = async (entityId: string, videoId = editDefaultInput.value) =
 .sticker-card,
 .gallery-card {
   border: 1px solid rgba(255, 255, 255, 0.18);
-  border-radius: 28px;
-  box-shadow: 0 24px 64px rgba(18, 7, 28, 0.18);
+  border-radius: 26px;
+  box-shadow: 0 18px 46px rgba(18, 7, 28, 0.14);
 }
 
 .assets-hero > div:first-child {
@@ -590,8 +590,8 @@ const saveDefault = async (entityId: string, videoId = editDefaultInput.value) =
 
 .assets-hero h1 {
   margin: 0 0 10px;
-  font-size: clamp(34px, 6vw, 62px);
-  line-height: 0.96;
+  font-size: clamp(32px, 5vw, 54px);
+  line-height: 0.98;
   letter-spacing: -0.06em;
 }
 
@@ -650,7 +650,7 @@ const saveDefault = async (entityId: string, videoId = editDefaultInput.value) =
 
 .hero-stats strong {
   color: #ffb9ef;
-  font-size: 58px;
+  font-size: 50px;
   line-height: 1;
 }
 
@@ -739,6 +739,10 @@ const saveDefault = async (entityId: string, videoId = editDefaultInput.value) =
   display: grid;
   gap: 14px;
   margin-bottom: 16px;
+  border-color: rgba(255, 79, 216, 0.16);
+  background:
+    radial-gradient(circle at 0% 0%, rgba(255, 79, 216, 0.10), transparent 32%),
+    rgba(255, 255, 255, 0.94);
 }
 
 .bind-box {
@@ -864,7 +868,7 @@ const saveDefault = async (entityId: string, videoId = editDefaultInput.value) =
 .gallery-section {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 18px;
+  gap: 14px;
 }
 
 .gallery-card {
@@ -874,22 +878,22 @@ const saveDefault = async (entityId: string, videoId = editDefaultInput.value) =
 }
 
 .gallery-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 28px 70px rgba(84, 34, 104, 0.18);
+  transform: translateY(-4px);
+  box-shadow: 0 22px 52px rgba(84, 34, 104, 0.15);
 }
 
 .gallery-art {
   display: grid;
   place-items: center;
-  min-height: 300px;
+  min-height: 230px;
   background:
     radial-gradient(circle at 50% 22%, rgba(255, 255, 255, 0.18), transparent 30%),
     linear-gradient(145deg, #21102a, #0c0611);
 }
 
 .gallery-art img {
-  width: min(72%, 250px);
-  max-height: 270px;
+  width: min(68%, 210px);
+  max-height: 210px;
   object-fit: contain;
   filter: drop-shadow(0 26px 32px rgba(0, 0, 0, 0.34));
 }
@@ -897,7 +901,7 @@ const saveDefault = async (entityId: string, videoId = editDefaultInput.value) =
 .gallery-card > div:last-child {
   display: grid;
   gap: 5px;
-  padding: 18px;
+  padding: 15px;
 }
 
 .gallery-card span,
@@ -939,22 +943,22 @@ const saveDefault = async (entityId: string, videoId = editDefaultInput.value) =
 
 .asset-card {
   display: grid;
-  grid-template-columns: 220px 1fr;
+  grid-template-columns: 190px 1fr;
   overflow: hidden;
 }
 
 .asset-cover {
   display: grid;
   place-items: center;
-  min-height: 260px;
+  min-height: 220px;
   background:
     radial-gradient(circle at 50% 22%, rgba(255, 255, 255, 0.16), transparent 30%),
     linear-gradient(145deg, #21102a, #0c0611);
 }
 
 .asset-cover img {
-  width: min(76%, 180px);
-  max-height: 210px;
+  width: min(72%, 155px);
+  max-height: 170px;
   object-fit: contain;
   filter: drop-shadow(0 24px 28px rgba(0, 0, 0, 0.30));
 }
@@ -962,7 +966,7 @@ const saveDefault = async (entityId: string, videoId = editDefaultInput.value) =
 .asset-info {
   display: grid;
   gap: 12px;
-  padding: 20px;
+  padding: 18px;
 }
 
 .asset-card-top,
@@ -1035,7 +1039,7 @@ const saveDefault = async (entityId: string, videoId = editDefaultInput.value) =
 .sticker-art {
   display: grid;
   place-items: center;
-  min-height: 290px;
+  min-height: 230px;
   padding: 18px;
   background:
     radial-gradient(circle at 48% 24%, rgba(255, 255, 255, 0.26), transparent 31%),
@@ -1043,8 +1047,8 @@ const saveDefault = async (entityId: string, videoId = editDefaultInput.value) =
 }
 
 .sticker-art img {
-  width: min(78%, 280px);
-  max-height: 260px;
+  width: min(72%, 220px);
+  max-height: 210px;
   object-fit: contain;
   border-radius: 20px;
   filter: drop-shadow(0 24px 30px rgba(0, 0, 0, 0.28));
@@ -1053,7 +1057,7 @@ const saveDefault = async (entityId: string, videoId = editDefaultInput.value) =
 .sticker-body {
   display: grid;
   gap: 10px;
-  padding: 18px;
+  padding: 16px;
 }
 
 .sticker-current {
@@ -1155,7 +1159,7 @@ const saveDefault = async (entityId: string, videoId = editDefaultInput.value) =
 
   .gallery-art,
   .sticker-art {
-    min-height: 250px;
+    min-height: 200px;
   }
 }
 </style>
