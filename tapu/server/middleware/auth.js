@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import { getDb } from '../db/index.js';
+import { generateToken128, getEntityByToken } from '../services/tokens.js';
 
 const SECRET_KEY = '12345678901234567890123456789012';
 const ALGORITHM = 'aes-256-cbc';
@@ -12,13 +13,7 @@ export async function authRequired(req, res, next) {
   }
 
   const db = await getDb();
-  const stmt = db.prepare('SELECT id, username, is_creator FROM users WHERE id = ?');
-  stmt.bind([token]);
-  let user = null;
-  if (stmt.step()) {
-    user = stmt.getAsObject();
-  }
-  stmt.free();
+  let user = findUserBySession(db, token) || findUserByLegacyToken(db, token);
 
   if (!user) {
     return res.status(401).json({ error: '无效的登录凭证' });
@@ -37,20 +32,59 @@ export async function authOptional(req, res, next) {
   }
 
   const db = await getDb();
-  const stmt = db.prepare('SELECT id, username, is_creator FROM users WHERE id = ?');
-  stmt.bind([token]);
-  let user = null;
-  if (stmt.step()) {
-    user = stmt.getAsObject();
-  }
-  stmt.free();
+  const user = findUserBySession(db, token) || findUserByLegacyToken(db, token);
 
   req.user = user || null;
   next();
 }
 
-// Verify entity key → returns { user_id, group_id, entity_id }
-export function verifyEntityKey(key) {
+function findUserBySession(db, token) {
+  const stmt = db.prepare(
+    `SELECT u.id, u.username, u.is_creator
+     FROM auth_sessions s
+     JOIN users u ON s.user_id = u.id
+     WHERE s.token = ? AND (s.expires_at IS NULL OR s.expires_at > CURRENT_TIMESTAMP)`
+  );
+  stmt.bind([token]);
+  let user = null;
+  if (stmt.step()) user = stmt.getAsObject();
+  stmt.free();
+  return user;
+}
+
+function findUserByLegacyToken(db, token) {
+  const stmt = db.prepare('SELECT id, username, is_creator FROM users WHERE id = ?');
+  stmt.bind([token]);
+  let user = null;
+  if (stmt.step()) user = stmt.getAsObject();
+  stmt.free();
+  return user;
+}
+
+export function createLoginSession(db, userId) {
+  const token = generateToken128();
+  db.run(
+    "INSERT INTO auth_sessions (token, user_id, expires_at) VALUES (?, ?, datetime('now', '+30 days'))",
+    [token, userId]
+  );
+  return token;
+}
+
+// Verify entity token → returns { user_id, group_id, entity_id, token, bound }
+export function verifyEntityKey(key, db) {
+  if (db) {
+    const entity = getEntityByToken(db, key);
+    if (!entity) return null;
+    return {
+      user_id: entity.user_id || null,
+      group_id: entity.group_id,
+      entity_id: entity.id,
+      token: entity.token || entity.entity_key,
+      bound: !!entity.user_id,
+    };
+  }
+
+  // Legacy fallback for historical encrypted keys. New tokens use database lookup.
   try {
     const parts = key.split(':');
     if (parts.length !== 2) return null;
@@ -79,17 +113,7 @@ export function verifyEntityKey(key) {
   }
 }
 
-// Generate entity key from payload with HMAC checksum for tamper-proofing
+// Generate legacy-compatible random entity token. The database enforces uniqueness.
 export function generateEntityKey(payload) {
-  const { entity_id, group_id } = payload;
-  const checksum = crypto.createHmac('sha256', SECRET_KEY)
-    .update(entity_id + group_id)
-    .digest('hex')
-    .slice(0, 16);
-  const data = JSON.stringify({ ...payload, checksum });
-  const iv = crypto.randomBytes(16);
-  const cipher = crypto.createCipheriv(ALGORITHM, Buffer.from(SECRET_KEY), iv);
-  let encrypted = cipher.update(data, 'utf8', 'hex');
-  encrypted += cipher.final('hex');
-  return iv.toString('hex') + ':' + encrypted;
+  return generateToken128();
 }

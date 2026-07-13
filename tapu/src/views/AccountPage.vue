@@ -1,14 +1,14 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { inject, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
-import { getProfile, changePassword, isLoggedIn, clearToken } from '../api';
+import { changePassword, getProfile, isLoggedIn } from '../api';
 import NavBar from '../components/NavBar.vue';
 
 const router = useRouter();
+const toast = inject<{ show: (text: string, duration?: number, type?: string) => void }>('toast');
+
 const profile = ref<any>(null);
 const loading = ref(true);
-
-// Password form
 const oldPwd = ref('');
 const newPwd = ref('');
 const confirmPwd = ref('');
@@ -17,9 +17,11 @@ const pwdError = ref(false);
 
 onMounted(async () => {
   if (!isLoggedIn()) {
+    toast?.show('请先登录或注册后再进入账户设置', 2500, 'error');
     router.push('/');
     return;
   }
+
   loading.value = true;
   profile.value = await getProfile();
   loading.value = false;
@@ -28,16 +30,19 @@ onMounted(async () => {
 const handleChangePassword = async () => {
   pwdMsg.value = '';
   pwdError.value = false;
-  if (!oldPwd.value || !newPwd.value) {
-    pwdMsg.value = '请填写所有字段';
+
+  if (!oldPwd.value || !newPwd.value || !confirmPwd.value) {
+    pwdMsg.value = '请填写所有密码字段';
     pwdError.value = true;
     return;
   }
+
   if (newPwd.value !== confirmPwd.value) {
-    pwdMsg.value = '两次密码不一致';
+    pwdMsg.value = '两次输入的新密码不一致';
     pwdError.value = true;
     return;
   }
+
   const data = await changePassword(oldPwd.value, newPwd.value);
   if (data.success) {
     pwdMsg.value = '密码修改成功';
@@ -46,86 +51,236 @@ const handleChangePassword = async () => {
     newPwd.value = '';
     confirmPwd.value = '';
   } else {
-    pwdMsg.value = data.error || '修改失败';
+    pwdMsg.value = data.error || '修改失败，请稍后再试';
     pwdError.value = true;
   }
-};
-
-const logout = () => {
-  clearToken();
-  router.push('/');
 };
 </script>
 
 <template>
   <div class="account-page">
     <NavBar />
-    <div class="acc-content">
-      <div class="acc-header" v-if="profile">
-        <h1>{{ profile.username }}</h1>
-        <span class="acc-role" v-if="profile.is_creator">创作者</span>
-        <button class="acc-logout" @click="logout">退出登录</button>
+
+    <main class="account-shell">
+      <div class="account-heading">
+        <span class="eyebrow">Account</span>
+        <h1>账户设置</h1>
+        <p>这里只保留账号资料与安全设置；实体资产已经拆到独立的“我的资产”模块。</p>
       </div>
 
-      <div class="acc-loading" v-if="loading">加载中...</div>
+      <div class="account-loading" v-if="loading">加载中...</div>
 
-      <div v-else class="acc-section">
-        <h3 class="acc-section-title">修改密码</h3>
-        <form class="pwd-form" @submit.prevent="handleChangePassword">
-          <input v-model="oldPwd" type="password" placeholder="当前密码" autocomplete="current-password" />
-          <input v-model="newPwd" type="password" placeholder="新密码" autocomplete="new-password" />
-          <input v-model="confirmPwd" type="password" placeholder="确认新密码" autocomplete="new-password" />
-          <button type="submit" class="pwd-submit">修改密码</button>
-          <p v-if="pwdMsg" :class="['pwd-msg', { error: pwdError }]">{{ pwdMsg }}</p>
-        </form>
-      </div>
-    </div>
+      <template v-else-if="profile">
+        <section class="profile-card">
+          <div class="profile-avatar">{{ profile.username?.slice(0, 1)?.toUpperCase() }}</div>
+          <div>
+            <h2>{{ profile.username }}</h2>
+            <p>{{ profile.is_creator ? '创作者账号' : '普通账号' }}</p>
+          </div>
+        </section>
+
+        <section class="settings-card">
+          <div class="card-head">
+            <h2>修改密码</h2>
+            <p>为了保护私有内容和资产管理权限，建议定期更新密码。</p>
+          </div>
+
+          <form class="password-form" @submit.prevent="handleChangePassword">
+            <label>
+              <span>当前密码</span>
+              <input v-model="oldPwd" type="password" autocomplete="current-password" />
+            </label>
+            <label>
+              <span>新密码</span>
+              <input v-model="newPwd" type="password" autocomplete="new-password" />
+            </label>
+            <label>
+              <span>确认新密码</span>
+              <input v-model="confirmPwd" type="password" autocomplete="new-password" />
+            </label>
+
+            <button type="submit" class="submit-btn">保存新密码</button>
+            <p v-if="pwdMsg" :class="['form-msg', { error: pwdError }]">{{ pwdMsg }}</p>
+          </form>
+        </section>
+      </template>
+    </main>
   </div>
 </template>
 
 <style scoped>
 .account-page {
-  min-height: 100vh; background: #fefefe;
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 18% 12%, rgba(255, 222, 190, 0.36), transparent 28%),
+    linear-gradient(180deg, #fffdf9 0%, #f7f4ed 100%);
+  color: #211f1a;
   font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif;
-  color: #1a1a1a;
 }
-.acc-content { max-width: 640px; margin: 0 auto; padding: 24px; }
-.acc-header {
-  display: flex; align-items: center; gap: 12px; margin-bottom: 24px;
-}
-.acc-header h1 { margin: 0; font-size: 20px; font-weight: 800; }
-.acc-role {
-  font-size: 11px; background: #f0ebff; color: #7c4dff;
-  padding: 3px 10px; border-radius: 12px;
-}
-.acc-logout {
-  margin-left: auto; font-size: 12px; color: #999;
-  border: 1px solid #eee; background: #fff; padding: 5px 12px;
-  border-radius: 6px; cursor: pointer;
-}
-.acc-logout:hover { color: #e53935; border-color: #fce4e4; }
 
-.acc-loading { font-size: 13px; color: #999; padding: 40px 0; text-align: center; }
-.acc-section-title { font-size: 16px; font-weight: 700; margin: 0 0 16px; }
+.account-shell {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 32px 24px 56px;
+}
 
-.pwd-form {
-  display: flex; flex-direction: column; gap: 12px; max-width: 320px;
+.account-heading {
+  margin-bottom: 24px;
 }
-.pwd-form input {
-  padding: 11px 14px; border: 1px solid #e8e8e8; border-radius: 10px;
-  font-size: 14px; outline: none;
+
+.eyebrow {
+  display: inline-flex;
+  margin-bottom: 8px;
+  color: #9a6a28;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
-.pwd-form input:focus { border-color: #7c4dff; }
-.pwd-submit {
-  padding: 12px; border: none; border-radius: 10px;
-  background: #7c4dff; color: #fff; font-size: 14px; font-weight: 600;
+
+.account-heading h1 {
+  margin: 0 0 8px;
+  font-size: clamp(26px, 5vw, 38px);
+  font-weight: 900;
+  letter-spacing: -0.04em;
+}
+
+.account-heading p {
+  margin: 0;
+  max-width: 520px;
+  color: #7d7568;
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.account-loading {
+  padding: 48px 0;
+  color: #9a9288;
+  text-align: center;
+}
+
+.profile-card,
+.settings-card {
+  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid rgba(72, 55, 30, 0.09);
+  border-radius: 22px;
+  box-shadow: 0 18px 45px rgba(92, 65, 28, 0.08);
+}
+
+.profile-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 18px;
+  margin-bottom: 18px;
+}
+
+.profile-avatar {
+  width: 54px;
+  height: 54px;
+  display: grid;
+  place-items: center;
+  border-radius: 18px;
+  background: #211f1a;
+  color: #fff8ef;
+  font-size: 22px;
+  font-weight: 900;
+}
+
+.profile-card h2 {
+  margin: 0 0 4px;
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.profile-card p {
+  margin: 0;
+  color: #8b8275;
+  font-size: 13px;
+}
+
+.settings-card {
+  padding: 22px;
+}
+
+.card-head h2 {
+  margin: 0 0 6px;
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.card-head p {
+  margin: 0 0 18px;
+  color: #8b8275;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.password-form {
+  display: grid;
+  gap: 14px;
+  max-width: 380px;
+}
+
+.password-form label {
+  display: grid;
+  gap: 7px;
+  color: #61584d;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.password-form input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 12px 14px;
+  border: 1px solid #e6ded2;
+  border-radius: 14px;
+  background: #fff;
+  color: #211f1a;
+  font-size: 14px;
+  outline: none;
+}
+
+.password-form input:focus {
+  border-color: #b88332;
+  box-shadow: 0 0 0 3px rgba(184, 131, 50, 0.12);
+}
+
+.submit-btn {
+  justify-self: start;
+  padding: 12px 20px;
+  border: none;
+  border-radius: 14px;
+  background: #211f1a;
+  color: #fff8ef;
+  font-size: 14px;
+  font-weight: 800;
   cursor: pointer;
 }
-.pwd-submit:hover { opacity: 0.9; }
-.pwd-msg { font-size: 12px; color: #4caf50; margin: 4px 0 0; }
-.pwd-msg.error { color: #e53935; }
+
+.submit-btn:hover {
+  transform: translateY(-1px);
+}
+
+.form-msg {
+  margin: 0;
+  color: #2e7d32;
+  font-size: 12px;
+}
+
+.form-msg.error {
+  color: #c62828;
+}
 
 @media (max-width: 640px) {
-  .acc-content { padding: 16px; }
+  .account-shell {
+    padding: 24px 16px 42px;
+  }
+
+  .profile-card,
+  .settings-card {
+    border-radius: 18px;
+  }
 }
 </style>

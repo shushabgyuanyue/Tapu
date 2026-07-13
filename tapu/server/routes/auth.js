@@ -2,7 +2,9 @@ import express from 'express';
 import crypto from 'crypto';
 import { getDb, saveDb } from '../db/index.js';
 import { v4 as uuidv4 } from 'uuid';
-import { authRequired, verifyEntityKey, generateEntityKey } from '../middleware/auth.js';
+import { authOptional, authRequired, createLoginSession, verifyEntityKey } from '../middleware/auth.js';
+import { getEntityByToken, resultToObjects } from '../services/tokens.js';
+import { recordOwnershipEvent } from '../services/ownership.js';
 
 const router = express.Router();
 
@@ -21,14 +23,19 @@ function hashPassword(password) {
   return crypto.createHash('sha256').update(password).digest('hex');
 }
 
-function resultToObjects(results) {
-  if (!results || results.length === 0) return [];
-  const { columns, values } = results[0];
-  return values.map(row => {
-    const obj = {};
-    columns.forEach((col, idx) => { obj[col] = row[idx]; });
-    return obj;
-  });
+function adminOnly(req, res, next) {
+  if (req.user.username !== 'admin') {
+    return res.status(403).json({ error: '仅管理员可操作' });
+  }
+  next();
+}
+
+function isWithinAppealWindow(createdAt) {
+  if (!createdAt) return true;
+  const created = new Date(`${createdAt}Z`);
+  if (Number.isNaN(created.getTime())) return true;
+  const thirtyDays = 30 * 24 * 60 * 60 * 1000;
+  return Date.now() - created.getTime() <= thirtyDays;
 }
 
 // Register
@@ -82,7 +89,8 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
-    const token = user.id;
+    const token = createLoginSession(db, user.id);
+    saveDb();
     res.json({ success: true, token, user });
   } catch (error) {
     console.error('Login error:', error);
@@ -96,27 +104,29 @@ router.post('/bind-entity', authRequired, async (req, res) => {
     const { key } = req.body;
     if (!key) return res.status(400).json({ error: 'key is required' });
 
-    const payload = verifyEntityKey(key);
-    if (!payload) return res.status(400).json({ error: '无效的密钥' });
-
-    const { entity_id } = payload;
     const db = await getDb();
+    const entity = getEntityByToken(db, key);
+    if (!entity) return res.status(400).json({ error: '无效的 token' });
 
-    // Check if entity is already bound to another user
-    const entityResults = db.exec('SELECT user_id FROM entities WHERE id = ?', [entity_id]);
-    const entities = resultToObjects(entityResults);
-    if (entities.length === 0) {
-      return res.status(400).json({ error: '该实体不存在' });
-    }
-    if (entities[0].user_id && entities[0].user_id !== req.user.id) {
-      return res.status(400).json({ error: '该实体已绑定其他账户' });
+    if (entity.user_id && entity.user_id !== req.user.id) {
+      return res.status(409).json({ error: '该实体已绑定其他账户，如有争议请使用订单号申诉解绑' });
     }
 
     // Update entity owner to current user
-    db.run('UPDATE entities SET user_id = ? WHERE id = ?', [req.user.id, entity_id]);
+    db.run('UPDATE entities SET user_id = ?, bound_at = CURRENT_TIMESTAMP WHERE id = ?', [req.user.id, entity.id]);
+    recordOwnershipEvent(db, {
+      entityId: entity.id,
+      token: entity.token || entity.entity_key,
+      eventType: 'bind',
+      fromUserId: null,
+      toUserId: req.user.id,
+      actorUserId: req.user.id,
+      orderId: entity.external_order_no || null,
+      note: '用户绑定实体',
+    });
     saveDb();
 
-    res.json({ success: true, entity_id });
+    res.json({ success: true, entity_id: entity.id });
   } catch (error) {
     console.error('Bind entity error:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -132,7 +142,7 @@ router.post('/unbind-entity', authRequired, async (req, res) => {
     const db = await getDb();
 
     // Verify entity belongs to current user
-    const entityResults = db.exec('SELECT user_id FROM entities WHERE id = ?', [entity_id]);
+    const entityResults = db.exec('SELECT user_id, token, entity_key, external_order_no FROM entities WHERE id = ?', [entity_id]);
     const entities = resultToObjects(entityResults);
     if (entities.length === 0) {
       return res.status(400).json({ error: '该实体不存在' });
@@ -141,7 +151,17 @@ router.post('/unbind-entity', authRequired, async (req, res) => {
       return res.status(403).json({ error: '无权解绑该实体' });
     }
 
-    db.run('UPDATE entities SET user_id = NULL WHERE id = ?', [entity_id]);
+    db.run('UPDATE entities SET user_id = NULL, unbound_at = CURRENT_TIMESTAMP WHERE id = ?', [entity_id]);
+    recordOwnershipEvent(db, {
+      entityId: entity_id,
+      token: entities[0].token || entities[0].entity_key,
+      eventType: 'unbind',
+      fromUserId: req.user.id,
+      toUserId: null,
+      actorUserId: req.user.id,
+      orderId: entities[0].external_order_no || null,
+      note: '用户主动解绑实体',
+    });
     saveDb();
 
     res.json({ success: true });
@@ -227,7 +247,10 @@ router.post('/entity-key', authRequired, async (req, res) => {
       return res.status(400).json({ error: 'group_id and entity_id required' });
     }
 
-    const key = generateEntityKey({ user_id: req.user.id, group_id, entity_id });
+    const db = await getDb();
+    const entityRows = resultToObjects(db.exec('SELECT token FROM entities WHERE id = ? AND group_id = ?', [entity_id, group_id]));
+    if (entityRows.length === 0) return res.status(404).json({ error: '实体不存在' });
+    const key = entityRows[0].token;
     res.json({ success: true, key });
   } catch (error) {
     console.error('Generate key error:', error);
@@ -236,18 +259,177 @@ router.post('/entity-key', authRequired, async (req, res) => {
 });
 
 // Verify key
-router.post('/verify-key', (req, res) => {
+router.post('/verify-key', async (req, res) => {
   try {
     const { key } = req.body;
     if (!key) return res.status(400).json({ error: 'key is required' });
 
-    const payload = verifyEntityKey(key);
+    const db = await getDb();
+    const payload = verifyEntityKey(key, db);
     if (!payload) return res.status(400).json({ error: 'Invalid or corrupted key' });
 
     res.json({ success: true, payload });
   } catch (error) {
     console.error('Verify key error:', error);
     res.status(400).json({ error: 'Invalid or corrupted key' });
+  }
+});
+
+// Set default content with an unbound entity token.
+router.put('/entity-default-by-token', async (req, res) => {
+  try {
+    const { key } = req.body;
+    const video_id = normalizeVideoId(req.body?.video_id);
+    if (!key || !video_id) return res.status(400).json({ error: 'key and video_id are required' });
+
+    const db = await getDb();
+    const entity = getEntityByToken(db, key);
+    if (!entity) return res.status(400).json({ error: '无效的 token' });
+    if (entity.user_id) {
+      return res.status(403).json({ error: '该实体已绑定账号，请登录对应账号后修改' });
+    }
+
+    const videos = resultToObjects(db.exec(
+      'SELECT id, group_id, status, is_private FROM videos WHERE id = ?',
+      [video_id]
+    ));
+    if (videos.length === 0) return res.status(404).json({ error: '默认内容不存在' });
+    if (videos[0].group_id !== entity.group_id) return res.status(400).json({ error: '该内容不属于当前 IP' });
+    if (videos[0].status !== 'ready') return res.status(400).json({ error: '只能将就绪内容设为默认内容' });
+    if (videos[0].is_private === 1) return res.status(403).json({ error: '私有内容需要登录后才能设置' });
+
+    db.run('DELETE FROM user_defaults WHERE entity_id = ?', [entity.id]);
+    db.run('INSERT INTO user_defaults (entity_id, video_id, group_id) VALUES (?, ?, ?)', [entity.id, video_id, entity.group_id]);
+    saveDb();
+    res.json({ success: true, entity_id: entity.id });
+  } catch (error) {
+    console.error('Set token default error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Transfer a bound entity to another account. Token remains unchanged.
+router.post('/transfer-entity', authRequired, async (req, res) => {
+  try {
+    const { entity_id, to_username } = req.body;
+    if (!entity_id || !to_username) return res.status(400).json({ error: 'entity_id and to_username are required' });
+
+    const db = await getDb();
+    const entities = resultToObjects(db.exec('SELECT id, user_id, token, entity_key, external_order_no FROM entities WHERE id = ?', [entity_id]));
+    if (entities.length === 0) return res.status(404).json({ error: '实体不存在' });
+    if (entities[0].user_id !== req.user.id) return res.status(403).json({ error: '无权转赠该实体' });
+
+    const targets = resultToObjects(db.exec('SELECT id, username FROM users WHERE username = ?', [to_username]));
+    if (targets.length === 0) return res.status(404).json({ error: '目标账号不存在' });
+    if (targets[0].id === req.user.id) return res.status(400).json({ error: '不能转赠给自己' });
+
+    db.run('UPDATE entities SET user_id = ?, bound_at = CURRENT_TIMESTAMP WHERE id = ?', [targets[0].id, entity_id]);
+    recordOwnershipEvent(db, {
+      entityId: entity_id,
+      token: entities[0].token || entities[0].entity_key,
+      eventType: 'transfer',
+      fromUserId: req.user.id,
+      toUserId: targets[0].id,
+      actorUserId: req.user.id,
+      orderId: entities[0].external_order_no || null,
+      note: `一键转赠给 ${targets[0].username}`,
+    });
+    saveDb();
+    res.json({ success: true, entity_id, to_username: targets[0].username });
+  } catch (error) {
+    console.error('Transfer entity error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Appeal for official manual unbinding within one month of entity/order creation.
+router.post('/unbind-appeals', authOptional, async (req, res) => {
+  try {
+    const { order_no, token, reason } = req.body;
+    if (!order_no) return res.status(400).json({ error: 'order_no is required' });
+
+    const db = await getDb();
+    let entity = token ? getEntityByToken(db, token) : null;
+    if (!entity) {
+      entity = resultToObjects(db.exec('SELECT * FROM entities WHERE external_order_no = ? LIMIT 1', [order_no]))[0] || null;
+    }
+
+    if (entity && entity.external_order_no && entity.external_order_no !== order_no) {
+      return res.status(400).json({ error: '订单号与实体 token 不匹配' });
+    }
+    if (entity && !isWithinAppealWindow(entity.created_at)) {
+      return res.status(400).json({ error: '申诉窗口已超过一个月，请联系官方人工处理' });
+    }
+
+    const id = uuidv4();
+    db.run(
+      `INSERT INTO token_unbind_appeals (id, entity_id, token, order_no, requested_by_user_id, reason)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [id, entity?.id || null, entity?.token || token || null, order_no, req.user?.id || null, reason || '']
+    );
+    saveDb();
+    res.json({ success: true, id, status: 'pending' });
+  } catch (error) {
+    console.error('Create unbind appeal error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.get('/unbind-appeals', authRequired, adminOnly, async (_req, res) => {
+  try {
+    const db = await getDb();
+    const rows = resultToObjects(db.exec(
+      `SELECT a.*, e.group_id, g.name as group_name, u.username as requester_username
+       FROM token_unbind_appeals a
+       LEFT JOIN entities e ON a.entity_id = e.id
+       LEFT JOIN groups g ON e.group_id = g.id
+       LEFT JOIN users u ON a.requested_by_user_id = u.id
+       ORDER BY a.created_at DESC`
+    ));
+    res.json(rows);
+  } catch (error) {
+    console.error('List unbind appeals error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.post('/unbind-appeals/:id/resolve', authRequired, adminOnly, async (req, res) => {
+  try {
+    const { action } = req.body;
+    if (!['approve', 'reject'].includes(action)) return res.status(400).json({ error: 'action must be approve or reject' });
+
+    const db = await getDb();
+    const appeals = resultToObjects(db.exec('SELECT * FROM token_unbind_appeals WHERE id = ?', [req.params.id]));
+    if (appeals.length === 0) return res.status(404).json({ error: '申诉不存在' });
+    const appeal = appeals[0];
+
+    if (action === 'approve' && appeal.entity_id) {
+      const entityRows = resultToObjects(db.exec(
+        'SELECT id, user_id, token, entity_key, external_order_no FROM entities WHERE id = ?',
+        [appeal.entity_id]
+      ));
+      const entity = entityRows[0] || null;
+      db.run('UPDATE entities SET user_id = NULL, unbound_at = CURRENT_TIMESTAMP WHERE id = ?', [appeal.entity_id]);
+      recordOwnershipEvent(db, {
+        entityId: appeal.entity_id,
+        token: entity?.token || entity?.entity_key || appeal.token,
+        eventType: 'appeal_unbind',
+        fromUserId: entity?.user_id || null,
+        toUserId: null,
+        actorUserId: req.user.id,
+        orderId: entity?.external_order_no || appeal.order_no,
+        note: '官方申诉解绑',
+      });
+    }
+    db.run(
+      'UPDATE token_unbind_appeals SET status = ?, resolved_at = CURRENT_TIMESTAMP, resolved_by_user_id = ? WHERE id = ?',
+      [action === 'approve' ? 'approved' : 'rejected', req.user.id, req.params.id]
+    );
+    saveDb();
+    res.json({ success: true, status: action === 'approve' ? 'approved' : 'rejected' });
+  } catch (error) {
+    console.error('Resolve unbind appeal error:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 

@@ -4,13 +4,14 @@ import {
   fetchGroups, createGroup, updateGroup, deleteGroup,
   fetchSeries, createSeries, deleteSeries,
   fetchVideos, setOfficialDefault, fetchGroupsPaged,
-  fetchEntitiesByGroup
+  fetchEntitiesByGroup, createEntity, fetchApplications
 } from '../../api';
 import AdminPagination from '../../components/AdminPagination.vue';
 import { useServerPagination } from '../../composables/useServerPagination';
 
 const groups = ref<any[]>([]);
 const seriesList = ref<any[]>([]);
+const applications = ref<any[]>([]);
 const activeSeries = ref('');
 const loading = ref(true);
 
@@ -25,6 +26,7 @@ const formPrice = ref(0);
 const formStockLimit = ref(0);
 const showSeriesForm = ref(false);
 const seriesFormName = ref('');
+const seriesFormApplicationId = ref('');
 
 // Official default state
 const showDefaultPicker = ref('');
@@ -48,12 +50,14 @@ watch(page, () => { loadData(); });
 
 const loadData = async () => {
   loading.value = true;
-  const [groupRes, srs] = await Promise.all([
+  const [groupRes, srs, apps] = await Promise.all([
     fetchGroupsPaged({ seriesId: activeSeries.value || undefined, page: page.value, pageSize: pageSize.value }),
     fetchSeries(),
+    fetchApplications(),
   ]);
   applyPagedResult(groupRes, groups);
   seriesList.value = srs;
+  applications.value = Array.isArray(apps) ? apps : [];
   loading.value = false;
 };
 
@@ -109,12 +113,13 @@ const handleDelete = async (id: string) => {
 
 const submitSeries = async () => {
   if (!seriesFormName.value.trim()) return;
-  const result = await createSeries(seriesFormName.value.trim());
+  const result = await createSeries(seriesFormName.value.trim(), seriesFormApplicationId.value || undefined);
   if (result.error) {
     alert(result.error);
     return;
   }
   seriesFormName.value = '';
+  seriesFormApplicationId.value = '';
   showSeriesForm.value = false;
   loadData();
 };
@@ -157,6 +162,29 @@ const openEntityPanel = async (groupId: string) => {
   loadingEntities.value = false;
 };
 
+const handleCreateEntity = async (groupId: string) => {
+  const externalOrderNo = window.prompt('外部订单号（可留空）') || '';
+  const result = await createEntity(groupId, externalOrderNo.trim() || undefined);
+  if (result.error) {
+    alert(result.error);
+    return;
+  }
+  await openEntityPanel(groupId);
+  showEntityPanel.value = groupId;
+  loadingEntities.value = true;
+  entityList.value = await fetchEntitiesByGroup(groupId);
+  loadingEntities.value = false;
+  if (result.token) {
+    await navigator.clipboard.writeText(result.token);
+    alert('实体 token 已生成并复制到剪贴板');
+  }
+};
+
+const copyEntityToken = async (token: string) => {
+  await navigator.clipboard.writeText(token);
+  alert('token 已复制');
+};
+
 onMounted(loadData);
 </script>
 
@@ -176,12 +204,17 @@ onMounted(loadData);
           @click="activeSeries = activeSeries === s.id ? '' : s.id"
         >
           {{ s.name }}
+          <small v-if="s.application_name" class="gm-chip-app">{{ s.application_name }}</small>
           <button class="gm-chip-del" @click.stop="handleDeleteSeries(s.id)">×</button>
         </span>
         <span v-if="seriesList.length === 0" class="gm-empty-hint">暂无系列</span>
       </div>
       <div v-if="showSeriesForm" class="gm-inline-form">
         <input v-model="seriesFormName" placeholder="系列名称" @keyup.enter="submitSeries" />
+        <select v-model="seriesFormApplicationId" class="gm-inline-select">
+          <option value="">不绑定应用</option>
+          <option v-for="app in applications" :key="app.id" :value="app.id">{{ app.name }}</option>
+        </select>
         <button @click="submitSeries">保存</button>
         <button class="gm-cancel" @click="showSeriesForm = false">取消</button>
       </div>
@@ -217,11 +250,13 @@ onMounted(loadData);
           <div v-if="showEntityPanel === g.id" class="gm-entity-panel">
             <div class="gm-entity-header">
               <span class="gm-entity-title">已售实体 ({{ entityList.length }}{{ g.stock_limit ? ` / ${g.stock_limit}` : '' }})</span>
+              <button class="gm-entity-create" @click="handleCreateEntity(g.id)">生成实体 token</button>
             </div>
             <div class="gm-entity-loading" v-if="loadingEntities">加载中...</div>
             <div class="gm-entity-list" v-else-if="entityList.length > 0">
               <div v-for="ent in entityList" :key="ent.id" class="gm-entity-item">
-                <span class="gm-entity-key">{{ ent.id.slice(0, 8) }}...</span>
+                <button class="gm-entity-key" @click="copyEntityToken(ent.token || ent.entity_key)">{{ (ent.token || ent.entity_key || ent.id).slice(0, 16) }}...</button>
+                <span class="gm-entity-order" v-if="ent.external_order_no">{{ ent.external_order_no }}</span>
                 <span class="gm-entity-status" v-if="ent.user_id">已绑定</span>
                 <span class="gm-entity-status gm-entity-free" v-else>未绑定</span>
               </div>
@@ -315,16 +350,23 @@ onMounted(loadData);
   cursor: pointer; opacity: 0.6; padding: 0 2px;
 }
 .gm-chip-del:hover { opacity: 1; }
+.gm-chip-app {
+  font-size: 10px;
+  opacity: 0.75;
+}
 .gm-empty-hint { font-size: 13px; color: #bbb; }
 
 .gm-inline-form {
   display: flex; gap: 8px; align-items: center; margin-top: 8px;
 }
-.gm-inline-form input {
+.gm-inline-form input,
+.gm-inline-select {
   flex: 1; padding: 8px 12px; border: 1px solid #e8e8e8;
   border-radius: 8px; font-size: 13px; outline: none;
+  background: #fff;
 }
-.gm-inline-form input:focus { border-color: #7c4dff; }
+.gm-inline-form input:focus,
+.gm-inline-select:focus { border-color: #7c4dff; }
 .gm-inline-form button {
   padding: 8px 14px; border: none; border-radius: 8px;
   font-size: 12px; cursor: pointer; background: #7c4dff; color: #fff;
@@ -392,6 +434,15 @@ onMounted(loadData);
   display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;
 }
 .gm-entity-title { font-size: 12px; font-weight: 600; color: #666; }
+.gm-entity-create {
+  border: none;
+  border-radius: 6px;
+  background: #1a1a1a;
+  color: #fff;
+  font-size: 11px;
+  padding: 5px 9px;
+  cursor: pointer;
+}
 .gm-entity-loading { font-size: 12px; color: #999; }
 .gm-entity-list { display: flex; flex-direction: column; gap: 6px; }
 .gm-entity-item {
@@ -399,7 +450,17 @@ onMounted(loadData);
   padding: 6px 8px; background: #fff; border-radius: 6px;
   border: 1px solid #f0f0f0; font-size: 12px;
 }
-.gm-entity-key { flex: 1; font-family: monospace; color: #555; }
+.gm-entity-key {
+  flex: 1;
+  font-family: monospace;
+  color: #555;
+  border: none;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  padding: 0;
+}
+.gm-entity-order { font-size: 11px; color: #888; background: #f5f5f5; padding: 2px 6px; border-radius: 4px; }
 .gm-entity-status { font-size: 11px; color: #999; }
 .gm-entity-free { color: #059669; }
 .gm-entity-empty { font-size: 12px; color: #bbb; margin: 0; text-align: center; padding: 12px; }

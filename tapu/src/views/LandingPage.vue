@@ -1,10 +1,14 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue';
+import { computed, ref, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
+import { getConfig } from '../api';
 import NavBar from '../components/NavBar.vue';
 
 const router = useRouter();
 const activeSlide = ref(0);
+const communityEnabled = ref(false);
+const wishlistEnabled = ref(false);
+const primaryCtaLabel = computed(() => communityEnabled.value ? '逛逛社区' : '逛逛商城');
 
 const series = [
   {
@@ -21,9 +25,25 @@ const series = [
 
 const nextSlide = () => { activeSlide.value = (activeSlide.value + 1) % series.length; };
 const prevSlide = () => { activeSlide.value = (activeSlide.value - 1 + series.length) % series.length; };
+const goPrimary = () => {
+  router.push(communityEnabled.value ? '/community' : '/shop');
+};
 
 let timer: ReturnType<typeof setInterval>;
-onMounted(() => { timer = setInterval(nextSlide, 5000); });
+onMounted(async () => {
+  timer = setInterval(nextSlide, 5000);
+  try {
+    const [community, wishlist] = await Promise.all([
+      getConfig('community_enabled'),
+      getConfig('wishlist_enabled'),
+    ]);
+    communityEnabled.value = community.value === 'true' || community.value === true;
+    wishlistEnabled.value = wishlist.value === 'true' || wishlist.value === true;
+  } catch {
+    communityEnabled.value = false;
+    wishlistEnabled.value = false;
+  }
+});
 onUnmounted(() => { clearInterval(timer); });
 </script>
 
@@ -41,8 +61,8 @@ onUnmounted(() => { clearInterval(timer); });
         </h1>
         <p class="hero-sub">一个让你的情绪变成可触碰实体的社区</p>
         <div class="hero-actions">
-          <button class="btn-primary" @click="router.push('/community')">逛逛社区</button>
-          <button class="btn-outline" @click="router.push('/wishlist')">心愿单</button>
+          <button class="btn-primary" @click="goPrimary">{{ primaryCtaLabel }}</button>
+          <button v-if="wishlistEnabled" class="btn-outline" @click="router.push('/wishlist')">心愿单</button>
         </div>
       </div>
     </section>
@@ -59,7 +79,7 @@ onUnmounted(() => { clearInterval(timer); });
               <div class="slide-meta">
                 <span class="slide-tag">{{ series[activeSlide].name }}</span>
                 <p class="slide-desc">{{ series[activeSlide].desc }}</p>
-                <button class="btn-wish" @click="router.push('/wishlist')">加入心愿单</button>
+                <button class="btn-wish" @click="router.push(wishlistEnabled ? '/wishlist' : '/shop')">{{ wishlistEnabled ? '加入心愿单' : '查看商城' }}</button>
               </div>
             </div>
           </transition>
@@ -126,7 +146,7 @@ onUnmounted(() => { clearInterval(timer); });
     </section>
 
     <!-- S4: 社区玩法 -->
-    <section class="s-community">
+    <section v-if="communityEnabled" class="s-community">
       <div class="community-inner">
         <h2 class="sec-title">为每一种感受创造内容</h2>
         <p class="sec-sub">态度、关系、情绪——都可以变成 IP</p>

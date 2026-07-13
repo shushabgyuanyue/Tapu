@@ -1,5 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router';
-import { getProfile, isLoggedIn } from '../api';
+import { getConfig, getProfile, isLoggedIn } from '../api';
 
 const routes = [
   {
@@ -28,6 +28,11 @@ const routes = [
     component: () => import('../views/ContentDetailPage.vue'),
   },
   {
+    path: '/shop',
+    name: 'shop',
+    component: () => import('../views/ShopPage.vue'),
+  },
+  {
     path: '/wishlist',
     name: 'wishlist',
     component: () => import('../views/WishlistPage.vue'),
@@ -41,6 +46,11 @@ const routes = [
     path: '/assets',
     name: 'assets',
     component: () => import('../views/AssetsPage.vue'),
+  },
+  {
+    path: '/appeals',
+    name: 'appeals',
+    component: () => import('../views/AppealPage.vue'),
   },
   {
     path: '/account',
@@ -77,7 +87,10 @@ const routes = [
     },
     children: [
       { path: '', name: 'official-groups', component: () => import('../views/admin/GroupManage.vue') },
+      { path: 'applications', name: 'official-applications', component: () => import('../views/official/ApplicationManage.vue') },
       { path: 'orders', name: 'official-orders', component: () => import('../views/official/OrderManage.vue') },
+      { path: 'appeals', name: 'official-appeals', component: () => import('../views/official/AppealManage.vue') },
+      { path: 'ownership', name: 'official-ownership', component: () => import('../views/official/OwnershipManage.vue') },
       { path: 'stats', name: 'official-stats', component: () => import('../views/admin/Stats.vue') },
       { path: 'settings', name: 'official-settings', component: () => import('../views/official/SiteSettings.vue') },
     ],
@@ -92,12 +105,38 @@ const router = createRouter({
 // Key parameter handling: key is only used for playback resolve and asset binding
 router.beforeEach(async (to, _from, next) => {
   const key = to.query.key as string | undefined;
+  if (to.path === '/wishlist' && to.query.tab === 'shop') {
+    const query: Record<string, any> = {};
+    if (to.query.groupId) query.groupId = to.query.groupId;
+    if (to.query.defaultVideoId) query.defaultVideoId = to.query.defaultVideoId;
+    return next({ path: '/shop', query, replace: true });
+  }
+
+  if (to.path.startsWith('/community')) {
+    try {
+      const data = await getConfig('community_enabled');
+      const communityEnabled = data.value === 'true' || data.value === true;
+      if (!communityEnabled) return next('/shop');
+    } catch {
+      return next('/shop');
+    }
+  }
+
+  if (to.path === '/wishlist') {
+    try {
+      const data = await getConfig('wishlist_enabled');
+      const wishlistEnabled = data.value === 'true' || data.value === true;
+      if (!wishlistEnabled) return next('/shop');
+    } catch {
+      return next('/shop');
+    }
+  }
   if (key && to.path === '/play') {
     // /play?key=xxx: PlayerView uses resolveByKey directly
     return next();
   }
   if (key && to.path === '/assets') {
-    // /assets?key=xxx: AssetsPage uses key for binding
+    // Asset binding accepts keys through the dedicated assets page.
     return next();
   }
   if (key) {

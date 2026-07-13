@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, onUnmounted, watch } from 'vue';
-import { fetchVideos, uploadVideo, deleteVideo, fetchGroups, fetchSeries, addToWishlist, getWishlistStatus } from '../../api';
+import { fetchVideos, uploadVideo, deleteVideo, fetchGroups, fetchSeries } from '../../api';
 import AdminPagination from '../../components/AdminPagination.vue';
 import { useServerPagination } from '../../composables/useServerPagination';
 
@@ -18,8 +18,6 @@ const uploadIsPrivate = ref(false);
 const selectedFile = ref<File | null>(null);
 const dragOver = ref(false);
 const filterQuery = ref('');
-const wishlistCounts = ref<Record<string, number>>({});
-const wishlistActiveMap = ref<Record<string, boolean>>({});
 let pollTimer: any = null;
 let searchTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -130,16 +128,6 @@ const loadData = async () => {
   applyPagedResult({ items: vids, total: result?.total || 0 }, videos);
   groups.value = grps;
   seriesList.value = srs;
-  await loadWishlistMeta(vids);
-};
-
-const loadWishlistMeta = async (list: any[]) => {
-  const uniqueGroupIds = [...new Set(list.map(v => v.group_id).filter(Boolean))];
-  for (const groupId of uniqueGroupIds) {
-    const { inWishlist, count } = await getWishlistStatus(groupId);
-    wishlistActiveMap.value[groupId] = !!inWishlist;
-    wishlistCounts.value[groupId] = count || 0;
-  }
 };
 
 // 轮询：有转码中的视频时每3秒刷新
@@ -223,17 +211,11 @@ const handleDelete = async (id: string) => {
   await loadData();
 };
 
-const goPlay = (id: string) => { window.open(`/content/${id}`, '_blank'); };
-const copyLink = (id: string) => { navigator.clipboard.writeText(`${window.location.origin}/content/${id}`); showToast('链接已复制'); };
+const goPlay = (id: string) => { window.open(`/play/${id}`, '_blank'); };
+const copyLink = (id: string) => { navigator.clipboard.writeText(`${window.location.origin}/play/${id}`); showToast('预览链接已复制'); };
 const copyContentId = (id: string) => { navigator.clipboard.writeText(formatContentId(id)); showToast('内容 ID 已复制'); };
 
-const resolveGroup = (groupId?: string) => groups.value.find(g => g.id === groupId);
-const canOpenShopActions = (video: any) => video.status === 'ready' && !video.is_private && !!video.group_id;
-const canPurchaseVideo = (video: any) => {
-  if (!canOpenShopActions(video)) return false;
-  const group = resolveGroup(video.group_id);
-  return group?.sale_status === 'purchasable';
-};
+const canBindVideo = (video: any) => video.status === 'ready' && !!video.group_id;
 
 const toastMsg = ref('');
 let toastTimer: any = null;
@@ -243,20 +225,11 @@ const showToast = (msg: string) => {
   toastTimer = setTimeout(() => { toastMsg.value = ''; }, 2500);
 };
 
-const handleAddWishlist = async (video: any) => {
-  if (!canOpenShopActions(video)) return;
-  const result = await addToWishlist(video.group_id, video.id);
-  wishlistActiveMap.value[video.group_id] = !!result?.inWishlist;
-  wishlistCounts.value[video.group_id] = result?.count || 0;
-  showToast(result?.added === false
-    ? `「${video.group_name || '该 IP'}」已在心愿单 · ${result?.count || 0} 人`
-    : `已加入心愿单 · ${result?.count || 0} 人`);
-};
-
-const handlePurchase = (video: any) => {
-  if (!canPurchaseVideo(video)) return;
-  const url = `/wishlist?tab=shop&groupId=${encodeURIComponent(video.group_id)}&defaultVideoId=${encodeURIComponent(video.id)}`;
+const handleBindEntity = (video: any) => {
+  if (!canBindVideo(video)) return;
+  const url = `/assets?defaultVideoId=${encodeURIComponent(video.id)}`;
   window.open(url, '_blank');
+  showToast('已打开资产绑定页，未登录时请先登录或注册');
 };
 
 const fmtSize = (b: number) => b ? (b / 1048576).toFixed(1) + ' MB' : '-';
@@ -390,12 +363,8 @@ const fmtDur = (s: number) => {
           <button v-if="v.status === 'ready'" class="icon-btn" title="复制链接" @click="copyLink(v.id)">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
           </button>
-          <button v-if="canOpenShopActions(v)" class="icon-btn icon-wish" :class="{ active: wishlistActiveMap[v.group_id] }" title="加入心愿单" @click="handleAddWishlist(v)">
-            <svg viewBox="0 0 24 24" width="16" height="16" :fill="wishlistActiveMap[v.group_id] ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="2"><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13"/><path d="M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7"/></svg>
-            <span class="icon-count" v-if="wishlistCounts[v.group_id]">{{ wishlistCounts[v.group_id] }}</span>
-          </button>
-          <button v-if="canPurchaseVideo(v)" class="icon-btn icon-buy" title="购买" @click="handlePurchase(v)">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+          <button v-if="canBindVideo(v)" class="icon-btn icon-bind" title="绑定实体" @click="handleBindEntity(v)">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
           </button>
           <button class="icon-btn icon-del" title="删除" @click="handleDelete(v.id)">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
@@ -551,7 +520,8 @@ const fmtDur = (s: number) => {
   background: #7c4dff; color: #fff; font-size: 9px; font-weight: 700;
   border-radius: 999px; display: flex; align-items: center; justify-content: center;
 }
-.icon-buy:hover { background: #f3efff; color: #7c4dff; }
+.icon-buy:hover,
+.icon-bind:hover { background: #edf7e8; color: #2f6c36; }
 .icon-del:hover { background: #fef2f2; color: #dc2626; }
 
 /* Inline toast */

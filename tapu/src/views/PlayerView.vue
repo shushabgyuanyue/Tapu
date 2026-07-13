@@ -37,6 +37,7 @@ const adEnabled = ref(false);
 const adInterval = ref(5);
 const swipeCount = ref(0);
 const showAdCard = ref(false);
+const communityEnabled = ref(false);
 
 // Viewport height
 const viewportHeight = ref(window.innerHeight);
@@ -72,11 +73,13 @@ onMounted(async () => {
 
   // Load ad config
   try {
-    const [enabledRes, intervalRes] = await Promise.all([
+    const [enabledRes, intervalRes, communityRes] = await Promise.all([
       getConfig('ad_enabled'),
       getConfig('ad_interval'),
+      getConfig('community_enabled'),
     ]);
-    if (enabledRes.value !== null) adEnabled.value = enabledRes.value === 'true';
+    communityEnabled.value = communityRes.value === 'true' || communityRes.value === true;
+    if (enabledRes.value !== null) adEnabled.value = (enabledRes.value === 'true') && communityEnabled.value;
     if (intervalRes.value !== null) adInterval.value = parseInt(intervalRes.value) || 5;
   } catch { /* defaults */ }
 
@@ -313,7 +316,7 @@ const dismissAd = () => {
 };
 
 const goToCommunity = () => {
-  router.push('/community');
+  router.push(communityEnabled.value ? '/community' : '/shop');
 };
 
 // --- Tap / Double-tap ---
@@ -397,7 +400,7 @@ const onDoubleTap = async () => {
     <div v-if="loadFailed" class="error-screen">
       <p class="error-text">无法加载内容</p>
       <p class="error-hint">链接可能已失效或内容暂不可用</p>
-      <button class="error-btn" @click="router.push('/community')">去社区看看</button>
+      <button class="error-btn" @click="router.push(communityEnabled ? '/community' : '/shop')">{{ communityEnabled ? '去社区看看' : '去商城看看' }}</button>
     </div>
 
     <!-- Video feed stack -->
@@ -463,7 +466,7 @@ const onDoubleTap = async () => {
           <div class="ad-brand">whatmint</div>
           <h2 class="ad-title">发现更多精彩内容</h2>
           <p class="ad-desc">社区里有更多创作者的情绪表达</p>
-          <button class="ad-btn" @click="goToCommunity">进入社区</button>
+          <button class="ad-btn" @click="goToCommunity">{{ communityEnabled ? '进入社区' : '进入商城' }}</button>
           <button class="ad-dismiss" @click="dismissAd">继续浏览</button>
         </div>
       </div>

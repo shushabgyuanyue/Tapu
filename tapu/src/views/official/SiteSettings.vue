@@ -1,32 +1,51 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { onMounted, ref } from 'vue';
 import { getConfig, setConfig } from '../../api';
 
 const adEnabled = ref(true);
 const adInterval = ref(5);
+const communityEnabled = ref(false);
+const wishlistEnabled = ref(false);
 const saving = ref(false);
 const msg = ref('');
+const msgError = ref(false);
 
 onMounted(async () => {
   try {
-    const d1 = await getConfig('ad_enabled');
-    if (d1.value !== undefined) adEnabled.value = d1.value === 'true' || d1.value === true;
+    const [ad, interval, community, wishlist] = await Promise.all([
+      getConfig('ad_enabled'),
+      getConfig('ad_interval'),
+      getConfig('community_enabled'),
+      getConfig('wishlist_enabled'),
+    ]);
 
-    const d2 = await getConfig('ad_interval');
-    if (d2.value !== undefined) adInterval.value = parseInt(d2.value) || 5;
-  } catch { /* defaults */ }
+    if (ad.value !== undefined) adEnabled.value = ad.value === 'true' || ad.value === true;
+    if (interval.value !== undefined) adInterval.value = parseInt(interval.value) || 5;
+    communityEnabled.value = community.value === 'true' || community.value === true;
+    wishlistEnabled.value = wishlist.value === 'true' || wishlist.value === true;
+  } catch {
+    // Use safe defaults for early-stage modules.
+  }
 });
 
 const save = async () => {
   saving.value = true;
   msg.value = '';
+  msgError.value = false;
+
   try {
-    await setConfig('ad_enabled', String(adEnabled.value));
-    await setConfig('ad_interval', String(adInterval.value));
+    await Promise.all([
+      setConfig('ad_enabled', String(adEnabled.value)),
+      setConfig('ad_interval', String(adInterval.value)),
+      setConfig('community_enabled', String(communityEnabled.value)),
+      setConfig('wishlist_enabled', String(wishlistEnabled.value)),
+    ]);
     msg.value = '保存成功';
   } catch {
     msg.value = '保存失败';
+    msgError.value = true;
   }
+
   saving.value = false;
 };
 </script>
@@ -35,59 +54,161 @@ const save = async () => {
   <div class="settings">
     <h2 class="settings-title">系统设置</h2>
 
-    <div class="setting-group">
-      <h3>播放器社区广告</h3>
-      <p class="setting-desc">在播放器中每隔 N 次滑动插入社区引导卡</p>
+    <section class="setting-group">
+      <h3>前台模块</h3>
+      <p class="setting-desc">控制早期产品里是否展示社区和心愿单入口。两者默认关闭，商城默认独立展示。</p>
 
       <label class="setting-row">
-        <span>启用广告卡</span>
+        <span>
+          <strong>启用社区模块</strong>
+          <small>开启后顶部导航按“商城、社区”的顺序展示。</small>
+        </span>
+        <input type="checkbox" v-model="communityEnabled" class="toggle" />
+      </label>
+
+      <label class="setting-row">
+        <span>
+          <strong>启用心愿单模块</strong>
+          <small>开启后顶部导航展示独立心愿单页面，商城不会和心愿单共用页面。</small>
+        </span>
+        <input type="checkbox" v-model="wishlistEnabled" class="toggle" />
+      </label>
+    </section>
+
+    <section class="setting-group">
+      <h3>播放器社区广告</h3>
+      <p class="setting-desc">在播放器中每隔 N 次滑动插入社区引导卡。社区关闭时广告不会展示。</p>
+
+      <label class="setting-row">
+        <span>
+          <strong>启用广告卡</strong>
+          <small>用于引导用户发现更多内容。</small>
+        </span>
         <input type="checkbox" v-model="adEnabled" class="toggle" />
       </label>
 
       <label class="setting-row">
-        <span>广告间隔（滑动次数）</span>
+        <span>
+          <strong>广告间隔</strong>
+          <small>按滑动次数计算。</small>
+        </span>
         <input type="number" v-model.number="adInterval" min="2" max="50" class="input-num" />
       </label>
-    </div>
+    </section>
 
     <button class="save-btn" @click="save" :disabled="saving">
       {{ saving ? '保存中...' : '保存设置' }}
     </button>
-    <p v-if="msg" class="msg">{{ msg }}</p>
+    <p v-if="msg" :class="['msg', { error: msgError }]">{{ msg }}</p>
   </div>
 </template>
 
 <style scoped>
-.settings { max-width: 480px; }
-.settings-title { font-size: 18px; font-weight: 700; margin: 0 0 24px; }
+.settings {
+  max-width: 560px;
+}
+
+.settings-title {
+  margin: 0 0 24px;
+  font-size: 20px;
+  font-weight: 800;
+}
 
 .setting-group {
-  background: #fff; border: 1px solid #f0f0f0; border-radius: 12px;
-  padding: 20px; margin-bottom: 20px;
+  padding: 20px;
+  margin-bottom: 20px;
+  border: 1px solid #f0f0f0;
+  border-radius: 14px;
+  background: #fff;
 }
-.setting-group h3 { font-size: 15px; font-weight: 600; margin: 0 0 4px; }
-.setting-desc { font-size: 12px; color: #999; margin: 0 0 16px; }
+
+.setting-group h3 {
+  margin: 0 0 5px;
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.setting-desc {
+  margin: 0 0 16px;
+  color: #999;
+  font-size: 12px;
+  line-height: 1.6;
+}
 
 .setting-row {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 10px 0; border-top: 1px solid #f5f5f5;
-  font-size: 14px; cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 13px 0;
+  border-top: 1px solid #f5f5f5;
+  cursor: pointer;
 }
-.setting-row span { color: #333; }
 
-.toggle { width: 18px; height: 18px; cursor: pointer; }
-.input-num {
-  width: 60px; padding: 6px 10px; border: 1px solid #e8e8e8;
-  border-radius: 8px; font-size: 14px; text-align: center;
+.setting-row span {
+  display: grid;
+  gap: 4px;
 }
-.input-num:focus { border-color: #7c4dff; outline: none; }
+
+.setting-row strong {
+  color: #333;
+  font-size: 14px;
+}
+
+.setting-row small {
+  color: #999;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.toggle {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.input-num {
+  width: 70px;
+  padding: 7px 10px;
+  border: 1px solid #e8e8e8;
+  border-radius: 9px;
+  font-size: 14px;
+  text-align: center;
+}
+
+.input-num:focus {
+  border-color: #7c4dff;
+  outline: none;
+}
 
 .save-btn {
-  padding: 10px 24px; border: none; border-radius: 10px;
-  background: #7c4dff; color: #fff; font-size: 14px; font-weight: 600;
-  cursor: pointer; transition: opacity 0.12s;
+  padding: 11px 24px;
+  border: none;
+  border-radius: 12px;
+  background: #1a1a1a;
+  color: #fff;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 800;
 }
-.save-btn:hover { opacity: 0.9; }
-.save-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-.msg { font-size: 12px; color: #4caf50; margin: 8px 0 0; }
+
+.save-btn:hover {
+  opacity: 0.9;
+}
+
+.save-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.msg {
+  margin: 10px 0 0;
+  color: #2e7d32;
+  font-size: 12px;
+}
+
+.msg.error {
+  color: #c62828;
+}
 </style>

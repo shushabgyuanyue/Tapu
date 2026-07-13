@@ -6,7 +6,8 @@ import { getDb, saveDb } from '../db/index.js';
 import { getUploadsDir, deleteFile } from '../services/storage.js';
 import { transcodeVideo } from '../services/transcode.js';
 import { deleteFromR2, getR2KeyFromUrl } from '../services/r2.js';
-import { authRequired, verifyEntityKey } from '../middleware/auth.js';
+import { authOptional, authRequired, verifyEntityKey } from '../middleware/auth.js';
+import { resultToObjects } from '../services/tokens.js';
 
 const router = Router();
 
@@ -34,22 +35,23 @@ function normalizeVideoId(rawId) {
   return trimmed;
 }
 
-function getEntityId(req) {
-  // Only trust entity_id from verified key, not from spoofable headers
-  return req.verifiedEntityId || null;
-}
-
 // Middleware to optionally verify key from header/query for entity context
-function optionalKeyVerify(req, res, next) {
+async function optionalKeyVerify(req, res, next) {
   const key = req.headers['x-entity-key'] || req.query.key;
   if (key) {
-    const payload = verifyEntityKey(key);
+    const db = await getDb();
+    const payload = verifyEntityKey(key, db);
     if (payload) {
       req.verifiedEntityId = payload.entity_id;
       req.verifiedGroupId = payload.group_id;
+      req.verifiedEntityOwnerId = payload.user_id || null;
     }
   }
   next();
+}
+
+function canViewEntityPrivate(req, entityId) {
+  return !!entityId && !!req.user?.id && (req.user.username === 'admin' || req.user.id === req.verifiedEntityOwnerId);
 }
 
 // Upload video (requires auth)
@@ -64,7 +66,15 @@ router.post('/upload', authRequired, upload.single('video'), async (req, res) =>
     const title = req.body.title || req.file.originalname;
     const groupId = req.body.group_id || null;
     const isPrivate = req.body.is_private === 'true' || req.body.is_private === '1' ? 1 : 0;
-    const entityId = getEntityId(req) || req.body.entity_id || null;
+    const entityId = req.verifiedEntityId || req.body.entity_id || null;
+
+    if (entityId && req.user.username !== 'admin') {
+      const owners = resultToObjects(db.exec('SELECT user_id FROM entities WHERE id = ?', [entityId]));
+      if (owners.length === 0) return res.status(400).json({ error: '实体不存在' });
+      if (owners[0].user_id && owners[0].user_id !== req.user.id) {
+        return res.status(403).json({ error: '无权为该实体管理内容' });
+      }
+    }
 
     db.run(
       'INSERT INTO videos (id, title, group_id, original_filename, file_path, status, is_private, entity_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
@@ -85,23 +95,26 @@ router.post('/upload', authRequired, upload.single('video'), async (req, res) =>
 });
 
 // List videos
-router.get('/', optionalKeyVerify, async (req, res) => {
+router.get('/', authOptional, optionalKeyVerify, async (req, res) => {
   const db = await getDb();
   const { group_id, series_id, sort, q, page, limit: limitStr, all, is_private } = req.query;
-  const currentEntityId = getEntityId(req);
+  const currentEntityId = req.verifiedEntityId || null;
   const searchQuery = typeof q === 'string' ? q.trim() : '';
 
   const pageNum = Math.max(1, parseInt(page) || 1);
   const limit = Math.min(50, Math.max(1, parseInt(limitStr) || 20));
   const offset = (pageNum - 1) * limit;
 
-  // Admin/creator can see all videos including private
+  const canSeeAllPrivate = req.user?.username === 'admin' && all;
   const conditions = [];
   const params = [];
-  if (!all) {
-    if (currentEntityId) {
+  if (!canSeeAllPrivate) {
+    if (currentEntityId && canViewEntityPrivate(req, currentEntityId)) {
       conditions.push('(v.is_private = 0 OR v.entity_id = ?)');
       params.push(currentEntityId);
+    } else if (req.user?.id) {
+      conditions.push(`(v.is_private = 0 OR v.entity_id IN (SELECT id FROM entities WHERE user_id = ?))`);
+      params.push(req.user.id);
     } else {
       conditions.push('v.is_private = 0');
     }
@@ -162,7 +175,7 @@ router.get('/', optionalKeyVerify, async (req, res) => {
 });
 
 // Get single video
-router.get('/:id', optionalKeyVerify, async (req, res) => {
+router.get('/:id', authOptional, optionalKeyVerify, async (req, res) => {
   const db = await getDb();
   const normalizedId = normalizeVideoId(req.params.id);
   const results = db.exec('SELECT * FROM videos WHERE id = ?', [normalizedId]);
@@ -176,9 +189,9 @@ router.get('/:id', optionalKeyVerify, async (req, res) => {
 
   // Private videos require verified key with matching entity_id
   if (video.is_private === 1) {
-    const verifiedEntityId = getEntityId(req);
-    if (!verifiedEntityId || video.entity_id !== verifiedEntityId) {
-      return res.status(403).json({ error: '私有作品需要通过 key 验证后才能播放' });
+    const ownsPrivate = req.user?.username === 'admin' || (video.entity_id && req.user?.id && resultToObjects(db.exec('SELECT id FROM entities WHERE id = ? AND user_id = ?', [video.entity_id, req.user.id])).length > 0);
+    if (!ownsPrivate) {
+      return res.status(403).json({ error: '私有内容需要登录绑定账号后才能查看' });
     }
   }
 
@@ -186,7 +199,7 @@ router.get('/:id', optionalKeyVerify, async (req, res) => {
 });
 
 // Get sibling videos in the same group (for swipe feed)
-router.get('/:id/siblings', optionalKeyVerify, async (req, res) => {
+router.get('/:id/siblings', authOptional, optionalKeyVerify, async (req, res) => {
   const db = await getDb();
   const results = db.exec('SELECT group_id FROM videos WHERE id = ?', [req.params.id]);
   const current = resultToObjects(results);
@@ -200,11 +213,18 @@ router.get('/:id/siblings', optionalKeyVerify, async (req, res) => {
   }
 
   // Only show private videos if key is verified and entity matches
-  const verifiedEntityId = getEntityId(req);
-  const privacyCondition = verifiedEntityId ? '(is_private = 0 OR entity_id = ?)' : 'is_private = 0';
-  const siblingParams = verifiedEntityId
+  const verifiedEntityId = req.verifiedEntityId || null;
+  const includeTokenPrivate = verifiedEntityId && canViewEntityPrivate(req, verifiedEntityId);
+  const privacyCondition = includeTokenPrivate
+    ? '(is_private = 0 OR entity_id = ?)'
+    : req.user?.id
+      ? '(is_private = 0 OR entity_id IN (SELECT id FROM entities WHERE user_id = ?))'
+      : 'is_private = 0';
+  const siblingParams = includeTokenPrivate
     ? [groupId, 'ready', req.params.id, verifiedEntityId]
-    : [groupId, 'ready', req.params.id];
+    : req.user?.id
+      ? [groupId, 'ready', req.params.id, req.user.id]
+      : [groupId, 'ready', req.params.id];
 
   const siblings = db.exec(
     `SELECT id, title, file_path, poster_url, duration FROM videos WHERE group_id = ? AND status = ? AND id != ? AND ${privacyCondition} ORDER BY created_at DESC`,
@@ -232,15 +252,16 @@ router.delete('/:id', authRequired, async (req, res) => {
 
 // Resolve playback by entity key
 // Default video priority: user_defaults > official_default > latest in group
-router.post('/resolve', async (req, res) => {
+router.post('/resolve', authOptional, async (req, res) => {
   const { key } = req.body;
   if (!key) return res.status(400).json({ error: 'key is required' });
 
-  const payload = verifyEntityKey(key);
+  const db = await getDb();
+  const payload = verifyEntityKey(key, db);
   if (!payload) return res.status(400).json({ error: '无效的 key' });
 
   const { user_id, group_id, entity_id } = payload;
-  const db = await getDb();
+  const canViewPrivate = !!user_id && !!req.user?.id && (req.user.username === 'admin' || req.user.id === user_id);
 
   // 1. Check user custom default
   const userDefaultResults = db.exec(
@@ -263,12 +284,16 @@ router.post('/resolve', async (req, res) => {
     defaultVideoId = group.official_default_video_id;
   }
 
-  // 3. Fetch videos for this group: public + this entity's private only (filter out other entities' private videos)
+  // 3. Fetch videos for this group: public + this entity's private only after owner login
+  const privacySql = canViewPrivate ? '(is_private = 0 OR entity_id = ?)' : 'is_private = 0';
+  const queryParams = canViewPrivate
+    ? [group_id, entity_id, defaultVideoId || '', entity_id]
+    : [group_id, defaultVideoId || '', entity_id];
   let results = db.exec(
-    `SELECT * FROM videos WHERE group_id = ? AND status = 'ready' AND (is_private = 0 OR entity_id = ?) ORDER BY
+    `SELECT * FROM videos WHERE group_id = ? AND status = 'ready' AND ${privacySql} ORDER BY
       CASE WHEN id = ? THEN 0 WHEN entity_id = ? THEN 1 ELSE 2 END,
       created_at DESC`,
-    [group_id, entity_id, defaultVideoId || '', entity_id]
+    queryParams
   );
 
   const videos = resultToObjects(results);
@@ -280,16 +305,6 @@ router.post('/resolve', async (req, res) => {
 });
 
 // Helper: convert sql.js result to array of objects
-function resultToObjects(results) {
-  if (!results || results.length === 0) return [];
-  const { columns, values } = results[0];
-  return values.map(row => {
-    const obj = {};
-    columns.forEach((col, i) => { obj[col] = row[i]; });
-    return obj;
-  });
-}
-
 async function removeStoredAsset(assetPath) {
   if (!assetPath) return;
 

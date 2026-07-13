@@ -1,11 +1,10 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, inject } from 'vue';
-import { fetchVideos, fetchGroups, fetchSeries, interact, batchInteractions, addToWishlist, getWishlistStatus, isLoggedIn } from '../api';
+import { fetchVideos, fetchGroups, fetchSeries, interact, batchInteractions, addToWishlist, getWishlistStatus, isLoggedIn, getConfig } from '../api';
 import { useRouter } from 'vue-router';
 import NavBar from '../components/NavBar.vue';
 import VideoCard from '../components/VideoCard.vue';
 import RemixModal from '../components/RemixModal.vue';
-import BottomNav from '../components/BottomNav.vue';
 import InfiniteScrollTrigger from '../components/InfiniteScrollTrigger.vue';
 
 const router = useRouter();
@@ -20,6 +19,7 @@ const searchQuery = ref('');
 const loading = ref(true);
 const loadingMore = ref(false);
 const interactions = ref<Record<string, any>>({});
+const wishlistEnabled = ref(false);
 const wishlistStatus = ref<Record<string, boolean>>({});
 const wishlistCounts = ref<Record<string, number>>({});
 const likedIds = ref<Set<string>>(new Set());
@@ -84,7 +84,7 @@ const loadData = async (reset = true) => {
     likedIds.value = new Set(readyIds.filter((id: string) => batch[id]?.liked));
     favoritedIds.value = new Set(readyIds.filter((id: string) => batch[id]?.favorited));
   }
-  if (reset) loadWishlistStatus();
+  if (reset && wishlistEnabled.value) loadWishlistStatus();
 };
 
 // Infinite scroll - load more
@@ -146,19 +146,17 @@ const switchGroup = (id: string) => {
   loadData();
 };
 
-const goPlay = (id: string) => { router.push(`/content/${id}`); };
+const goPlay = (id: string) => { router.push(`/play/${id}`); };
 
 const handleLike = async (e: Event, videoId: string) => {
   e.stopPropagation();
   if (!isLoggedIn()) {
     toast?.show('请先登录再点赞');
-    router.push('/login');
     return;
   }
   const result = await interact(videoId, 'like');
   if (result?.requires_login) {
     toast?.show(result.error || '请先登录再点赞');
-    router.push('/login');
     return;
   }
   if (result?.liked) likedIds.value.add(videoId);
@@ -170,13 +168,11 @@ const handleFavorite = async (e: Event, videoId: string) => {
   e.stopPropagation();
   if (!isLoggedIn()) {
     toast?.show('请先登录再喜欢');
-    router.push('/login');
     return;
   }
   const result = await interact(videoId, 'favorite');
   if (result?.requires_login) {
     toast?.show(result.error || '请先登录再喜欢');
-    router.push('/login');
     return;
   }
   if (result?.favorited) favoritedIds.value.add(videoId);
@@ -200,6 +196,7 @@ const submitRemix = () => { closeRemix(); };
 
 const handleWishlist = async (e: Event, groupId: string, videoId?: string) => {
   e.stopPropagation();
+  if (!wishlistEnabled.value) return;
   const result = await addToWishlist(groupId, videoId);
   wishlistStatus.value[groupId] = !!result?.inWishlist;
   wishlistCounts.value[groupId] = result?.count || 0;
@@ -210,6 +207,7 @@ const handleWishlist = async (e: Event, groupId: string, videoId?: string) => {
 };
 
 const loadWishlistStatus = async () => {
+  if (!wishlistEnabled.value) return;
   for (const g of groups.value) {
     const { inWishlist, count } = await getWishlistStatus(g.id);
     wishlistStatus.value[g.id] = inWishlist;
@@ -217,7 +215,15 @@ const loadWishlistStatus = async () => {
   }
 };
 
-onMounted(() => { loadData(); });
+onMounted(async () => {
+  try {
+    const data = await getConfig('wishlist_enabled');
+    wishlistEnabled.value = data.value === 'true' || data.value === true;
+  } catch {
+    wishlistEnabled.value = false;
+  }
+  loadData();
+});
 </script>
 
 <template>
@@ -269,7 +275,7 @@ onMounted(() => { loadData(); });
     <TransitionGroup name="stagger" tag="div" class="c-grid" v-if="!loading && readyVideos.length > 0">
       <VideoCard v-for="(v, idx) in readyVideos" :key="v.id" :video="v" :interactions="interactions"
         :is-liked="likedIds.has(v.id)" :is-faved="favoritedIds.has(v.id)"
-        :wishlist-status="!!wishlistStatus[v.group_id]" :wishlist-count="wishlistCounts[v.group_id] || 0" :style="{ '--i': Math.min(idx, 10) }"
+        :wishlist-status="!!wishlistStatus[v.group_id]" :wishlist-count="wishlistCounts[v.group_id] || 0" :show-wishlist="wishlistEnabled" :style="{ '--i': Math.min(idx, 10) }"
         @like="handleLike" @favorite="handleFavorite" @share="handleShare"
         @wishlist="handleWishlist" @remix="openRemix" @play="goPlay" />
     </TransitionGroup>
@@ -309,7 +315,6 @@ onMounted(() => { loadData(); });
       <span class="c-footer-brand">whatmint</span>
       <span>碰一下，感受到了吗</span>
     </footer>
-    <BottomNav />
   </div>
 </template>
 
@@ -317,7 +322,7 @@ onMounted(() => { loadData(); });
 .community {
   min-height: 100vh; background: #fefefe;
   font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif;
-  color: #1a1a1a; padding-bottom: 72px;
+  color: #1a1a1a;
 }
 
 .pull-indicator {

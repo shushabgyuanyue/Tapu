@@ -7,6 +7,7 @@ import { getDb } from './db/index.js';
 import videosRouter from './routes/videos.js';
 import groupsRouter from './routes/groups.js';
 import seriesRouter from './routes/series.js';
+import applicationsRouter from './routes/applications.js';
 import statsRouter from './routes/stats.js';
 import interactionsRouter from './routes/interactions.js';
 import wishlistRouter from './routes/wishlist.js';
@@ -71,6 +72,7 @@ app.use('/uploads', (req, res, next) => {
 app.use('/api/videos', videosRouter);
 app.use('/api/groups', groupsRouter);
 app.use('/api/series', seriesRouter);
+app.use('/api/applications', applicationsRouter);
 app.use('/api/stats', statsRouter);
 app.use('/api/interactions', interactionsRouter);
 app.use('/api/wishlist', wishlistRouter);

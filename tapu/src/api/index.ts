@@ -140,11 +140,19 @@ export async function fetchSeries() {
   return request('/series');
 }
 
-export async function createSeries(name: string) {
+export async function createSeries(name: string, applicationId?: string) {
   return request('/series', {
     method: 'POST',
     auth: true,
-    jsonBody: { name },
+    jsonBody: { name, application_id: applicationId || undefined },
+  });
+}
+
+export async function updateSeries(id: string, name: string, applicationId?: string) {
+  return request(`/series/${id}`, {
+    method: 'PUT',
+    auth: true,
+    jsonBody: { name, application_id: applicationId || undefined },
   });
 }
 
@@ -228,7 +236,7 @@ export async function fetchVideos(
   if (limit) params.set('limit', String(limit));
   if (isPrivate !== '') params.set('is_private', isPrivate ? '1' : '0');
   const qs = params.toString();
-  return request(`/videos${qs ? '?' + qs : ''}`);
+  return request(`/videos${qs ? '?' + qs : ''}`, { auth: !!all || isPrivate === true });
 }
 
 export async function fetchVideo(id: string) {
@@ -262,7 +270,36 @@ export async function deleteVideo(id: string) {
 export async function resolveByKey(key: string) {
   return request('/videos/resolve', {
     method: 'POST',
+    auth: true,
     jsonBody: { key },
+  });
+}
+
+// ===== Applications (Official Technical Layer) =====
+export async function fetchApplications() {
+  return request('/applications', { auth: true });
+}
+
+export async function createApplication(params: { name: string; code?: string; interaction_type: string; description?: string; status?: string }) {
+  return request('/applications', {
+    method: 'POST',
+    auth: true,
+    jsonBody: params,
+  });
+}
+
+export async function updateApplication(id: string, params: { name: string; code?: string; interaction_type: string; description?: string; status?: string }) {
+  return request(`/applications/${id}`, {
+    method: 'PUT',
+    auth: true,
+    jsonBody: params,
+  });
+}
+
+export async function deleteApplication(id: string) {
+  return request(`/applications/${id}`, {
+    method: 'DELETE',
+    auth: true,
   });
 }
 
@@ -376,11 +413,11 @@ export async function fetchEntitiesByGroup(groupId: string) {
   return request(`/entities/by-group/${groupId}`, { auth: true });
 }
 
-export async function createEntity(groupId: string) {
+export async function createEntity(groupId: string, externalOrderNo?: string) {
   return request('/entities', {
     method: 'POST',
     auth: true,
-    jsonBody: { group_id: groupId },
+    jsonBody: { group_id: groupId, external_order_no: externalOrderNo || undefined },
   });
 }
 
@@ -417,12 +454,25 @@ export async function purchaseByGroup(groupId: string, addressInfo?: { recipient
 }
 
 // ===== Orders (Official Management) =====
-export async function fetchOrders(params?: { page?: number; pageSize?: number }) {
+export async function fetchOrders(params?: { page?: number; pageSize?: number; q?: string; orderNo?: string; token?: string; dateFrom?: string; dateTo?: string }) {
   const query = new URLSearchParams();
   if (params?.page) query.set('page', String(params.page));
   if (params?.pageSize) query.set('page_size', String(params.pageSize));
+  if (params?.q) query.set('q', params.q);
+  if (params?.orderNo) query.set('order_no', params.orderNo);
+  if (params?.token) query.set('token', params.token);
+  if (params?.dateFrom) query.set('date_from', params.dateFrom);
+  if (params?.dateTo) query.set('date_to', params.dateTo);
   const qs = query.toString();
   return request(`/orders${qs ? '?' + qs : ''}`, { auth: true });
+}
+
+export async function createExternalOrder(params: { group_id: string; order_no?: string; token?: string; status?: string }) {
+  return request('/orders/external', {
+    method: 'POST',
+    auth: true,
+    jsonBody: params,
+  });
 }
 
 export async function updateOrderStatus(orderId: string, status: string) {
@@ -453,6 +503,55 @@ export async function unbindEntity(entityId: string) {
     auth: true,
     jsonBody: { entity_id: entityId },
   });
+}
+
+export async function transferEntity(entityId: string, toUsername: string) {
+  return request('/auth/transfer-entity', {
+    method: 'POST',
+    auth: true,
+    jsonBody: { entity_id: entityId, to_username: toUsername },
+  });
+}
+
+export async function setEntityDefaultByToken(key: string, videoId: string) {
+  return request('/auth/entity-default-by-token', {
+    method: 'PUT',
+    jsonBody: { key, video_id: videoId },
+  });
+}
+
+export async function createUnbindAppeal(params: { order_no: string; token?: string; reason?: string }) {
+  return request('/auth/unbind-appeals', {
+    method: 'POST',
+    auth: isLoggedIn(),
+    jsonBody: params,
+  });
+}
+
+export async function fetchUnbindAppeals() {
+  return request('/auth/unbind-appeals', { auth: true });
+}
+
+export async function resolveUnbindAppeal(id: string, action: 'approve' | 'reject') {
+  return request(`/auth/unbind-appeals/${id}/resolve`, {
+    method: 'POST',
+    auth: true,
+    jsonBody: { action },
+  });
+}
+
+export async function fetchOwnershipEvents(params?: { page?: number; pageSize?: number; q?: string; token?: string; orderNo?: string; eventType?: string; dateFrom?: string; dateTo?: string }) {
+  const query = new URLSearchParams();
+  if (params?.page) query.set('page', String(params.page));
+  if (params?.pageSize) query.set('page_size', String(params.pageSize));
+  if (params?.q) query.set('q', params.q);
+  if (params?.token) query.set('token', params.token);
+  if (params?.orderNo) query.set('order_no', params.orderNo);
+  if (params?.eventType) query.set('event_type', params.eventType);
+  if (params?.dateFrom) query.set('date_from', params.dateFrom);
+  if (params?.dateTo) query.set('date_to', params.dateTo);
+  const qs = query.toString();
+  return request(`/entities/ownership-events${qs ? '?' + qs : ''}`, { auth: true });
 }
 
 // ===== Entity Default Video =====

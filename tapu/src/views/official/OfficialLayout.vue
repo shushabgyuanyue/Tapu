@@ -7,7 +7,10 @@ const route = useRoute();
 
 const nav = [
   { path: '/official', label: '分组管理', exact: true },
+  { path: '/official/applications', label: '应用管理' },
   { path: '/official/orders', label: '订单管理' },
+  { path: '/official/appeals', label: '申诉管理' },
+  { path: '/official/ownership', label: '持有记录' },
   { path: '/official/stats', label: '统计' },
   { path: '/official/settings', label: '系统设置' },
 ];
@@ -50,34 +53,39 @@ const isActive = (item: any) => {
   border-bottom: 1px solid var(--border);
   background: #fff;
 }
+
 .admin-sub-inner {
-  max-width: 860px;
+  max-width: 980px;
   margin: 0 auto;
   display: flex;
   gap: 4px;
   padding: 8px 24px;
+  overflow-x: auto;
 }
 
 .tab {
-  padding: 8px 16px;
+  flex-shrink: 0;
+  padding: 8px 14px;
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 600;
   color: var(--text-muted);
   text-decoration: none;
   border-radius: 8px;
   transition: background 0.12s, color 0.12s;
 }
+
 .tab:hover {
   color: var(--text-primary);
   background: var(--bg-hover);
 }
+
 .tab.active {
   color: var(--text-primary);
   background: var(--bg-active);
 }
 
 .main-body {
-  max-width: 860px;
+  max-width: 980px;
   margin: 0 auto;
   padding: 36px 24px 80px;
 }
@@ -87,7 +95,14 @@ const isActive = (item: any) => {
     padding: 6px 16px;
     gap: 2px;
   }
-  .tab { padding: 6px 12px; font-size: 13px; }
-  .main-body { padding: 24px 16px 60px; }
+
+  .tab {
+    padding: 6px 12px;
+    font-size: 13px;
+  }
+
+  .main-body {
+    padding: 24px 16px 60px;
+  }
 }
 </style>

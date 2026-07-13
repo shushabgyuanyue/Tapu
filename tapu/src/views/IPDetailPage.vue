@@ -3,7 +3,7 @@ import { ref, onMounted, computed, inject } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import {
   fetchGroup, fetchVideos, getPledgeCount, getPledgeStatus,
-  purchaseByGroup, pledgeGroup, addToWishlist, getWishlistStatus, isLoggedIn
+  pledgeGroup, addToWishlist, getWishlistStatus, isLoggedIn, getConfig
 } from '../api';
 import NavBar from '../components/NavBar.vue';
 
@@ -16,25 +16,26 @@ const group = ref<any>(null);
 const videos = ref<any[]>([]);
 const pledgeCount = ref(0);
 const hasPledged = ref(false);
+const wishlistEnabled = ref(false);
 const inWishlist = ref(false);
 const wishlistCount = ref(0);
 const loading = ref(true);
-const purchasing = ref(false);
-const purchasedKey = ref('');
 
 const readyVideos = computed(() => videos.value.filter(v => v.status === 'ready' && !v.is_private));
 const hasStock = computed(() => group.value && group.value.entity_count > 0);
 
 const loadData = async () => {
   loading.value = true;
-  const [g, vids, pledge] = await Promise.all([
+  const [g, vids, pledge, wishlistFlag] = await Promise.all([
     fetchGroup(groupId),
     fetchVideos(groupId),
     getPledgeCount(groupId),
+    getConfig('wishlist_enabled'),
   ]);
   group.value = g;
   videos.value = vids;
   pledgeCount.value = pledge.count || 0;
+  wishlistEnabled.value = wishlistFlag.value === 'true' || wishlistFlag.value === true;
 
   // Load user-specific state
   if (isLoggedIn()) {
@@ -43,27 +44,17 @@ const loadData = async () => {
       hasPledged.value = status.pledged;
     } catch { /* not logged in */ }
   }
-  const ws = await getWishlistStatus(groupId);
-  inWishlist.value = ws.inWishlist;
-  wishlistCount.value = ws.count || 0;
+  if (wishlistEnabled.value) {
+    const ws = await getWishlistStatus(groupId);
+    inWishlist.value = ws.inWishlist;
+    wishlistCount.value = ws.count || 0;
+  }
 
   loading.value = false;
 };
 
 const handlePurchase = async () => {
-  if (!isLoggedIn()) {
-    alert('请先登录');
-    return;
-  }
-  if (!confirm('确认购买该IP？')) return;
-  purchasing.value = true;
-  const result = await purchaseByGroup(groupId);
-  purchasing.value = false;
-  if (result.success) {
-    purchasedKey.value = result.entity_key;
-  } else {
-    alert(result.error || '购买失败');
-  }
+  toast?.show(`请在官方外部渠道购买「${group.value?.name || '该 IP'}」，收到 token 后到账号资产页绑定。`, 3600, 'success');
 };
 
 const handlePledge = async () => {
@@ -81,6 +72,7 @@ const handlePledge = async () => {
 };
 
 const handleWishlist = async () => {
+  if (!wishlistEnabled.value) return;
   const result = await addToWishlist(groupId);
   inWishlist.value = !!result?.inWishlist;
   wishlistCount.value = result?.count || 0;
@@ -146,22 +138,15 @@ onMounted(loadData);
       </div>
 
       <!-- Purchased key display -->
-      <div class="ip-purchased" v-if="purchasedKey">
-        <h3>购买成功</h3>
-        <p class="ip-key-label">你的专属密钥：</p>
-        <code class="ip-key">{{ purchasedKey }}</code>
-        <p class="ip-key-hint">请妥善保存，可通过此密钥访问专属内容</p>
-      </div>
-
       <!-- Sticky Action Bar -->
-      <div class="ip-action-bar" v-if="!purchasedKey">
-        <button class="ip-wish-btn" :class="{ active: inWishlist }" @click="handleWishlist">
+      <div class="ip-action-bar">
+        <button v-if="wishlistEnabled" class="ip-wish-btn" :class="{ active: inWishlist }" @click="handleWishlist">
           <svg viewBox="0 0 24 24" width="18" height="18" :fill="inWishlist ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="2"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>
           <span>{{ inWishlist ? '已在心愿单' : '加入心愿单' }}</span>
           <span class="ip-wish-count">{{ wishlistCount }}</span>
         </button>
-        <button v-if="hasStock" class="ip-buy-btn" :disabled="purchasing" @click="handlePurchase">
-          {{ purchasing ? '处理中...' : '立即购买' }}
+        <button v-if="hasStock" class="ip-buy-btn" @click="handlePurchase">
+          外部购买
         </button>
         <button v-else class="ip-pledge-btn" :disabled="hasPledged" @click="handlePledge">
           {{ hasPledged ? '已登记' : '参与众筹' }}

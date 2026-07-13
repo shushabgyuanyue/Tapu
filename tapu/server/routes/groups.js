@@ -53,13 +53,15 @@ router.get('/', async (req, res) => {
   const pageSize = parsePositiveInt(req.query.page_size, 10);
   const shouldPaginate = req.query.page !== undefined || req.query.page_size !== undefined;
   let results;
-  const baseQuery = `SELECT g.*, s.name as series_name,
+  const baseQuery = `SELECT g.*, s.name as series_name, s.application_id,
+              a.name as application_name, a.code as application_code, a.interaction_type,
               ov.title as official_default_video_title,
               ov.poster_url as official_default_video_poster,
               COUNT(e.id) as entity_count,
               COALESCE((SELECT COUNT(*) FROM crowdfund_pledges cp WHERE cp.group_id = g.id), 0) as pledge_count
        FROM groups g
        LEFT JOIN series s ON g.series_id = s.id
+       LEFT JOIN applications a ON s.application_id = a.id
        LEFT JOIN videos ov ON ov.id = g.official_default_video_id
        LEFT JOIN entities e ON e.group_id = g.id`;
   const countSql = 'SELECT COUNT(*) as total FROM groups g';
@@ -108,12 +110,14 @@ router.get('/', async (req, res) => {
 router.get('/:id', async (req, res) => {
   const db = await getDb();
   const results = db.exec(
-    `SELECT g.*, s.name as series_name,
+    `SELECT g.*, s.name as series_name, s.application_id,
+            a.name as application_name, a.code as application_code, a.interaction_type,
             ov.title as official_default_video_title,
             ov.poster_url as official_default_video_poster,
             COUNT(e.id) as entity_count
      FROM groups g
      LEFT JOIN series s ON g.series_id = s.id
+     LEFT JOIN applications a ON s.application_id = a.id
      LEFT JOIN videos ov ON ov.id = g.official_default_video_id
      LEFT JOIN entities e ON e.group_id = g.id
      WHERE g.id = ?
