@@ -118,6 +118,7 @@ token 持有历史，为实体传承做数据基础。当前事件包括：
 | API 封装 | `tapu/src/api/index.ts` |
 | 资产页 | `tapu/src/views/AssetsPage.vue` |
 | 内容详情直写 token | `tapu/src/views/ContentDetailPage.vue` |
+| 商城展示页 | `tapu/src/views/ShopPage.vue`、`tapu/src/components/shop/ShopFilterBar.vue`、`tapu/src/components/shop/ShopProductCard.vue` |
 | NFC 播放器 | `tapu/src/views/PlayerView.vue` |
 | 官方订单页 | `tapu/src/views/official/OrderManage.vue` |
 | 持有记录页 | `tapu/src/views/official/OwnershipManage.vue` |
@@ -154,10 +155,13 @@ token 持有历史，为实体传承做数据基础。当前事件包括：
 - 订单状态目前只粗略表示 `pending/shipped/completed`，NFC 写入和 token 发放已用独立时间字段记录。
 - 购买不在平台内完成，商城和心愿单只做展示与用户教育。
 - 社区和心愿单默认关闭，由官方管理开关控制。
+- `/assets` 顶部和空展馆态都有“绑定新资产 / 去绑定 token”入口；同一输入框会智能尝试实体 IP 与日常贴纸 token，仍保留单独绑定按钮。
+- 商城页已拆出 `ShopFilterBar` 与 `ShopProductCard`，页面本体保留数据编排和业务动作；后续扩展商品信息时优先扩展组件，不要把卡片逻辑写回页面。
 
 ## 8. 后续只有高收益才建议做
 
 - 给外部订单增加真实买家引用字段，例如 `external_buyer_ref`、`external_platform`。
 - 给私有内容 NFC 匿名播放增加更明确的前端提示，避免用户误解“实体坏了”。
-- 将资产页继续拆为 `BindTokenCard`、`AssetCard`、`TransferPanel`、`DefaultContentPicker`，降低维护成本。
+- 将资产页继续拆为 `BindTokenCard`、`AssetCard`、`StickerAssetCard`、`TransferPanel`、`DefaultContentPicker`，降低维护成本；当前资产页仍超过 500 行，是下一轮前端重构优先级最高的页面之一。
+- 将官方日常贴纸管理继续拆为故事预览、内容编辑、Token/NFC、发布设置四个子组件；当前文件较长但业务边界清晰。
 - 增加可重复运行的 E2E 测试脚本，但需要先决定是否引入测试框架和测试数据策略。

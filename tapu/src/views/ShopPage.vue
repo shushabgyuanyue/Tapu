@@ -12,6 +12,8 @@ import {
 } from '../api';
 import NavBar from '../components/NavBar.vue';
 import InfiniteScrollTrigger from '../components/InfiniteScrollTrigger.vue';
+import ShopFilterBar from '../components/shop/ShopFilterBar.vue';
+import ShopProductCard from '../components/shop/ShopProductCard.vue';
 
 const route = useRoute();
 const router = useRouter();
@@ -204,21 +206,14 @@ onMounted(loadData);
         </button>
       </section>
 
-      <section class="filter-panel" v-if="seriesList.length || groups.length">
-        <div class="filter-row" v-if="seriesList.length > 0">
-          <button class="filter-chip" :class="{ active: activeSeries === '' }" @click="switchSeries('')">全部系列</button>
-          <button v-for="series in seriesList" :key="series.id" class="filter-chip" :class="{ active: activeSeries === series.id }" @click="switchSeries(series.id)">
-            {{ series.name }}
-          </button>
-        </div>
-
-        <div class="filter-row filter-row--soft" v-if="groups.length > 0">
-          <button class="filter-chip soft" :class="{ active: activeGroup === '' }" @click="switchGroup('')">全部 IP</button>
-          <button v-for="group in groups" :key="group.id" class="filter-chip soft" :class="{ active: activeGroup === group.id }" @click="switchGroup(group.id)">
-            {{ group.name }}
-          </button>
-        </div>
-      </section>
+      <ShopFilterBar
+        :series-list="seriesList"
+        :groups="groups"
+        :active-series="activeSeries"
+        :active-group="activeGroup"
+        @switch-series="switchSeries"
+        @switch-group="switchGroup"
+      />
 
       <div v-if="loading" class="shop-loading">
         <div class="spinner"></div>
@@ -226,53 +221,23 @@ onMounted(loadData);
 
       <template v-else>
         <div v-if="visibleGroups.length > 0" class="shop-grid">
-          <article v-for="group in visibleGroups" :key="group.id" class="shop-card">
-            <button class="product-stage" @click="openDetail(group)">
-              <span class="status-tag" :class="group.sale_status">{{ statusText(group) }}</span>
-              <img :src="productImage(group)" :alt="group.name" />
-            </button>
-
-            <div class="card-body">
-              <div class="card-title-row">
-                <div>
-                  <span class="series-name">{{ group.series_name || group.application_name || 'WhatMint' }}</span>
-                  <h2>{{ group.name }}</h2>
-                </div>
-                <strong>{{ formatPrice(group.price) }}</strong>
-              </div>
-
-              <p>{{ group.description || '触碰实体即可进入它绑定的小世界，内容可以被更新，也可以成为长期存在的关系载体。' }}</p>
-
-              <div class="tag-list">
-                <span v-for="tag in tagsFor(group)" :key="tag">{{ tag }}</span>
-              </div>
-
-              <div class="progress-row" v-if="group.stock_limit > 0 || group.crowdfund_goal > 0">
-                <div class="progress-track">
-                  <div class="progress-fill" :class="{ crowd: group.sale_status === 'crowdfunding' }" :style="{ width: progressPercent(group) + '%' }"></div>
-                </div>
-                <span v-if="group.stock_limit > 0">已发放 {{ group.entity_count || 0 }} / {{ group.stock_limit }}</span>
-                <span v-else>众筹 {{ group.pledge_count || 0 }} / {{ group.crowdfund_goal }}</span>
-              </div>
-
-              <div class="shop-actions">
-                <button class="primary-action" @click="openDetail(group)">查看 IP 档案</button>
-                <button v-if="group.sale_status === 'purchasable'" class="secondary-action" @click="handleExternalPurchase(group)">外部购买</button>
-                <button v-else-if="group.sale_status === 'crowdfunding'" class="secondary-action" @click="handlePledge(group)">参与众筹</button>
-                <button v-else class="secondary-action" disabled>{{ group.sale_status === 'sold_out' ? '已售罄' : '暂不可购买' }}</button>
-              </div>
-
-              <button
-                v-if="wishlistEnabled"
-                class="wish-action"
-                :class="{ active: wishlistStatus[group.id] }"
-                @click="handleAddWishlist(group)"
-              >
-                <span>{{ wishlistStatus[group.id] ? '已在心愿单' : '加入心愿单' }}</span>
-                <strong>{{ wishlistCounts[group.id] || 0 }}</strong>
-              </button>
-            </div>
-          </article>
+          <ShopProductCard
+            v-for="group in visibleGroups"
+            :key="group.id"
+            :group="group"
+            :image="productImage(group)"
+            :tags="tagsFor(group)"
+            :status-text="statusText(group)"
+            :price-text="formatPrice(group.price)"
+            :progress="progressPercent(group)"
+            :wishlist-enabled="wishlistEnabled"
+            :in-wishlist="!!wishlistStatus[group.id]"
+            :wishlist-count="wishlistCounts[group.id] || 0"
+            @open-detail="openDetail"
+            @external-purchase="handleExternalPurchase"
+            @pledge="handlePledge"
+            @add-wishlist="handleAddWishlist"
+          />
         </div>
 
         <div v-else class="shop-empty">
@@ -302,26 +267,24 @@ onMounted(loadData);
 }
 
 .shop-shell {
-  max-width: 1180px;
+  max-width: 1120px;
   margin: 0 auto;
   padding: 30px 24px 70px;
 }
 
 .shop-hero {
   display: grid;
-  grid-template-columns: minmax(0, 1.12fr) 360px;
-  gap: 28px;
+  grid-template-columns: minmax(0, 1.2fr) 300px;
+  gap: 18px;
   align-items: stretch;
-  min-height: 390px;
-  margin-bottom: 22px;
+  min-height: 320px;
+  margin-bottom: 18px;
 }
 
 .hero-copy,
-.hero-product,
-.filter-panel,
-.shop-card {
+.hero-product {
   border: 1px solid rgba(255, 255, 255, 0.16);
-  box-shadow: 0 26px 70px rgba(13, 5, 20, 0.28);
+  box-shadow: 0 22px 58px rgba(13, 5, 20, 0.22);
 }
 
 .hero-copy {
@@ -362,8 +325,8 @@ onMounted(loadData);
   z-index: 1;
   max-width: 720px;
   margin: 14px 0;
-  font-size: clamp(34px, 6vw, 68px);
-  line-height: 0.96;
+  font-size: clamp(32px, 5vw, 58px);
+  line-height: 0.98;
   letter-spacing: -0.065em;
 }
 
@@ -386,8 +349,7 @@ onMounted(loadData);
   margin-top: 28px;
 }
 
-.hero-pills span,
-.tag-list span {
+.hero-pills span {
   border-radius: 999px;
   font-size: 12px;
   font-weight: 900;
@@ -406,7 +368,7 @@ onMounted(loadData);
   align-content: end;
   gap: 8px;
   padding: 18px;
-  border-radius: 34px;
+  border-radius: 30px;
   border: 0;
   color: #fff;
   text-align: left;
@@ -417,7 +379,7 @@ onMounted(loadData);
 }
 
 .hero-product img {
-  width: min(86%, 310px);
+  width: min(76%, 240px);
   justify-self: center;
   align-self: center;
   filter: drop-shadow(0 30px 42px rgba(0, 0, 0, 0.34));
@@ -449,47 +411,6 @@ onMounted(loadData);
   line-height: 1.6;
 }
 
-.filter-panel {
-  display: grid;
-  gap: 10px;
-  margin: 0 0 20px;
-  padding: 14px;
-  border-radius: 24px;
-  background: rgba(255, 255, 255, 0.86);
-  backdrop-filter: blur(18px);
-}
-
-.filter-row {
-  display: flex;
-  gap: 8px;
-  overflow-x: auto;
-  padding-bottom: 2px;
-}
-
-.filter-chip {
-  flex: 0 0 auto;
-  padding: 9px 15px;
-  border: 1px solid rgba(124, 77, 255, 0.14);
-  border-radius: 999px;
-  background: #fff;
-  color: #6d6174;
-  font-size: 13px;
-  font-weight: 900;
-  cursor: pointer;
-}
-
-.filter-chip.active {
-  border-color: #1c1124;
-  background: #1c1124;
-  color: #fff;
-}
-
-.filter-chip.soft.active {
-  border-color: #ff4fd8;
-  background: #fff0fb;
-  color: #c7269d;
-}
-
 .shop-loading {
   display: flex;
   justify-content: center;
@@ -512,203 +433,8 @@ onMounted(loadData);
 .shop-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 18px;
-  margin-top: 18px;
-}
-
-.shop-card {
-  overflow: hidden;
-  border-radius: 30px;
-  background: rgba(255, 255, 255, 0.92);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-
-.shop-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 30px 80px rgba(88, 35, 105, 0.18);
-}
-
-.product-stage {
-  position: relative;
-  display: grid;
-  place-items: center;
-  width: 100%;
-  min-height: 300px;
-  border: 0;
-  background:
-    radial-gradient(circle at 50% 24%, rgba(255, 255, 255, 0.38), transparent 28%),
-    linear-gradient(145deg, #20102a, #0c0611);
-  cursor: pointer;
-}
-
-.product-stage img {
-  width: min(72%, 260px);
-  max-height: 280px;
-  object-fit: contain;
-  filter: drop-shadow(0 28px 32px rgba(0, 0, 0, 0.32));
-}
-
-.status-tag {
-  position: absolute;
-  top: 16px;
-  left: 16px;
-  padding: 7px 11px;
-  border-radius: 999px;
-  color: #fff;
-  background: rgba(255, 255, 255, 0.14);
-  font-size: 12px;
-  font-weight: 950;
-}
-
-.status-tag.purchasable,
-.status-tag.crowdfund_success {
-  background: rgba(38, 204, 118, 0.22);
-  color: #dfffea;
-}
-
-.status-tag.crowdfunding {
-  background: rgba(255, 184, 107, 0.22);
-  color: #ffe6c4;
-}
-
-.card-body {
-  display: grid;
-  gap: 13px;
-  padding: 18px;
-}
-
-.card-title-row {
-  display: flex;
-  justify-content: space-between;
   gap: 14px;
-}
-
-.series-name {
-  color: #a2388d;
-  font-size: 12px;
-  font-weight: 900;
-}
-
-.card-title-row h2 {
-  margin: 5px 0 0;
-  font-size: 21px;
-  line-height: 1.2;
-  letter-spacing: -0.03em;
-}
-
-.card-title-row strong {
-  color: #ff4fd8;
-  font-size: 20px;
-  white-space: nowrap;
-}
-
-.card-body p {
-  display: -webkit-box;
-  min-height: 48px;
-  margin: 0;
-  overflow: hidden;
-  color: #736779;
-  font-size: 13px;
-  line-height: 1.7;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-}
-
-.tag-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 7px;
-}
-
-.tag-list span {
-  padding: 6px 9px;
-  color: #6d4a73;
-  background: #f7eff9;
-}
-
-.progress-row {
-  display: grid;
-  gap: 7px;
-  color: #887a90;
-  font-size: 12px;
-  font-weight: 800;
-}
-
-.progress-track {
-  height: 7px;
-  overflow: hidden;
-  border-radius: 999px;
-  background: #f0e7f2;
-}
-
-.progress-fill {
-  height: 100%;
-  border-radius: inherit;
-  background: linear-gradient(90deg, #ff4fd8, #7c4dff);
-}
-
-.progress-fill.crowd {
-  background: linear-gradient(90deg, #ffb86b, #ff4fd8);
-}
-
-.shop-actions {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 9px;
-}
-
-.primary-action,
-.secondary-action,
-.wish-action {
-  min-height: 42px;
-  border-radius: 15px;
-  font-size: 13px;
-  font-weight: 950;
-  cursor: pointer;
-}
-
-.primary-action {
-  border: none;
-  color: #fff;
-  background: linear-gradient(135deg, #ff4fd8, #7c4dff);
-}
-
-.secondary-action,
-.wish-action {
-  border: 1px solid #eee5f2;
-  color: #34203c;
-  background: #fff;
-}
-
-.secondary-action:disabled {
-  color: #aaa0af;
-  background: #f4eff5;
-  cursor: not-allowed;
-}
-
-.wish-action {
-  display: inline-flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 0 13px;
-  color: #c45193;
-}
-
-.wish-action.active {
-  border-color: #ffd0ef;
-  background: #fff4fb;
-}
-
-.wish-action strong {
-  min-width: 22px;
-  height: 22px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 999px;
-  background: rgba(255, 79, 216, 0.12);
-  font-size: 11px;
+  margin-top: 14px;
 }
 
 .shop-empty {
@@ -720,10 +446,6 @@ onMounted(loadData);
 @media (max-width: 980px) {
   .shop-hero {
     grid-template-columns: 1fr;
-  }
-
-  .hero-product {
-    min-height: 360px;
   }
 
   .shop-grid {
@@ -750,21 +472,9 @@ onMounted(loadData);
     padding: 28px 22px;
   }
 
-  .hero-product {
-    min-height: 320px;
-  }
-
-  .filter-panel {
-    border-radius: 20px;
-  }
-
   .shop-grid {
     grid-template-columns: 1fr;
-    gap: 14px;
-  }
-
-  .product-stage {
-    min-height: 270px;
+    gap: 12px;
   }
 }
 </style>

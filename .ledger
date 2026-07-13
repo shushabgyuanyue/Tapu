@@ -38,3 +38,23 @@ description: 前端重构 + 交互防抖与全局动效 + 双轨账号认证 + �
 packed_by: gemini-cli
 packed_at: 2026-07-04
 entrypoint: tapu/src/main.ts
+
+## 2026-07-14 Codex Increment
+
+- domain: frontend, product-flow, docs
+- ref: 810eb56
+- todo:
+  - [x] 恢复 `/assets` 明显的 token 绑定入口，顶部 CTA 与空展馆态都能滚动聚焦到绑定输入框。
+  - [x] 将商城筛选条和商品卡拆成 `ShopFilterBar`、`ShopProductCard`，`ShopPage.vue` 从 662 行降到 415 行。
+  - [x] 压缩商城 hero 与商品卡尺寸，保持黑/紫/粉情绪 IP 风格并改善手机端布局。
+  - [x] 更新 `DOMAINS.md` 与 `docs/business-flow.md`，记录商城组件入口和后续拆分优先级。
+- evidence:
+  - `npm run build`
+  - `git diff --check`
+  - `node --check tapu/server/routes/auth.js`
+  - `node --check tapu/server/routes/dailyStickers.js`
+  - `node --check tapu/server/routes/orders.js`
+  - `node --check tapu/server/routes/videos.js`
+  - 临时 DB 启动服务 smoke：`/api/groups`、`/api/series`、`/api/config/wishlist_enabled`、`/api/daily-stickers/resolve`。
+- post-mortem:
+  - `AssetsPage.vue` 与 `DailyStickerManage.vue` 仍超过 500 行；本轮只修复资产绑定入口并将后续高收益拆分写入文档，避免一次性大拆影响业务闭环。

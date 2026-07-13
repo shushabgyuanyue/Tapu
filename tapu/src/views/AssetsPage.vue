@@ -37,6 +37,8 @@ const chunkSize = 8;
 const bindKey = ref('');
 const bindMsg = ref('');
 const bindError = ref(false);
+const bindCardRef = ref<HTMLElement | null>(null);
+const bindInputRef = ref<HTMLInputElement | null>(null);
 const suggestedDefaultVideoId = ref('');
 
 const transferTargets = ref<Record<string, string>>({});
@@ -151,6 +153,11 @@ const refreshEntities = async () => {
 const refreshStickers = async () => {
   const rows = await getDailyStickerAssets();
   stickers.value = Array.isArray(rows) ? rows : [];
+};
+
+const focusBindEntrance = () => {
+  bindCardRef.value?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  window.setTimeout(() => bindInputRef.value?.focus(), 220);
 };
 
 const applySuggestedDefault = async (entityId?: string) => {
@@ -328,6 +335,10 @@ const saveDefault = async (entityId: string, videoId = editDefaultInput.value) =
           <span class="eyebrow">My Museum</span>
           <h1>我的资产展馆</h1>
           <p>这里收藏你拥有的实体 IP 和日常贴纸。实体 IP 负责关系与情绪表达，日常贴纸负责把普通物品变成可以随时推开的门。</p>
+          <div class="hero-actions" v-if="!loginRequired">
+            <button class="hero-bind-btn" @click="focusBindEntrance">绑定新资产</button>
+            <span>收到官方 token 后，从这里把实体放进展馆。</span>
+          </div>
         </div>
         <div class="hero-stats">
           <strong>{{ entities.length + stickers.length }}</strong>
@@ -346,14 +357,14 @@ const saveDefault = async (entityId: string, videoId = editDefaultInput.value) =
       <div v-else-if="loading" class="assets-loading">正在布置展馆...</div>
 
       <template v-else>
-        <section class="bind-card">
+        <section ref="bindCardRef" class="bind-card">
           <div>
             <span class="eyebrow dark">Bind Token</span>
             <h2>把新实体放进展馆</h2>
             <p>输入官方发放的 128 位 token。可以智能识别实体 IP 或日常贴纸；如果你很确定类型，也可以使用单独按钮。</p>
           </div>
           <div class="bind-box">
-            <input v-model="bindKey" placeholder="输入实体或日常贴纸 token" class="bind-input" @keyup.enter="handleSmartBind()" />
+            <input ref="bindInputRef" v-model="bindKey" placeholder="输入实体或日常贴纸 token" class="bind-input" @keyup.enter="handleSmartBind()" />
             <button class="bind-btn" @click="handleSmartBind()">智能绑定</button>
           </div>
           <div class="bind-sub-actions">
@@ -379,7 +390,11 @@ const saveDefault = async (entityId: string, videoId = editDefaultInput.value) =
         </nav>
 
         <section v-if="assetTab === 'gallery'" class="gallery-section">
-          <div v-if="galleryItems.length === 0" class="assets-empty">展馆还空着。绑定一个 token 后，它会出现在这里。</div>
+          <div v-if="galleryItems.length === 0" class="assets-empty assets-empty--action">
+            <strong>展馆还空着</strong>
+            <span>绑定一个实体 IP 或日常贴纸 token 后，它会出现在这里。</span>
+            <button @click="focusBindEntrance">去绑定 token</button>
+          </div>
           <article v-for="item in galleryItems" :key="item.id" class="gallery-card" @click="item.action">
             <div class="gallery-art">
               <img :src="item.image" :alt="item.title" />
@@ -591,6 +606,36 @@ const saveDefault = async (entityId: string, videoId = editDefaultInput.value) =
   line-height: 1.8;
 }
 
+.hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin-top: 20px;
+}
+
+.hero-bind-btn,
+.assets-empty--action button {
+  border: none;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #ff4fd8, #7c4dff);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 950;
+  cursor: pointer;
+  box-shadow: 0 14px 28px rgba(255, 79, 216, 0.22);
+}
+
+.hero-bind-btn {
+  padding: 12px 18px;
+}
+
+.hero-actions span {
+  color: rgba(255, 255, 255, 0.62);
+  font-size: 12px;
+  font-weight: 800;
+}
+
 .hero-stats {
   display: grid;
   place-content: center;
@@ -623,6 +668,32 @@ const saveDefault = async (entityId: string, videoId = editDefaultInput.value) =
   padding: 52px 0;
   color: #9b91a8;
   text-align: center;
+}
+
+.assets-empty--action {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  padding: 46px 18px;
+  border: 1px dashed rgba(185, 49, 152, 0.28);
+  border-radius: 28px;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(255, 79, 216, 0.12), transparent 36%),
+    rgba(255, 255, 255, 0.78);
+}
+
+.assets-empty--action strong {
+  color: #2b1b32;
+  font-size: 20px;
+}
+
+.assets-empty--action span {
+  color: #8a7d92;
+  font-size: 13px;
+}
+
+.assets-empty--action button {
+  padding: 11px 18px;
 }
 
 .login-guide,
@@ -1059,6 +1130,16 @@ const saveDefault = async (entityId: string, videoId = editDefaultInput.value) =
 
   .assets-hero > div:first-child {
     padding: 26px 22px;
+  }
+
+  .hero-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .hero-bind-btn {
+    width: 100%;
+    min-height: 44px;
   }
 
   .bind-box,
