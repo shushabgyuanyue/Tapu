@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800">
+  <rect width="1200" height="800" fill="#fbf4ea"/>
+  <circle cx="960" cy="160" r="120" fill="#f2d6a4" opacity=".42"/>
+  <rect x="150" y="180" width="900" height="420" rx="38" fill="#efe3d8"/>
+  <rect x="205" y="230" width="790" height="300" rx="28" fill="#fffaf3"/>
+  <g transform="translate(390 270)" fill="none" stroke="#829378" stroke-width="7" stroke-linecap="round">
+    <path d="M0 220C82 88 178 46 292 0"/>
+    <path d="M104 112c-12-46 34-82 74-42 54-30 96 30 48 78"/>
+    <circle cx="144" cy="70" r="28" fill="#fffdf1" stroke="#d6ceb5"/>
+    <circle cx="204" cy="78" r="24" fill="#fffdf1" stroke="#d6ceb5"/>
+    <circle cx="238" cy="132" r="21" fill="#fffdf1" stroke="#d6ceb5"/>
+  </g>
+  <g transform="translate(515 390)">
+    <rect x="20" y="50" width="250" height="86" rx="26" fill="#fff" stroke="#d6c8c2" stroke-width="5"/>
+    <path d="M72 50c18-74 126-74 144 0" fill="none" stroke="#f8f5ef" stroke-width="32" stroke-linecap="round"/>
+    <ellipse cx="62" cy="126" rx="34" ry="54" fill="#fff"/>
+    <ellipse cx="228" cy="126" rx="34" ry="54" fill="#fff"/>
+  </g>
+  <text x="170" y="690" fill="#5a4d54" font-family="Georgia, serif" font-size="32">leave the door slightly open</text>
+</svg>

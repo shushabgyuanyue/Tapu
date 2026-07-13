@@ -1,43 +1,81 @@
-﻿# <项目名称>
+# WhatMint / tapU
 
-> 将标题中的 <项目名称> 改成你的仓库名。
+本仓库使用协议仓库 **archo-evo** 作为 `archo evo/` Git 子模块。协议域只维护协作规则；产品、代码和业务说明属于项目域。
 
-本仓库使用协议仓库 **rcho-evo** 作为 **rcho evo/** Git 子模块（协作协议与工作流）。
+## 项目一句话
 
-## 克隆
+WhatMint 是一个给实体安装“情绪应用”的 NFC 内容系统。当前主线是 **情绪 IP 类**：用户购买实体 IP 后，官方录入外部订单并发放 token / NFC 链接，用户可将内容绑定到实体，碰一下实体即可播放对应情绪内容。
 
-`ash
-git clone --recurse-submodules <本仓库 URL>
-`
+## 当前业务主线
 
-若未带子模块：git submodule update --init --recursive。
+- 购买发生在外部平台；本平台只展示商品、录入外部订单、管理资产关系。
+- 一个 token 对应一个实体，token 为 128-bit 随机唯一值。
+- token 未绑定账号前，可凭 token 修改实体默认内容。
+- token 绑定账号后，只能登录对应账号修改内容、转赠或解绑。
+- 转赠支持账号间直接变更所有权；解绑后自行转发 token 存在泄露/抢绑风险。
+- 私有内容必须登录对应持有账号才可查看；默认推荐公开内容。
 
-## 必读：协议域四个锚点文件（已由子模块提供）
+完整流程见：[docs/business-flow.md](docs/business-flow.md)。
 
-python archo-check.py 自检要求协议根目录存在 **README.md / SPEC.md / INDEX.md**；另有讨论索引 **DISCUSSION_INDEX.md**（与提案 INDEX.md 分工不同）。均已随子模块就位：
+## 代码入口
+
+- 前端：`tapu/src`
+- 后端：`tapu/server`
+- 数据库：`tapu/server/db/index.js`、`tapu/server/db/schema.sql`
+- 核心页面：资产 `/assets`、内容详情 `/content/:id`、NFC 播放 `/play?key=...`、官方管理 `/official`
+
+## 本地运行
+
+```bash
+cd tapu
+npm install
+npm run dev:server
+npm run dev:client
+```
+
+生产构建：
+
+```bash
+cd tapu
+npm run build
+npm start
+```
+
+## 验证命令
+
+```bash
+cd tapu
+npm run build
+node --check server/db/index.js
+node --check server/routes/auth.js
+node --check server/routes/videos.js
+node --check server/routes/orders.js
+node -e "import('./server/db/index.js').then(async (m) => { await m.getDb(); console.log('db ok'); })"
+```
+
+## 文档入口
+
+- 北极星：[SPEC.md](SPEC.md)
+- 域分工：[DOMAINS.md](DOMAINS.md)
+- 文档地图：[DOCUMENT_INDEX.md](DOCUMENT_INDEX.md)
+- 开发大纲：[develop.md](develop.md)
+- 业务流程：[docs/business-flow.md](docs/business-flow.md)
+
+## Evo 协作协议
+
+协议域在 `archo evo/` 子模块中。修改协议内容请进入子模块按提案流程处理；项目域文档不要直接修改协议域。
+
+常用协议入口：
 
 | 文件 | 路径 |
 |------|------|
-| 协作协议正文 | [rcho evo/README.md](archo%20evo/README.md) |
-| 协议北极星 SPEC | [rcho evo/SPEC.md](archo%20evo/SPEC.md) |
-| 提案 INDEX | [rcho evo/INDEX.md](archo%20evo/INDEX.md) |
-| 讨论稿索引 | [rcho evo/DISCUSSION_INDEX.md](archo%20evo/DISCUSSION_INDEX.md) |
+| 协作协议正文 | [archo evo/README.md](archo%20evo/README.md) |
+| 协议北极星 SPEC | [archo evo/SPEC.md](archo%20evo/SPEC.md) |
+| 提案 INDEX | [archo evo/INDEX.md](archo%20evo/INDEX.md) |
+| 讨论稿索引 | [archo evo/DISCUSSION_INDEX.md](archo%20evo/DISCUSSION_INDEX.md) |
 
-修改协议内容请在 **rcho evo/** 仓库内按提案流程进行；详见上表 README。
+协议自检：
 
-## 项目域四个锚点文件（根目录占位模板，待你填写）
-
-与本产品相关的北极星、域分工、文档地图与阶段验收见根目录 **SPEC.md**、**DOMAINS.md**、**DOCUMENT_INDEX.md**、**develop.md**（脚手架已生成初稿，搜索 待填写 替换）。
-
-## 协议自检
-
-`ash
+```bash
 python "archo evo/archo-check.py"
-`
-
-（独立新项目若无 Archo 主仓 git 对象，merge_commit 等可能出现告警，属预期；与 Archo 主仓联合开发时可在主仓根目录执行以关联历史。）
-
-## 更多
-
-- 项目文档入口：docs/README.md
-- 协议入口清单（可复制）：[PROTOCOL-ANCHORS.md](PROTOCOL-ANCHORS.md)
+```

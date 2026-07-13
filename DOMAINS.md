@@ -1,44 +1,100 @@
-# tapU · 模块与分工
-
----
+# WhatMint / tapU · 模块与分工
 
 ## 整体进度快照
 
-| 一级域 | 估计完成度 | 档位 | 备注 |
+| 一级域 | 估计完成度 | 状态 | 备注 |
 |--------|------------|------|------|
-| frontend（前端域） | 95% | 待联调 | 官网+社区+播放器动效升级+账号鉴权体系联调 |
-| backend（后端域） | 95% | 待联调 | Express API + 转码优化 + 电商库表 + 双轨账户与加密 |
-| storage（存储域） | 40% | 待对接 | R2 服务已写，需配置环境变量实际对接 |
+| product-flow | 90% | 已联调 | 外部订单 -> token -> 实体 -> 内容 -> NFC 播放主链路已通过 E2E |
+| auth-asset | 90% | 已联调 | token 绑定、未绑定修改、绑定后账号权限、转赠、申诉解绑已实现 |
+| frontend | 85% | 可继续拆分 | 首页黑紫粉风格已延展到资产/内容页，资产页仍可组件化 |
+| backend | 90% | 已联调 | Express + SQLite + 上传转码 + 权限收紧 + 持有记录 |
+| storage | 40% | 待对接 | R2 代码已存在，需配置环境变量并做真实 CDN 验证 |
+| operations | 70% | 可用 | 官方订单、应用、持有记录、申诉、开关配置已可用 |
 
-## 一级：当前域
+## 域分工
 
-| 域 | 典型分支前缀 | 职责 |
-|----|----------------|------|
-| frontend | evo/fe-* | Vue 3 SPA：播放页动效/防误触、管理端 Dashboard、官网 Landing、社区发现页 |
-| backend | evo/be-* | Express API：视频 CRUD、分组、双轨账号认证(加密Key)、多级实体架构、高压转码 |
-| storage | evo/storage-* | Cloudflare R2 对象存储，CDN 分发视频资源 |
+### product-flow
 
-## 按域明细
+职责：
 
-### frontend（前端域）
-- **核心能力**：
-  - 播放页秒开（poster + critical CSS + code-split）
-  - 播放页上滑 Swiper 切换与双击/防误触分离动效
-  - 社交级路由转场动画、Landing 页动态载入
-  - 官网 Landing（whatmint 品牌 · 永远系列 IP 实体图 · 价值主张）
-  - 社区发现页（卡片网格 + 点赞/收藏/分享 + 实体心愿单关联）
-- **当前分支**：`evo/fe-admin-upgrade`
+- 维护 WhatMint 当前情绪 IP 业务闭环。
+- 定义外部购买、官方录入、token 发放、NFC 写入、用户绑定、内容写入、播放体验。
+- 避免把购买、社区、应用技术层过早混进用户主流程。
 
-### backend（后端域）
-- **核心能力**：
-  - 视频上传 → 9:16 转码（兼容性 yuv420p，高压缩 crf 28）
-  - 认证与电商架构：`users` 注册账户、`series`/`groups` IP选购层级、`entities` 实体子账户
-  - 对称加密 Key 下发与解析（无感鉴权）
-  - 统计 API：支持默认榜单排行，去除冗余最新指标
-  - 私有视频的 Entity 校验隔离
-- **当前分支**：`evo/fe-admin-upgrade`
+关键文档：[docs/business-flow.md](docs/business-flow.md)
 
-### storage（存储域）
-- **核心能力**：S3 兼容 API 上传/删除，CDN 公共 URL 分发
-- **状态**：代码已就绪（r2.js），需环境变量配置后激活
-- **当前分支**：`evo/fe-admin-upgrade`
+### auth-asset
+
+职责：
+
+- token 为 128-bit 随机唯一值，一个 token 对应一个实体。
+- `entities.user_id` 表示当前持有账号，未绑定时为空。
+- 未绑定 token 可凭 token 修改公开默认内容。
+- 绑定后必须登录持有账号修改内容、转赠或解绑。
+- 持有变化写入 `entity_ownership_events`。
+
+关键代码：
+
+- `tapu/server/routes/auth.js`
+- `tapu/server/routes/entities.js`
+- `tapu/src/views/AssetsPage.vue`
+
+### frontend
+
+职责：
+
+- 首页与用户主路径保持黑/紫/粉情绪 IP 风格。
+- 商城、社区、心愿单拆成独立顶部导航；社区和心愿单默认关闭。
+- 内容详情支持预览、跳转资产绑定、直接输入 token 写入实体。
+- `/play?key=...` 是 NFC 播放入口。
+
+关键代码：
+
+- `tapu/src/views/LandingPage.vue`
+- `tapu/src/views/ShopPage.vue`
+- `tapu/src/views/AssetsPage.vue`
+- `tapu/src/views/ContentDetailPage.vue`
+- `tapu/src/views/PlayerView.vue`
+
+### backend
+
+职责：
+
+- Express API、SQLite、视频上传与 FFmpeg 转码。
+- 外部订单录入、token 生成、实体资产关系、应用技术层。
+- 私有内容权限和 admin-only 官方管理边界。
+
+关键代码：
+
+- `tapu/server/db/index.js`
+- `tapu/server/db/schema.sql`
+- `tapu/server/routes/orders.js`
+- `tapu/server/routes/videos.js`
+- `tapu/server/routes/applications.js`
+
+### storage
+
+职责：
+
+- 本地上传目录与 Cloudflare R2 兼容存储。
+- 当前本地可用，R2 需要环境变量配置后做线上验证。
+
+关键代码：
+
+- `tapu/server/services/storage.js`
+- `tapu/server/services/r2.js`
+
+### operations
+
+职责：
+
+- 官方管理后台：应用、IP、订单、申诉、持有记录、站点开关。
+- 订单录入后视为 token 已发放、NFC 链接已写入，并记录时间。
+
+关键代码：
+
+- `tapu/src/views/official/OrderManage.vue`
+- `tapu/src/views/official/ApplicationManage.vue`
+- `tapu/src/views/official/AppealManage.vue`
+- `tapu/src/views/official/OwnershipManage.vue`
+- `tapu/src/views/official/SiteSettings.vue`

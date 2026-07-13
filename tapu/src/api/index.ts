@@ -184,15 +184,34 @@ export async function fetchGroup(id: string) {
   return request(`/groups/${id}`);
 }
 
-export async function createGroup(name: string, seriesId?: string) {
+export type GroupDisplayParams = {
+  crowdfund_goal?: number;
+  crowdfund_deadline?: string;
+  price?: number;
+  stock_limit?: number;
+  cover_url?: string;
+  hero_url?: string;
+  product_image_url?: string;
+  description?: string;
+  story?: string;
+  designer?: string;
+  material?: string;
+  size_label?: string;
+  rarity_label?: string;
+  external_purchase_url?: string;
+  display_tags?: string;
+  theme_color?: string;
+};
+
+export async function createGroup(name: string, seriesId?: string, opts?: GroupDisplayParams) {
   return request('/groups', {
     method: 'POST',
     auth: true,
-    jsonBody: { name, series_id: seriesId },
+    jsonBody: { name, series_id: seriesId, ...opts },
   });
 }
 
-export async function updateGroup(id: string, name: string, seriesId?: string, opts?: { crowdfund_goal?: number; crowdfund_deadline?: string; price?: number; stock_limit?: number }) {
+export async function updateGroup(id: string, name: string, seriesId?: string, opts?: GroupDisplayParams) {
   return request(`/groups/${id}`, {
     method: 'PUT',
     auth: true,
@@ -239,20 +258,31 @@ export async function fetchVideos(
   return request(`/videos${qs ? '?' + qs : ''}`, { auth: !!all || isPrivate === true });
 }
 
-export async function fetchVideo(id: string) {
-  return request(`/videos/${id}`);
+export async function fetchVideo(id: string, key?: string) {
+  const query = key ? `?key=${encodeURIComponent(key)}` : '';
+  return request(`/videos/${id}${query}`, { auth: !!key });
 }
 
-export async function fetchSiblings(id: string) {
-  return request(`/videos/${id}/siblings`);
+export async function fetchSiblings(id: string, key?: string) {
+  const query = key ? `?key=${encodeURIComponent(key)}` : '';
+  return request(`/videos/${id}/siblings${query}`, { auth: !!key });
 }
 
-export async function uploadVideo(file: File, title: string, groupId?: string, isPrivate?: boolean) {
+export async function uploadVideo(
+  file: File,
+  title: string,
+  groupId?: string,
+  isPrivate?: boolean,
+  opts?: { entityId?: string; entityKey?: string; setAsDefault?: boolean }
+) {
   const form = new FormData();
   form.append('video', file);
   form.append('title', title);
   if (groupId) form.append('group_id', groupId);
   if (isPrivate) form.append('is_private', '1');
+  if (opts?.entityId) form.append('entity_id', opts.entityId);
+  if (opts?.entityKey) form.append('entity_key', opts.entityKey);
+  if (opts?.setAsDefault) form.append('set_as_default', '1');
   const token = getToken();
   const headers: Record<string, string> = {};
   if (token) headers['Authorization'] = `Bearer ${token}`;
@@ -301,6 +331,327 @@ export async function deleteApplication(id: string) {
     method: 'DELETE',
     auth: true,
   });
+}
+
+// ===== Daily Sticker Application =====
+export async function resolveDailySticker(key: string, opts?: { date?: string; day?: number | string }) {
+  const query = new URLSearchParams({ key });
+  if (opts?.date) query.set('date', opts.date);
+  if (opts?.day) query.set('day', String(opts.day));
+  return request(`/daily-stickers/resolve?${query.toString()}`);
+}
+
+export async function fetchDailyStickerPersonas() {
+  return request('/daily-stickers/personas', { auth: true });
+}
+
+export async function createDailyStickerPersona(params: {
+  name: string;
+  object_type?: string;
+  tagline?: string;
+  voice?: string;
+  world_summary?: string;
+  worldview?: string;
+  atmosphere?: string;
+  expression_style?: string;
+  cover_url?: string;
+  theme_color?: string;
+  status?: string;
+}) {
+  return request('/daily-stickers/personas', {
+    method: 'POST',
+    auth: true,
+    jsonBody: params,
+  });
+}
+
+export async function updateDailyStickerPersona(id: string, params: {
+  name: string;
+  object_type?: string;
+  tagline?: string;
+  voice?: string;
+  world_summary?: string;
+  worldview?: string;
+  atmosphere?: string;
+  expression_style?: string;
+  cover_url?: string;
+  theme_color?: string;
+  status?: string;
+}) {
+  return request(`/daily-stickers/personas/${id}`, {
+    method: 'PUT',
+    auth: true,
+    jsonBody: params,
+  });
+}
+
+export async function deleteDailyStickerPersona(id: string) {
+  return request(`/daily-stickers/personas/${id}`, {
+    method: 'DELETE',
+    auth: true,
+  });
+}
+
+export async function fetchDailyStickerTemplates() {
+  return request('/daily-stickers/templates', { auth: true });
+}
+
+export async function fetchDailyStickerVisualStyles() {
+  return request('/daily-stickers/visual-styles', { auth: true });
+}
+
+export async function fetchDailyStickerSettings() {
+  return request('/daily-stickers/settings', { auth: true });
+}
+
+export async function updateDailyStickerSettings(params: { release_cron: string; release_timezone?: string }) {
+  return request('/daily-stickers/settings', {
+    method: 'PUT',
+    auth: true,
+    jsonBody: params,
+  });
+}
+
+export async function fetchDailyStickerWorlds(personaId?: string) {
+  const query = new URLSearchParams();
+  if (personaId) query.set('persona_id', personaId);
+  const qs = query.toString();
+  return request(`/daily-stickers/worlds${qs ? '?' + qs : ''}`, { auth: true });
+}
+
+export async function createDailyStickerWorld(params: {
+  persona_id: string;
+  name: string;
+  slug?: string;
+  premise?: string;
+  worldview?: string;
+  atmosphere?: string;
+  narrative_voice?: string;
+  expression_style?: string;
+  cover_url?: string;
+  theme_color?: string;
+  theme_tokens_json?: unknown;
+  release_mode?: string;
+  status?: string;
+}) {
+  return request('/daily-stickers/worlds', {
+    method: 'POST',
+    auth: true,
+    jsonBody: params,
+  });
+}
+
+export async function updateDailyStickerWorld(id: string, params: {
+  persona_id: string;
+  name: string;
+  slug?: string;
+  premise?: string;
+  worldview?: string;
+  atmosphere?: string;
+  narrative_voice?: string;
+  expression_style?: string;
+  cover_url?: string;
+  theme_color?: string;
+  theme_tokens_json?: unknown;
+  release_mode?: string;
+  status?: string;
+}) {
+  return request(`/daily-stickers/worlds/${id}`, {
+    method: 'PUT',
+    auth: true,
+    jsonBody: params,
+  });
+}
+
+export async function fetchDailyStickerStoryArcs(worldId?: string) {
+  const query = new URLSearchParams();
+  if (worldId) query.set('world_id', worldId);
+  const qs = query.toString();
+  return request(`/daily-stickers/story-arcs${qs ? '?' + qs : ''}`, { auth: true });
+}
+
+export async function createDailyStickerStoryArc(params: {
+  world_id: string;
+  title: string;
+  summary?: string;
+  source_format?: string;
+  markdown_source?: string;
+  total_days?: number;
+  starts_on?: string;
+  release_cron?: string;
+  release_timezone?: string;
+  status?: string;
+}) {
+  return request('/daily-stickers/story-arcs', {
+    method: 'POST',
+    auth: true,
+    jsonBody: params,
+  });
+}
+
+export async function updateDailyStickerStoryArc(id: string, params: {
+  world_id: string;
+  title: string;
+  summary?: string;
+  source_format?: string;
+  markdown_source?: string;
+  total_days?: number;
+  starts_on?: string;
+  release_cron?: string;
+  release_timezone?: string;
+  status?: string;
+}) {
+  return request(`/daily-stickers/story-arcs/${id}`, {
+    method: 'PUT',
+    auth: true,
+    jsonBody: params,
+  });
+}
+
+export async function fetchDailyStickerEntries(personaId?: string, storyArcId?: string) {
+  const query = new URLSearchParams();
+  if (personaId) query.set('persona_id', personaId);
+  if (storyArcId) query.set('story_arc_id', storyArcId);
+  const qs = query.toString();
+  return request(`/daily-stickers/entries${qs ? '?' + qs : ''}`, { auth: true });
+}
+
+export async function createDailyStickerEntry(params: {
+  persona_id: string;
+  world_id?: string;
+  story_arc_id?: string;
+  day_index?: number;
+  entry_date: string;
+  title?: string;
+  body?: string;
+  markdown_source?: string;
+  content_json?: unknown;
+  template_code?: string;
+  visual_style_code?: string;
+  primary_modality?: string;
+  layout_hint?: string;
+  mood?: string;
+  quote?: string;
+  quote_author?: string;
+  image_url?: string;
+  motion_preset?: string;
+  status?: string;
+  assets?: Array<{ asset_type?: string; type?: string; role?: string; url: string; alt_text?: string; alt?: string; metadata?: unknown; metadata_json?: string; sort_order?: number }>;
+}) {
+  return request('/daily-stickers/entries', {
+    method: 'POST',
+    auth: true,
+    jsonBody: params,
+  });
+}
+
+export async function updateDailyStickerEntry(id: string, params: {
+  persona_id: string;
+  world_id?: string;
+  story_arc_id?: string;
+  day_index?: number;
+  entry_date: string;
+  title?: string;
+  body?: string;
+  markdown_source?: string;
+  content_json?: unknown;
+  template_code?: string;
+  visual_style_code?: string;
+  primary_modality?: string;
+  layout_hint?: string;
+  mood?: string;
+  quote?: string;
+  quote_author?: string;
+  image_url?: string;
+  motion_preset?: string;
+  status?: string;
+  assets?: Array<{ asset_type?: string; type?: string; role?: string; url: string; alt_text?: string; alt?: string; metadata?: unknown; metadata_json?: string; sort_order?: number }>;
+}) {
+  return request(`/daily-stickers/entries/${id}`, {
+    method: 'PUT',
+    auth: true,
+    jsonBody: params,
+  });
+}
+
+export async function deleteDailyStickerEntry(id: string) {
+  return request(`/daily-stickers/entries/${id}`, {
+    method: 'DELETE',
+    auth: true,
+  });
+}
+
+export async function fetchDailyStickerTokens(params?: { page?: number; pageSize?: number; q?: string; personaId?: string }) {
+  const query = new URLSearchParams();
+  if (params?.page) query.set('page', String(params.page));
+  if (params?.pageSize) query.set('page_size', String(params.pageSize));
+  if (params?.q) query.set('q', params.q);
+  if (params?.personaId) query.set('persona_id', params.personaId);
+  const qs = query.toString();
+  return request(`/daily-stickers/tokens${qs ? '?' + qs : ''}`, { auth: true });
+}
+
+export async function createDailyStickerTokens(params: {
+  persona_id: string;
+  world_id?: string;
+  story_arc_id?: string;
+  label?: string;
+  token?: string;
+  count?: number;
+  progress_mode?: string;
+  story_start_date?: string;
+  day_offset?: number;
+  status?: string;
+}) {
+  return request('/daily-stickers/tokens', {
+    method: 'POST',
+    auth: true,
+    jsonBody: params,
+  });
+}
+
+export async function updateDailyStickerToken(id: string, params: {
+  persona_id: string;
+  world_id?: string;
+  story_arc_id?: string;
+  label?: string;
+  progress_mode?: string;
+  story_start_date?: string;
+  day_offset?: number;
+  status?: string;
+}) {
+  return request(`/daily-stickers/tokens/${id}`, {
+    method: 'PUT',
+    auth: true,
+    jsonBody: params,
+  });
+}
+
+export async function deleteDailyStickerToken(id: string) {
+  return request(`/daily-stickers/tokens/${id}`, {
+    method: 'DELETE',
+    auth: true,
+  });
+}
+
+export async function bindDailyStickerToken(key: string) {
+  return request('/daily-stickers/bind-token', {
+    method: 'POST',
+    auth: true,
+    jsonBody: { key },
+  });
+}
+
+export async function unbindDailyStickerToken(tokenId: string) {
+  return request('/daily-stickers/unbind-token', {
+    method: 'POST',
+    auth: true,
+    jsonBody: { token_id: tokenId },
+  });
+}
+
+export async function getDailyStickerAssets() {
+  return request('/daily-stickers/my-assets', { auth: true });
 }
 
 // ===== Stats =====

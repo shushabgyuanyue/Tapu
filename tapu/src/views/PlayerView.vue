@@ -1,7 +1,17 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { fetchVideo, fetchSiblings, recordPlay, setDefault, resolveByKey, getConfig } from '../api';
+import {
+  fetchVideo,
+  fetchSiblings,
+  recordPlay,
+  setDefault,
+  resolveByKey,
+  getConfig,
+  setEntityDefault,
+  setEntityDefaultByToken,
+  isLoggedIn,
+} from '../api';
 
 const route = useRoute();
 const router = useRouter();
@@ -28,6 +38,7 @@ const videoRefs = ref<Record<number, HTMLVideoElement>>({});
 // Double-tap state
 const showHeartAnim = ref(false);
 const showDefaultSet = ref(false);
+const defaultToastText = ref('已设为默认');
 let tapTimeout: number | null = null;
 let heartAnimTimeout: number | null = null;
 let defaultToastTimeout: number | null = null;
@@ -38,6 +49,9 @@ const adInterval = ref(5);
 const swipeCount = ref(0);
 const showAdCard = ref(false);
 const communityEnabled = ref(false);
+const activeEntityKey = ref('');
+const resolvedEntityId = ref('');
+const resolvedOwnerId = ref('');
 
 // Viewport height
 const viewportHeight = ref(window.innerHeight);
@@ -83,15 +97,18 @@ onMounted(async () => {
     if (intervalRes.value !== null) adInterval.value = parseInt(intervalRes.value) || 5;
   } catch { /* defaults */ }
 
-  const id = route.params.id as string;
-  const key = route.query.key as string;
+  const id = typeof route.params.id === 'string' ? route.params.id : '';
+  const key = typeof route.query.key === 'string' ? route.query.key : '';
+  activeEntityKey.value = key;
 
   // Key-based entry: resolve via entity key (includes private content)
-  if (key) {
+  if (key && !id) {
     try {
       const data = await resolveByKey(key);
       if (data.videos && data.videos.length > 0) {
         feed.value = data.videos;
+        resolvedEntityId.value = data.entity_id || '';
+        resolvedOwnerId.value = data.user_id || '';
         safeRecordPlay(data.videos[0].id);
         return;
       } else {
@@ -108,12 +125,17 @@ onMounted(async () => {
   // Standard entry by video ID
   if (id) {
     try {
-      const video = await fetchVideo(id);
+      if (key) {
+        const resolved = await resolveByKey(key);
+        resolvedEntityId.value = resolved.entity_id || '';
+        resolvedOwnerId.value = resolved.user_id || '';
+      }
+      const video = await fetchVideo(id, key);
       if (video && !video.error && video.file_path) {
         feed.value = [video];
         safeRecordPlay(id);
         // Load siblings
-        const sibs = await fetchSiblings(id);
+        const sibs = await fetchSiblings(id, key);
         if (sibs && sibs.length > 0) {
           feed.value = [video, ...sibs];
         }
@@ -300,7 +322,10 @@ const goTo = (index: number) => {
 
   const video = feed.value[index];
   if (video?.id) {
-    router.replace(`/play/${video.id}`);
+    router.replace({
+      path: `/play/${video.id}`,
+      query: activeEntityKey.value ? { key: activeEntityKey.value } : {},
+    });
     safeRecordPlay(video.id);
   }
 
@@ -355,9 +380,36 @@ const onDoubleTap = async () => {
   if (!video?.id) return;
 
   try {
-    await setDefault(video.id);
+    if (activeEntityKey.value) {
+      let result: any;
+      if (resolvedOwnerId.value) {
+        if (!isLoggedIn()) {
+          defaultToastText.value = '已绑定实体需登录对应账号修改';
+          showDefaultSet.value = true;
+          clearTimer(defaultToastTimeout);
+          defaultToastTimeout = window.setTimeout(() => {
+            showDefaultSet.value = false;
+            defaultToastTimeout = null;
+          }, 2200);
+          return;
+        }
+        result = await setEntityDefault(resolvedEntityId.value, video.id);
+      } else {
+        result = await setEntityDefaultByToken(activeEntityKey.value, video.id);
+      }
+      if (result?.error) throw new Error(result.error);
+    } else {
+      await setDefault(video.id);
+    }
   } catch (error) {
     console.warn('Set default failed:', error);
+    defaultToastText.value = error instanceof Error ? error.message : '设置默认失败';
+    showDefaultSet.value = true;
+    clearTimer(defaultToastTimeout);
+    defaultToastTimeout = window.setTimeout(() => {
+      showDefaultSet.value = false;
+      defaultToastTimeout = null;
+    }, 2200);
     return;
   }
 
@@ -366,6 +418,7 @@ const onDoubleTap = async () => {
   }
 
   showHeartAnim.value = true;
+  defaultToastText.value = '已设为默认';
   showDefaultSet.value = true;
   clearTimer(heartAnimTimeout);
   clearTimer(defaultToastTimeout);
@@ -456,7 +509,7 @@ const onDoubleTap = async () => {
 
     <!-- Default set toast -->
     <transition name="fade">
-      <div v-if="showDefaultSet" class="default-toast">已设为默认</div>
+      <div v-if="showDefaultSet" class="default-toast">{{ defaultToastText }}</div>
     </transition>
 
     <!-- Ad card overlay -->

@@ -1,27 +1,39 @@
 # 文档索引与项目总览
 
-> 协议仓产品讨论登记若存在，勿与 **docs/DOCUMENT_INDEX.md** 混用——二者可分工为「登记簿 vs 地图」。
+> 本文件是项目域文档地图；协议域索引在 `archo evo/` 子模块内维护。
 
----
+## 1. 本项目是什么
 
-## 1. 本项目是什么（一段话）
+WhatMint / tapU 是一个通过 NFC 将实体与情绪内容绑定的系统。当前阶段聚焦情绪 IP 类实体：外部购买实体后，官方录入订单并生成 token，用户将内容绑定到实体，碰一下 NFC 即可播放对应内容。
 
-tapU 是一个通过NFC触发的情绪摆件H5呈现系统。用户触碰实体摆件后，打开极简的H5页面，在无加载感的情况下直接自动播放一个3–7秒的单情绪视频，带来一次瞬间的情绪回应感受，播放完毕后平滑退出或循环。
+## 2. 必读顺序
 
-## 2. 权威优先级
-
-| 层次 | 文档 | 承担 |
+| 顺序 | 文档 | 用途 |
 |------|------|------|
-| 条文/需求全文 | [需求.txt](需求.txt) | 整体产品定义与产品目标 |
-| 阶段与验收 | [develop.md](develop.md) | 研发节奏、里程碑与前端实现验收 |
-| 模块进度 | [DOMAINS.md](DOMAINS.md) | 域划分（前端域、资源域）与进度追踪 |
-| 协作协议 | [archo evo/README.md](archo%20evo/README.md) | 协议域流程、Archo-Evo 规范 |
+| 1 | [SPEC.md](SPEC.md) | 产品北极星和稳定原则 |
+| 2 | [docs/business-flow.md](docs/business-flow.md) | 完整业务流程、权限规则、数据库关系、E2E 结果 |
+| 3 | [DOMAINS.md](DOMAINS.md) | 模块分工和代码入口 |
+| 4 | [develop.md](develop.md) | 阶段状态、验收和后续高收益事项 |
+| 5 | [README.md](README.md) | 本地运行和验证命令 |
 
-## 3. 登记簿
+## 3. 代码入口索引
 
-- 暂无附加讨论文档。
+| 方向 | 入口 |
+|------|------|
+| 后端 API | `tapu/server/routes/*` |
+| 数据库 | `tapu/server/db/index.js`、`tapu/server/db/schema.sql` |
+| 前端页面 | `tapu/src/views/*` |
+| API 封装 | `tapu/src/api/index.ts` |
+| 官方后台 | `tapu/src/views/official/*` |
+| 上传与存储 | `tapu/server/services/transcode.js`、`tapu/server/services/storage.js`、`tapu/server/services/r2.js` |
 
-## 4. 协议子模块
+## 4. 协议域
 
-- 路径：`archo evo/`
+- 协议子模块：`archo evo/`
 - 四锚点备忘：[PROTOCOL-ANCHORS.md](PROTOCOL-ANCHORS.md)
+- 不要在项目域提交中修改协议域规则，除非明确进入协议提案流程。
+
+## 5. 历史/运行产物
+
+- 项目复盘与约束：`docs/archo-evo/review/`、`docs/archo-evo/constraints/`
+- 产品讨论：`docs/discussions/`

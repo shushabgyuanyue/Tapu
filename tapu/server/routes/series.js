@@ -15,6 +15,13 @@ function resultToObjects(results) {
   });
 }
 
+function adminOnly(req, res, next) {
+  if (req.user.username !== 'admin') {
+    return res.status(403).json({ error: '仅管理员可操作' });
+  }
+  next();
+}
+
 // List all series (public)
 router.get('/', async (req, res) => {
   const db = await getDb();
@@ -28,7 +35,7 @@ router.get('/', async (req, res) => {
 });
 
 // Create series (requires auth)
-router.post('/', authRequired, async (req, res) => {
+router.post('/', authRequired, adminOnly, async (req, res) => {
   const { name, application_id } = req.body;
   if (!name) return res.status(400).json({ error: 'name is required' });
 
@@ -40,7 +47,7 @@ router.post('/', authRequired, async (req, res) => {
 });
 
 // Update series (requires auth)
-router.put('/:id', authRequired, async (req, res) => {
+router.put('/:id', authRequired, adminOnly, async (req, res) => {
   const { name, application_id } = req.body;
   if (!name) return res.status(400).json({ error: 'name is required' });
 
@@ -51,7 +58,7 @@ router.put('/:id', authRequired, async (req, res) => {
 });
 
 // Delete series (requires auth)
-router.delete('/:id', authRequired, async (req, res) => {
+router.delete('/:id', authRequired, adminOnly, async (req, res) => {
   const db = await getDb();
   db.run('DELETE FROM series WHERE id = ?', [req.params.id]);
   saveDb();

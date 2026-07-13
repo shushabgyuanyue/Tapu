@@ -224,10 +224,15 @@ router.get('/entities', authRequired, async (req, res) => {
   try {
     const db = await getDb();
     const results = db.exec(
-      `SELECT e.*, g.name as group_name, g.series_id, s.name as series_name
+      `SELECT e.*, g.name as group_name, g.series_id, g.cover_url, g.hero_url, g.product_image_url,
+              g.description, g.rarity_label, g.theme_color, g.official_default_video_id,
+              s.name as series_name, a.code as application_code, a.name as application_name,
+              ov.poster_url as official_default_video_poster
        FROM entities e
        LEFT JOIN groups g ON e.group_id = g.id
        LEFT JOIN series s ON g.series_id = s.id
+       LEFT JOIN applications a ON s.application_id = a.id
+       LEFT JOIN videos ov ON ov.id = g.official_default_video_id
        WHERE e.user_id = ?
        ORDER BY e.created_at DESC`,
       [req.user.id]
@@ -240,7 +245,7 @@ router.get('/entities', authRequired, async (req, res) => {
 });
 
 // Generate entity key (admin/creator use)
-router.post('/entity-key', authRequired, async (req, res) => {
+router.post('/entity-key', authRequired, adminOnly, async (req, res) => {
   try {
     const { group_id, entity_id } = req.body;
     if (!group_id || !entity_id) {
@@ -300,6 +305,14 @@ router.put('/entity-default-by-token', async (req, res) => {
 
     db.run('DELETE FROM user_defaults WHERE entity_id = ?', [entity.id]);
     db.run('INSERT INTO user_defaults (entity_id, video_id, group_id) VALUES (?, ?, ?)', [entity.id, video_id, entity.group_id]);
+    recordOwnershipEvent(db, {
+      entityId: entity.id,
+      token: entity.token || entity.entity_key,
+      eventType: 'content_default_set',
+      actorUserId: null,
+      orderId: entity.external_order_no || null,
+      note: '未绑定 token 修改实体默认内容',
+    });
     saveDb();
     res.json({ success: true, entity_id: entity.id });
   } catch (error) {
@@ -438,7 +451,7 @@ router.get('/entity-default/:entityId', authRequired, async (req, res) => {
   try {
     const db = await getDb();
     // Verify entity belongs to user
-    const entityResults = db.exec('SELECT user_id, group_id FROM entities WHERE id = ?', [req.params.entityId]);
+    const entityResults = db.exec('SELECT user_id, group_id, token, entity_key, external_order_no FROM entities WHERE id = ?', [req.params.entityId]);
     const entities = resultToObjects(entityResults);
     if (entities.length === 0 || entities[0].user_id !== req.user.id) {
       return res.status(403).json({ error: '无权查看该实体' });
@@ -473,7 +486,7 @@ router.put('/entity-default/:entityId', authRequired, async (req, res) => {
     const group_id = entities[0].group_id;
 
     const videoResults = db.exec(
-      'SELECT id, group_id, status FROM videos WHERE id = ?',
+      'SELECT id, group_id, status, is_private, entity_id FROM videos WHERE id = ?',
       [video_id]
     );
     const videos = resultToObjects(videoResults);
@@ -486,11 +499,22 @@ router.put('/entity-default/:entityId', authRequired, async (req, res) => {
     if (videos[0].status !== 'ready') {
       return res.status(400).json({ error: '只能将就绪内容设为默认内容' });
     }
+    if (videos[0].is_private === 1 && videos[0].entity_id !== req.params.entityId && req.user.username !== 'admin') {
+      return res.status(403).json({ error: '不能将其他实体的私有内容设为默认内容' });
+    }
 
     // Delete old default and insert new
     db.run('DELETE FROM user_defaults WHERE entity_id = ?', [req.params.entityId]);
     db.run('INSERT INTO user_defaults (entity_id, video_id, group_id) VALUES (?, ?, ?)',
       [req.params.entityId, video_id, group_id]);
+    recordOwnershipEvent(db, {
+      entityId: req.params.entityId,
+      token: entities[0].token || entities[0].entity_key,
+      eventType: 'content_default_set',
+      actorUserId: req.user.id,
+      orderId: entities[0].external_order_no || null,
+      note: '账号所有者修改实体默认内容',
+    });
     saveDb();
 
     res.json({ success: true });
