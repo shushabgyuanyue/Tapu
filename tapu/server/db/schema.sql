@@ -410,3 +410,59 @@ ON daily_sticker_tokens(user_id);
 
 CREATE INDEX IF NOT EXISTS idx_daily_sticker_ownership_events_token
 ON daily_sticker_ownership_events(token_id);
+
+CREATE TABLE IF NOT EXISTS answer_book_decks (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  subtitle TEXT,
+  description TEXT,
+  tone_notes TEXT,
+  theme_color TEXT DEFAULT '#2f6f5e',
+  status TEXT DEFAULT 'active',
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS answer_book_cards (
+  id TEXT PRIMARY KEY,
+  deck_id TEXT NOT NULL,
+  answer TEXT NOT NULL,
+  response TEXT,
+  action TEXT,
+  tag TEXT,
+  status TEXT DEFAULT 'active',
+  sort_order INTEGER DEFAULT 0,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (deck_id) REFERENCES answer_book_decks(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS answer_book_tokens (
+  id TEXT PRIMARY KEY,
+  deck_id TEXT NOT NULL,
+  token TEXT UNIQUE NOT NULL,
+  label TEXT,
+  status TEXT DEFAULT 'active',
+  issued_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (deck_id) REFERENCES answer_book_decks(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS answer_book_draw_events (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  token_id TEXT,
+  deck_id TEXT,
+  card_id TEXT,
+  user_agent TEXT,
+  drawn_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (token_id) REFERENCES answer_book_tokens(id) ON DELETE SET NULL,
+  FOREIGN KEY (deck_id) REFERENCES answer_book_decks(id) ON DELETE SET NULL,
+  FOREIGN KEY (card_id) REFERENCES answer_book_cards(id) ON DELETE SET NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_answer_book_cards_deck
+ON answer_book_cards(deck_id);
+
+CREATE INDEX IF NOT EXISTS idx_answer_book_tokens_deck
+ON answer_book_tokens(deck_id);
+
+CREATE INDEX IF NOT EXISTS idx_answer_book_draw_events_token
+ON answer_book_draw_events(token_id);

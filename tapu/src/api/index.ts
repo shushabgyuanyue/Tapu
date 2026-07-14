@@ -654,6 +654,124 @@ export async function getDailyStickerAssets() {
   return request('/daily-stickers/my-assets', { auth: true });
 }
 
+// ===== Answer Book Application =====
+export async function resolveAnswerBook(key: string, opts?: { exclude?: string }) {
+  const query = new URLSearchParams({ key });
+  if (opts?.exclude) query.set('exclude', opts.exclude);
+  return request(`/answer-book/resolve?${query.toString()}`);
+}
+
+export async function fetchAnswerBookDecks() {
+  return request('/answer-book/decks', { auth: true });
+}
+
+export async function createAnswerBookDeck(params: {
+  name: string;
+  subtitle?: string;
+  description?: string;
+  tone_notes?: string;
+  theme_color?: string;
+  status?: string;
+}) {
+  return request('/answer-book/decks', {
+    method: 'POST',
+    auth: true,
+    jsonBody: params,
+  });
+}
+
+export async function updateAnswerBookDeck(id: string, params: {
+  name: string;
+  subtitle?: string;
+  description?: string;
+  tone_notes?: string;
+  theme_color?: string;
+  status?: string;
+}) {
+  return request(`/answer-book/decks/${id}`, {
+    method: 'PUT',
+    auth: true,
+    jsonBody: params,
+  });
+}
+
+export async function fetchAnswerBookCards(deckId?: string) {
+  const query = new URLSearchParams();
+  if (deckId) query.set('deck_id', deckId);
+  const qs = query.toString();
+  return request(`/answer-book/cards${qs ? '?' + qs : ''}`, { auth: true });
+}
+
+export async function createAnswerBookCard(params: {
+  deck_id: string;
+  answer: string;
+  response?: string;
+  action?: string;
+  tag?: string;
+  status?: string;
+  sort_order?: number;
+}) {
+  return request('/answer-book/cards', {
+    method: 'POST',
+    auth: true,
+    jsonBody: params,
+  });
+}
+
+export async function updateAnswerBookCard(id: string, params: {
+  deck_id: string;
+  answer: string;
+  response?: string;
+  action?: string;
+  tag?: string;
+  status?: string;
+  sort_order?: number;
+}) {
+  return request(`/answer-book/cards/${id}`, {
+    method: 'PUT',
+    auth: true,
+    jsonBody: params,
+  });
+}
+
+export async function deleteAnswerBookCard(id: string) {
+  return request(`/answer-book/cards/${id}`, {
+    method: 'DELETE',
+    auth: true,
+  });
+}
+
+export async function fetchAnswerBookTokens(params?: { page?: number; pageSize?: number; q?: string; deckId?: string }) {
+  const query = new URLSearchParams();
+  if (params?.page) query.set('page', String(params.page));
+  if (params?.pageSize) query.set('page_size', String(params.pageSize));
+  if (params?.q) query.set('q', params.q);
+  if (params?.deckId) query.set('deck_id', params.deckId);
+  const qs = query.toString();
+  return request(`/answer-book/tokens${qs ? '?' + qs : ''}`, { auth: true });
+}
+
+export async function createAnswerBookTokens(params: {
+  deck_id: string;
+  label?: string;
+  token?: string;
+  count?: number;
+  status?: string;
+}) {
+  return request('/answer-book/tokens', {
+    method: 'POST',
+    auth: true,
+    jsonBody: params,
+  });
+}
+
+export async function deleteAnswerBookToken(id: string) {
+  return request(`/answer-book/tokens/${id}`, {
+    method: 'DELETE',
+    auth: true,
+  });
+}
+
 // ===== Stats =====
 export async function recordPlay(videoId: string) {
   await request('/stats/play', {

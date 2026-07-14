@@ -14,6 +14,7 @@ const navModules = [
     items: [
       { path: '/official', label: '情绪 IP / 商品', exact: true },
       { path: '/official/daily-stickers', label: '日常贴纸' },
+      { path: '/official/answer-book', label: '答案之书' },
       { path: '/official/applications', label: '应用注册' },
     ],
   },

@@ -11,10 +11,11 @@ WhatMint / tapU 是一个通过 NFC 将实体与情绪内容绑定的系统。�
 | 顺序 | 文档 | 用途 |
 |------|------|------|
 | 1 | [SPEC.md](SPEC.md) | 产品北极星和稳定原则 |
-| 2 | [docs/business-flow.md](docs/business-flow.md) | 完整业务流程、权限规则、数据库关系、E2E 结果 |
-| 3 | [DOMAINS.md](DOMAINS.md) | 模块分工和代码入口 |
-| 4 | [develop.md](develop.md) | 阶段状态、验收和后续高收益事项 |
-| 5 | [README.md](README.md) | 本地运行和验证命令 |
+| 2 | [docs/product-manifesto.md](docs/product-manifesto.md) | 产品宣言、品牌气质和设计语言 |
+| 3 | [docs/business-flow.md](docs/business-flow.md) | 完整业务流程、权限规则、数据库关系、E2E 结果 |
+| 4 | [DOMAINS.md](DOMAINS.md) | 模块分工和代码入口 |
+| 5 | [develop.md](develop.md) | 阶段状态、验收和后续高收益事项 |
+| 6 | [README.md](README.md) | 本地运行和验证命令 |
 
 ## 3. 代码入口索引
 

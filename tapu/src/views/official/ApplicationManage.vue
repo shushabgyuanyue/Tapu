@@ -18,6 +18,7 @@ const msgError = ref(false);
 const presets = [
   { name: '情绪 IP', code: 'emotion-ip', interaction_type: 'tap_to_emotion_content', description: '实体承载情绪表达，触碰后进入对应内容。' },
   { name: '日常贴纸', code: 'daily-sticker', interaction_type: 'tap_to_fun_content', description: '普通物品贴上 NFC 后展示共享的每日趣味内容。' },
+  { name: '答案之书', code: 'answer-book', interaction_type: 'tap_to_mindful_answer', description: '触碰现实物体，随机获得一张克制、正念式的回应卡。' },
   { name: '传信', code: 'message-box', interaction_type: 'tap_to_message_inbox', description: '实体作为情绪信箱，承载重要节点留言。' },
   { name: '收藏手作', code: 'collectible-craft', interaction_type: 'tap_to_story_archive', description: '给非标作品建立故事、履历和数字生命。' },
 ];

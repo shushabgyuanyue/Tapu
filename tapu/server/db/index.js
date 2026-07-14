@@ -4,6 +4,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { createUniqueEntityToken, resultToObjects } from '../services/tokens.js';
 import { ensureJasmineRainEarphonesStory } from '../services/dailyStickerSeed.js';
+import { ensureAnswerBookSeed } from '../services/answerBookSeed.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -441,6 +442,49 @@ export async function getDb() {
       FOREIGN KEY (persona_id) REFERENCES daily_sticker_personas(id) ON DELETE SET NULL,
       FOREIGN KEY (entry_id) REFERENCES daily_sticker_entries(id) ON DELETE SET NULL
     )`,
+    `CREATE TABLE IF NOT EXISTS answer_book_decks (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      subtitle TEXT,
+      description TEXT,
+      tone_notes TEXT,
+      theme_color TEXT DEFAULT '#2f6f5e',
+      status TEXT DEFAULT 'active',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE IF NOT EXISTS answer_book_cards (
+      id TEXT PRIMARY KEY,
+      deck_id TEXT NOT NULL,
+      answer TEXT NOT NULL,
+      response TEXT,
+      action TEXT,
+      tag TEXT,
+      status TEXT DEFAULT 'active',
+      sort_order INTEGER DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (deck_id) REFERENCES answer_book_decks(id) ON DELETE CASCADE
+    )`,
+    `CREATE TABLE IF NOT EXISTS answer_book_tokens (
+      id TEXT PRIMARY KEY,
+      deck_id TEXT NOT NULL,
+      token TEXT UNIQUE NOT NULL,
+      label TEXT,
+      status TEXT DEFAULT 'active',
+      issued_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (deck_id) REFERENCES answer_book_decks(id) ON DELETE CASCADE
+    )`,
+    `CREATE TABLE IF NOT EXISTS answer_book_draw_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      token_id TEXT,
+      deck_id TEXT,
+      card_id TEXT,
+      user_agent TEXT,
+      drawn_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (token_id) REFERENCES answer_book_tokens(id) ON DELETE SET NULL,
+      FOREIGN KEY (deck_id) REFERENCES answer_book_decks(id) ON DELETE SET NULL,
+      FOREIGN KEY (card_id) REFERENCES answer_book_cards(id) ON DELETE SET NULL
+    )`,
   ];
   for (const sql of migrations) {
     try { db.run(sql); } catch (e) { /* Column already exists */ }
@@ -606,6 +650,9 @@ export async function getDb() {
     db.run('CREATE INDEX IF NOT EXISTS idx_daily_sticker_assets_entry ON daily_sticker_entry_assets(entry_id)');
     db.run('CREATE INDEX IF NOT EXISTS idx_daily_sticker_tokens_user ON daily_sticker_tokens(user_id)');
     db.run('CREATE INDEX IF NOT EXISTS idx_daily_sticker_ownership_events_token ON daily_sticker_ownership_events(token_id)');
+    db.run('CREATE INDEX IF NOT EXISTS idx_answer_book_cards_deck ON answer_book_cards(deck_id)');
+    db.run('CREATE INDEX IF NOT EXISTS idx_answer_book_tokens_deck ON answer_book_tokens(deck_id)');
+    db.run('CREATE INDEX IF NOT EXISTS idx_answer_book_draw_events_token ON answer_book_draw_events(token_id)');
   } catch (e) { /* ignore */ }
 
   try {
@@ -617,6 +664,10 @@ export async function getDb() {
   try {
     ensureJasmineRainEarphonesStory(db);
   } catch (e) { /* sample story seed should never block startup */ }
+
+  try {
+    ensureAnswerBookSeed(db);
+  } catch (e) { /* answer book seed should never block startup */ }
 
   saveDb();
 

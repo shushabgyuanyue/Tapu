@@ -18,6 +18,11 @@ const routes = [
     component: () => import('../views/DailyStickerPage.vue'),
   },
   {
+    path: '/answer',
+    name: 'answer-book',
+    component: () => import('../views/AnswerBookPage.vue'),
+  },
+  {
     path: '/community',
     name: 'community',
     component: () => import('../views/CommunityPage.vue'),
@@ -99,6 +104,7 @@ const routes = [
       { path: '', name: 'official-groups', component: () => import('../views/admin/GroupManage.vue') },
       { path: 'applications', name: 'official-applications', component: () => import('../views/official/ApplicationManage.vue') },
       { path: 'daily-stickers', name: 'official-daily-stickers', component: () => import('../views/official/DailyStickerManage.vue') },
+      { path: 'answer-book', name: 'official-answer-book', component: () => import('../views/official/AnswerBookManage.vue') },
       { path: 'orders', name: 'official-orders', component: () => import('../views/official/OrderManage.vue') },
       { path: 'appeals', name: 'official-appeals', component: () => import('../views/official/AppealManage.vue') },
       { path: 'ownership', name: 'official-ownership', component: () => import('../views/official/OwnershipManage.vue') },
@@ -148,6 +154,10 @@ router.beforeEach(async (to, _from, next) => {
   }
   if (key && to.path === '/sticker') {
     // Daily sticker NFC links resolve publicly without login.
+    return next();
+  }
+  if (key && to.path === '/answer') {
+    // Answer Book NFC links resolve publicly without login.
     return next();
   }
   if (key && to.path === '/assets') {

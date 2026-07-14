@@ -5,6 +5,8 @@
 ## 推荐入口
 
 - [business-flow.md](business-flow.md)：当前最重要的接手文档，说明订单-token-实体-内容-NFC 全流程。
+- [product-manifesto.md](product-manifesto.md)：产品宣言、品牌气质和设计语言。
+- [content-container-architecture.md](content-container-architecture.md)：内容容器架构和后续兼容攻坚边界。
 - [../SPEC.md](../SPEC.md)：产品北极星。
 - [../DOMAINS.md](../DOMAINS.md)：模块分工和代码入口。
 - [../develop.md](../develop.md)：阶段状态和验收。
@@ -13,6 +15,8 @@
 ## 目录说明
 
 - `business-flow.md`：业务流程、权限规则、数据库关系、E2E 测试结果。
+- `product-manifesto.md`：WhatMint 的长期产品调性、设计语言和判断准则。
+- `content-container-architecture.md`：统一内容容器的架构边界。
 - `discussions/`：产品 / ADR 讨论沉淀。
 - `archo-evo/review/`：项目域复盘运行产物。
 - `archo-evo/constraints/`：项目域约束运行产物。
