@@ -16,18 +16,6 @@ const data = ref<any>(null);
 const nextInput = ref('');
 const nextNoteInput = ref('');
 const returnNote = ref('');
-const checkedReminders = ref<string[]>([]);
-
-const reminderItems = [
-  { code: 'id', label: '证件 / 护照', hint: '最难补救' },
-  { code: 'charger', label: '充电器', hint: '线和头都看一眼' },
-  { code: 'keys', label: '钥匙 / 门卡', hint: '回来的入口' },
-  { code: 'medicine', label: '常用药', hint: '别指望路上买' },
-  { code: 'earbuds', label: '耳机', hint: '路上的小房间' },
-  { code: 'umbrella', label: '伞 / 外套', hint: '天气会有性格' },
-  { code: 'toiletries', label: '洗漱小包', hint: '牙刷最会缺席' },
-  { code: 'cash', label: '现金 / 银行卡', hint: '给意外留条路' },
-];
 
 const token = computed(() => String(route.query.key || '').trim());
 const trail = computed(() => data.value?.trail || {});
@@ -44,9 +32,6 @@ const subtitle = computed(() => (
 ));
 const lifeQuestion = computed(() => ritual.value.lifeQuestion || '我的人生走过了哪些地方？');
 const objectLabel = computed(() => data.value?.token?.object_label || trail.value.object_label || '这件会移动的物品');
-const checklistStorageKey = computed(() => `whatmint:travel-trail:${token.value}:${nextPlace.value || 'no-next'}:reminders`);
-const checkedReminderSet = computed(() => new Set(checkedReminders.value));
-const checkedReminderCount = computed(() => checkedReminders.value.length);
 
 const displayPlaces = computed(() => {
   const base = places.value.map((place: any) => ({ ...place, future: false }));
@@ -101,33 +86,6 @@ const syncTrail = (result: any, nextMessage: string) => {
   message.value = nextMessage;
 };
 
-const loadChecklist = () => {
-  try {
-    const raw = localStorage.getItem(checklistStorageKey.value);
-    const parsed = raw ? JSON.parse(raw) : [];
-    checkedReminders.value = Array.isArray(parsed) ? parsed.filter(item => typeof item === 'string') : [];
-  } catch {
-    checkedReminders.value = [];
-  }
-};
-
-const saveChecklist = () => {
-  try {
-    localStorage.setItem(checklistStorageKey.value, JSON.stringify(checkedReminders.value));
-  } catch {
-    // Checklist state is a convenience only; failing silently keeps the tap flow light.
-  }
-};
-
-const toggleReminder = (code: string) => {
-  if (checkedReminderSet.value.has(code)) {
-    checkedReminders.value = checkedReminders.value.filter(item => item !== code);
-  } else {
-    checkedReminders.value = [...checkedReminders.value, code];
-  }
-  saveChecklist();
-};
-
 const load = async () => {
   loading.value = true;
   error.value = '';
@@ -142,7 +100,6 @@ const load = async () => {
     error.value = result.error;
   } else {
     data.value = result;
-    loadChecklist();
   }
   loading.value = false;
 };
@@ -186,7 +143,6 @@ const confirmReturn = async () => {
 
 onMounted(load);
 watch(() => route.fullPath, load);
-watch(checklistStorageKey, loadChecklist);
 </script>
 
 <template>
@@ -245,30 +201,6 @@ watch(checklistStorageKey, loadChecklist);
           <h2>下一站：{{ nextPlace }}</h2>
           <span v-if="nextPlaceNote">{{ nextPlaceNote }}</span>
           <span v-else>它还没有成为过去，但已经被这件行李轻轻记住。</span>
-
-          <div class="reminder-card">
-            <div class="reminder-head">
-              <div>
-                <strong>临出门，最容易忘的东西</strong>
-                <small>{{ checkedReminderCount }}/{{ reminderItems.length }} checked</small>
-              </div>
-              <em>轻轻确认，不必完美。</em>
-            </div>
-            <div class="reminder-grid">
-              <button
-                v-for="item in reminderItems"
-                :key="item.code"
-                type="button"
-                class="reminder-item"
-                :class="{ checked: checkedReminderSet.has(item.code) }"
-                @click="toggleReminder(item.code)"
-              >
-                <span>{{ checkedReminderSet.has(item.code) ? '✓' : '' }}</span>
-                <strong>{{ item.label }}</strong>
-                <small>{{ item.hint }}</small>
-              </button>
-            </div>
-          </div>
 
           <div class="return-row">
             <input v-model="returnNote" placeholder="回来后，可以给这一站留一句话" @keyup.enter="confirmReturn" />
@@ -600,106 +532,6 @@ svg {
   line-height: 1.7;
 }
 
-.reminder-card {
-  display: grid;
-  gap: 12px;
-  margin-top: 16px;
-  padding: 14px;
-  border: 1px solid rgba(23, 33, 29, 0.08);
-  border-radius: 22px;
-  background: rgba(255, 252, 244, 0.72);
-}
-
-.reminder-head {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  align-items: flex-start;
-}
-
-.reminder-head div {
-  display: grid;
-  gap: 3px;
-}
-
-.reminder-head strong,
-.reminder-head small,
-.reminder-head em {
-  margin: 0;
-}
-
-.reminder-head strong {
-  color: #17211d;
-  font-size: 14px;
-}
-
-.reminder-head small,
-.reminder-head em {
-  color: rgba(23, 33, 29, 0.52);
-  font-size: 12px;
-  font-style: normal;
-}
-
-.reminder-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 8px;
-}
-
-.reminder-item {
-  min-height: 86px;
-  display: grid;
-  align-content: start;
-  justify-items: start;
-  gap: 5px;
-  border: 1px solid rgba(23, 33, 29, 0.09);
-  border-radius: 18px;
-  padding: 10px;
-  color: #17211d;
-  background: rgba(255, 255, 255, 0.64);
-  box-shadow: none;
-  text-align: left;
-}
-
-.reminder-item span {
-  width: 22px;
-  height: 22px;
-  display: grid;
-  place-items: center;
-  margin: 0;
-  border: 1px solid rgba(23, 33, 29, 0.18);
-  border-radius: 999px;
-  color: #fff;
-  background: transparent;
-  font-size: 12px;
-  line-height: 1;
-}
-
-.reminder-item strong,
-.reminder-item small {
-  margin: 0;
-}
-
-.reminder-item strong {
-  font-size: 13px;
-}
-
-.reminder-item small {
-  color: rgba(23, 33, 29, 0.5);
-  font-size: 11px;
-  line-height: 1.4;
-}
-
-.reminder-item.checked {
-  border-color: color-mix(in srgb, var(--trail-accent), transparent 52%);
-  background: color-mix(in srgb, var(--trail-accent), white 88%);
-}
-
-.reminder-item.checked span {
-  border-color: var(--trail-accent);
-  background: var(--trail-accent);
-}
-
 .return-row,
 .plan-grid {
   display: grid;
@@ -823,7 +655,6 @@ button:disabled {
   }
 
   .return-row,
-  .reminder-grid,
   .plan-grid {
     grid-template-columns: 1fr;
   }

@@ -33,6 +33,11 @@ const routes = [
     component: () => import('../views/TravelTrailPage.vue'),
   },
   {
+    path: '/check',
+    name: 'check',
+    component: () => import('../views/CheckPage.vue'),
+  },
+  {
     path: '/community',
     name: 'community',
     component: () => import('../views/CommunityPage.vue'),
@@ -119,6 +124,7 @@ const routes = [
       { path: 'answer-book', name: 'official-answer-book', component: () => import('../views/official/AnswerBookManage.vue') },
       { path: 'moments', name: 'official-moments', component: () => import('../views/official/MomentManage.vue') },
       { path: 'travel-trails', name: 'official-travel-trails', component: () => import('../views/official/TravelTrailManage.vue') },
+      { path: 'checks', name: 'official-checks', component: () => import('../views/official/CheckManage.vue') },
       { path: 'orders', name: 'official-orders', component: () => import('../views/official/OrderManage.vue') },
       { path: 'appeals', name: 'official-appeals', component: () => import('../views/official/AppealManage.vue') },
       { path: 'ownership', name: 'official-ownership', component: () => import('../views/official/OwnershipManage.vue') },
@@ -180,6 +186,10 @@ router.beforeEach(async (to, _from, next) => {
   }
   if (key && to.path === '/trail') {
     // Travel trail NFC links resolve publicly without login.
+    return next();
+  }
+  if (key && to.path === '/check') {
+    // Check NFC links resolve publicly without login.
     return next();
   }
   if (key && to.path === '/assets') {

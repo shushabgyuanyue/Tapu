@@ -30,6 +30,11 @@ function normalizeCode(code, name) {
     .slice(0, 48);
 }
 
+function normalizeAppType(value, fallback = 'meaning') {
+  const appType = String(value || fallback).trim();
+  return ['meaning', 'behavior', 'state'].includes(appType) ? appType : fallback;
+}
+
 router.get('/', authRequired, adminOnly, async (_req, res) => {
   try {
     const db = await getDb();
@@ -49,7 +54,7 @@ router.get('/', authRequired, adminOnly, async (_req, res) => {
 
 router.post('/', authRequired, adminOnly, async (req, res) => {
   try {
-    const { name, code, interaction_type, description, status } = req.body;
+    const { name, code, app_type, interaction_type, description, status } = req.body;
     if (!name || !interaction_type) {
       return res.status(400).json({ error: 'name and interaction_type are required' });
     }
@@ -60,9 +65,9 @@ router.post('/', authRequired, adminOnly, async (req, res) => {
     if (!appCode) return res.status(400).json({ error: 'code is invalid' });
 
     db.run(
-      `INSERT INTO applications (id, name, code, interaction_type, description, status)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [id, name.trim(), appCode, interaction_type.trim(), description || '', status || 'active']
+      `INSERT INTO applications (id, name, code, app_type, interaction_type, description, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [id, name.trim(), appCode, normalizeAppType(app_type), interaction_type.trim(), description || '', status || 'active']
     );
     saveDb();
     res.json({ success: true, id, name: name.trim(), code: appCode });
@@ -77,7 +82,7 @@ router.post('/', authRequired, adminOnly, async (req, res) => {
 
 router.put('/:id', authRequired, adminOnly, async (req, res) => {
   try {
-    const { name, code, interaction_type, description, status } = req.body;
+    const { name, code, app_type, interaction_type, description, status } = req.body;
     if (!name || !interaction_type) {
       return res.status(400).json({ error: 'name and interaction_type are required' });
     }
@@ -88,9 +93,9 @@ router.put('/:id', authRequired, adminOnly, async (req, res) => {
     const db = await getDb();
     db.run(
       `UPDATE applications
-       SET name = ?, code = ?, interaction_type = ?, description = ?, status = ?
+       SET name = ?, code = ?, app_type = ?, interaction_type = ?, description = ?, status = ?
        WHERE id = ?`,
-      [name.trim(), appCode, interaction_type.trim(), description || '', status || 'active', req.params.id]
+      [name.trim(), appCode, normalizeAppType(app_type), interaction_type.trim(), description || '', status || 'active', req.params.id]
     );
     saveDb();
     res.json({ success: true });

@@ -310,7 +310,7 @@ export async function fetchApplications() {
   return request('/applications', { auth: true });
 }
 
-export async function createApplication(params: { name: string; code?: string; interaction_type: string; description?: string; status?: string }) {
+export async function createApplication(params: { name: string; code?: string; app_type?: 'meaning' | 'behavior' | 'state'; interaction_type: string; description?: string; status?: string }) {
   return request('/applications', {
     method: 'POST',
     auth: true,
@@ -318,7 +318,7 @@ export async function createApplication(params: { name: string; code?: string; i
   });
 }
 
-export async function updateApplication(id: string, params: { name: string; code?: string; interaction_type: string; description?: string; status?: string }) {
+export async function updateApplication(id: string, params: { name: string; code?: string; app_type?: 'meaning' | 'behavior' | 'state'; interaction_type: string; description?: string; status?: string }) {
   return request(`/applications/${id}`, {
     method: 'PUT',
     auth: true,
@@ -599,6 +599,90 @@ export async function deleteTravelTrailPlace(trailId: string, placeId: string) {
   return request(`/travel-trails/trails/${trailId}/places/${placeId}`, {
     method: 'DELETE',
     auth: true,
+  });
+}
+
+// ===== Check Application =====
+export type CheckInput = {
+  title: string;
+  subtitle?: string;
+  object_label?: string;
+  scenario?: string;
+  template_id?: string;
+  theme_color?: string;
+  status?: string;
+  items?: Array<{ label: string; hint?: string; sort_order?: number; is_required?: boolean }>;
+};
+
+export type CheckItemInput = {
+  label: string;
+  hint?: string;
+  sort_order?: number;
+  is_required?: boolean;
+};
+
+export async function resolveCheck(key: string) {
+  const query = new URLSearchParams({ key });
+  return request(`/checks/resolve?${query.toString()}`);
+}
+
+export async function fetchCheckTemplates() {
+  return request('/checks/templates', { auth: true });
+}
+
+export async function fetchChecklists() {
+  return request('/checks/checklists', { auth: true });
+}
+
+export async function createChecklist(params: CheckInput) {
+  return request('/checks/checklists', {
+    method: 'POST',
+    auth: true,
+    jsonBody: params,
+  });
+}
+
+export async function addChecklistItem(checklistId: string, params: CheckItemInput) {
+  return request(`/checks/checklists/${checklistId}/items`, {
+    method: 'POST',
+    auth: true,
+    jsonBody: params,
+  });
+}
+
+export async function updateChecklistItem(checklistId: string, itemId: string, params: CheckItemInput) {
+  return request(`/checks/checklists/${checklistId}/items/${itemId}`, {
+    method: 'PUT',
+    auth: true,
+    jsonBody: params,
+  });
+}
+
+export async function deleteChecklistItem(checklistId: string, itemId: string) {
+  return request(`/checks/checklists/${checklistId}/items/${itemId}`, {
+    method: 'DELETE',
+    auth: true,
+  });
+}
+
+export async function addChecklistItemByKey(key: string, params: CheckItemInput) {
+  return request('/checks/items', {
+    method: 'POST',
+    jsonBody: { ...params, key },
+  });
+}
+
+export async function toggleChecklistItemByKey(key: string, itemId: string, isChecked: boolean) {
+  return request(`/checks/items/${itemId}`, {
+    method: 'PUT',
+    jsonBody: { key, is_checked: isChecked },
+  });
+}
+
+export async function resetChecklistByKey(key: string) {
+  return request('/checks/reset', {
+    method: 'POST',
+    jsonBody: { key },
   });
 }
 

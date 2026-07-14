@@ -11,6 +11,7 @@ export const WORK_INTENTS = [
   'message',
   'play',
   'journey',
+  'check',
 ];
 
 export const WORK_INTENT_LABELS = {
@@ -22,6 +23,7 @@ export const WORK_INTENT_LABELS = {
   message: '慢信息',
   play: '趣味',
   journey: '旅程',
+  check: '检查',
 };
 
 export const WORK_INTENT_DEFAULTS = {
@@ -64,6 +66,11 @@ export const WORK_INTENT_DEFAULTS = {
     persistence: 'ongoing',
     interaction: 'trace',
     rhythm: 'add_place',
+  },
+  check: {
+    persistence: 'object_bound',
+    interaction: 'check',
+    rhythm: 'before_action',
   },
 };
 

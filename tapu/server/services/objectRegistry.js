@@ -59,6 +59,21 @@ function findTravelTrailByToken(db, rawToken) {
   ))[0] || null;
 }
 
+function findChecklistByToken(db, rawToken) {
+  const token = normalizeEntityToken(rawToken);
+  if (!token) return null;
+
+  return resultToObjects(db.exec(
+    `SELECT c.*, w.intent, w.status as work_status,
+            t.name as template_name, t.scenario as template_scenario
+     FROM checklists c
+     LEFT JOIN works w ON w.id = c.work_id
+     LEFT JOIN check_templates t ON t.id = c.template_id
+     WHERE c.token = ? LIMIT 1`,
+    [token]
+  ))[0] || null;
+}
+
 export function resolveObjectByToken(db, rawToken) {
   const answerBook = findAnswerBookByToken(db, rawToken);
   if (answerBook) {
@@ -146,6 +161,28 @@ export function resolveObjectByToken(db, rawToken) {
         interactionType: 'tap_to_travel_trace',
       },
       raw: travelTrail,
+    };
+  }
+
+  const checklist = findChecklistByToken(db, rawToken);
+  if (checklist) {
+    return {
+      object: {
+        type: 'nfc-sticker',
+        id: checklist.id,
+        tokenId: checklist.id,
+        token: checklist.token,
+        label: checklist.object_label || checklist.title,
+        status: checklist.status,
+        displayName: checklist.title || 'Check 检查',
+        themeColor: checklist.theme_color || '#2f6f5e',
+      },
+      app: {
+        code: 'check',
+        name: 'Check 检查',
+        interactionType: 'tap_to_object_check',
+      },
+      raw: checklist,
     };
   }
 
