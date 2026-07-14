@@ -31,6 +31,21 @@ function findDailyStickerByToken(db, rawToken) {
   ))[0] || null;
 }
 
+function findMomentByToken(db, rawToken) {
+  const token = normalizeEntityToken(rawToken);
+  if (!token) return null;
+
+  return resultToObjects(db.exec(
+    `SELECT m.*, c.name as collection_name, c.slug as collection_slug,
+            c.description as collection_description, c.status as collection_status,
+            c.theme_color as collection_theme_color
+     FROM moment_tokens m
+     JOIN content_collections c ON c.id = m.collection_id
+     WHERE m.token = ? LIMIT 1`,
+    [token]
+  ))[0] || null;
+}
+
 export function resolveObjectByToken(db, rawToken) {
   const answerBook = findAnswerBookByToken(db, rawToken);
   if (answerBook) {
@@ -74,6 +89,28 @@ export function resolveObjectByToken(db, rawToken) {
         interactionType: 'tap_to_slow_story',
       },
       raw: dailySticker,
+    };
+  }
+
+  const moment = findMomentByToken(db, rawToken);
+  if (moment) {
+    return {
+      object: {
+        type: 'nfc-sticker',
+        id: moment.id,
+        tokenId: moment.id,
+        token: moment.token,
+        label: moment.object_label || moment.title,
+        status: moment.status,
+        displayName: moment.title || moment.collection_name || '纪念瞬间',
+        themeColor: moment.theme_color || moment.collection_theme_color || '#9a6a2f',
+      },
+      app: {
+        code: 'moment',
+        name: '纪念瞬间',
+        interactionType: 'tap_to_saved_moment',
+      },
+      raw: moment,
     };
   }
 

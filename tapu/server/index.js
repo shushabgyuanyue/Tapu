@@ -19,6 +19,7 @@ import configRouter from './routes/config.js';
 import dailyStickersRouter from './routes/dailyStickers.js';
 import answerBookRouter from './routes/answerBook.js';
 import contentCollectionsRouter from './routes/contentCollections.js';
+import momentsRouter from './routes/moments.js';
 import { getUploadsDir } from './services/storage.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -87,6 +88,7 @@ app.use('/api/config', configRouter);
 app.use('/api/daily-stickers', dailyStickersRouter);
 app.use('/api/answer-book', answerBookRouter);
 app.use('/api/content-collections', contentCollectionsRouter);
+app.use('/api/moments', momentsRouter);
 
 // Serve frontend static files (production build)
 const distPath = path.join(__dirname, '..', 'dist');

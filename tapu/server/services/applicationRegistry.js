@@ -20,6 +20,13 @@ const BUILT_IN_APPLICATIONS = [
     description: '触碰现实物体，随机获得一张克制、正念式回应卡。',
     status: 'active',
   },
+  {
+    name: '纪念瞬间',
+    code: 'moment',
+    interaction_type: 'tap_to_saved_moment',
+    description: '把一个值得纪念的时刻封存在可触碰的物里。',
+    status: 'active',
+  },
 ];
 
 export function getBuiltInApplications() {

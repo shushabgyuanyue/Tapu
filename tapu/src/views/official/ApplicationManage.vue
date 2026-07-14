@@ -39,6 +39,17 @@ const installedApps = [
     publicPath: '/answer?key=...',
     accent: '#9a6a2f',
   },
+  {
+    code: 'moment',
+    name: '纪念瞬间',
+    stage: '已接入',
+    tone: '把一个值得记住的时刻，封存在一个可触碰的物里。',
+    runtime: 'whatmint.tap / content.collections / token binding',
+    content: '照片、视频、音频、文字、日期、地点',
+    operatorPath: '/official/moments',
+    publicPath: '/moment?key=...',
+    accent: '#b98234',
+  },
 ];
 
 const futureApps = [

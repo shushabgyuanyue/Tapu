@@ -445,6 +445,56 @@ export async function deleteAppBinding(id: string) {
   });
 }
 
+// ===== Moment Application =====
+export type MomentInput = {
+  title: string;
+  subtitle?: string;
+  object_label?: string;
+  event_date?: string;
+  place?: string;
+  cover_url?: string;
+  theme_color?: string;
+  status?: string;
+  collection_id?: string;
+  slug?: string;
+  description?: string;
+  primary_modality?: string;
+  collection_status?: string;
+  blocks?: ContentCollectionBlockInput[];
+};
+
+export async function resolveMoment(key: string) {
+  const query = new URLSearchParams({ key });
+  return request(`/moments/resolve?${query.toString()}`);
+}
+
+export async function fetchMomentTokens() {
+  return request('/moments/tokens', { auth: true });
+}
+
+export async function createMomentToken(params: MomentInput) {
+  return request('/moments/tokens', {
+    method: 'POST',
+    auth: true,
+    jsonBody: params,
+  });
+}
+
+export async function updateMomentToken(id: string, params: MomentInput) {
+  return request(`/moments/tokens/${id}`, {
+    method: 'PUT',
+    auth: true,
+    jsonBody: params,
+  });
+}
+
+export async function deleteMomentToken(id: string) {
+  return request(`/moments/tokens/${id}`, {
+    method: 'DELETE',
+    auth: true,
+  });
+}
+
 // ===== Daily Sticker Application =====
 export async function resolveDailySticker(key: string, opts?: { date?: string; day?: number | string }) {
   const query = new URLSearchParams({ key });

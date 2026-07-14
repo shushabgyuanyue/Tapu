@@ -311,6 +311,22 @@ export async function getDb() {
       FOREIGN KEY (collection_id) REFERENCES content_collections(id) ON DELETE CASCADE,
       UNIQUE(app_code, scope_type, scope_id, binding_role)
     )`,
+    `CREATE TABLE IF NOT EXISTS moment_tokens (
+      id TEXT PRIMARY KEY,
+      token TEXT UNIQUE NOT NULL,
+      collection_id TEXT NOT NULL,
+      title TEXT NOT NULL,
+      subtitle TEXT,
+      object_label TEXT,
+      event_date TEXT,
+      place TEXT,
+      cover_url TEXT,
+      theme_color TEXT,
+      status TEXT DEFAULT 'active' CHECK(status IN ('active', 'draft', 'archived')),
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (collection_id) REFERENCES content_collections(id) ON DELETE CASCADE
+    )`,
     `CREATE TABLE IF NOT EXISTS orders (
       id TEXT PRIMARY KEY,
       buyer_user_id TEXT NOT NULL,
@@ -749,6 +765,9 @@ export async function getDb() {
     db.run('CREATE INDEX IF NOT EXISTS idx_app_bindings_scope ON app_bindings(scope_type, scope_id)');
     db.run('CREATE INDEX IF NOT EXISTS idx_app_bindings_app_scope ON app_bindings(app_code, scope_type, scope_id)');
     db.run('CREATE INDEX IF NOT EXISTS idx_app_bindings_collection ON app_bindings(collection_id)');
+    db.run('CREATE INDEX IF NOT EXISTS idx_moment_tokens_token ON moment_tokens(token)');
+    db.run('CREATE INDEX IF NOT EXISTS idx_moment_tokens_collection ON moment_tokens(collection_id)');
+    db.run('CREATE INDEX IF NOT EXISTS idx_moment_tokens_status ON moment_tokens(status)');
   } catch (e) { /* ignore */ }
 
   try {
