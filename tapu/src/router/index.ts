@@ -103,6 +103,7 @@ const routes = [
     children: [
       { path: '', name: 'official-groups', component: () => import('../views/admin/GroupManage.vue') },
       { path: 'applications', name: 'official-applications', component: () => import('../views/official/ApplicationManage.vue') },
+      { path: 'content-collections', name: 'official-content-collections', component: () => import('../views/official/ContentCollectionManage.vue') },
       { path: 'daily-stickers', name: 'official-daily-stickers', component: () => import('../views/official/DailyStickerManage.vue') },
       { path: 'answer-book', name: 'official-answer-book', component: () => import('../views/official/AnswerBookManage.vue') },
       { path: 'orders', name: 'official-orders', component: () => import('../views/official/OrderManage.vue') },

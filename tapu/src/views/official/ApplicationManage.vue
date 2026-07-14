@@ -1,27 +1,77 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
-import { createApplication, deleteApplication, fetchApplications, updateApplication } from '../../api';
+import { computed, onMounted, ref } from 'vue';
+import { fetchApplications } from '../../api';
 
-const applications = ref<any[]>([]);
 const loading = ref(true);
-const editingId = ref('');
-const form = ref({
-  name: '',
-  code: '',
-  interaction_type: '',
-  description: '',
-  status: 'active',
-});
-const msg = ref('');
-const msgError = ref(false);
+const applications = ref<any[]>([]);
 
-const presets = [
-  { name: '情绪 IP', code: 'emotion-ip', interaction_type: 'tap_to_emotion_content', description: '实体承载情绪表达，触碰后进入对应内容。' },
-  { name: '日常贴纸', code: 'daily-sticker', interaction_type: 'tap_to_fun_content', description: '普通物品贴上 NFC 后展示共享的每日趣味内容。' },
-  { name: '答案之书', code: 'answer-book', interaction_type: 'tap_to_mindful_answer', description: '触碰现实物体，随机获得一张克制、正念式的回应卡。' },
-  { name: '传信', code: 'message-box', interaction_type: 'tap_to_message_inbox', description: '实体作为情绪信箱，承载重要节点留言。' },
-  { name: '收藏手作', code: 'collectible-craft', interaction_type: 'tap_to_story_archive', description: '给非标作品建立故事、履历和数字生命。' },
+const installedApps = [
+  {
+    code: 'emotion-ip',
+    name: '情绪 IP',
+    stage: '已接入',
+    tone: '实体承载情绪表达，适合商品、礼物和长期关系载体。',
+    runtime: 'entity token / video content',
+    content: '视频、默认内容、私有内容',
+    operatorPath: '/official',
+    publicPath: '/play?key=...',
+    accent: '#2f6f5e',
+  },
+  {
+    code: 'daily-sticker',
+    name: '手账慢故事贴纸',
+    stage: '已接入',
+    tone: '一枚贴纸进入一个连续更新的小世界。',
+    runtime: 'whatmint.tap / content.blocks / object_events',
+    content: '故事条目、图片、音频、视频、发布节奏',
+    operatorPath: '/official/daily-stickers',
+    publicPath: '/sticker?key=...',
+    accent: '#d98fb7',
+  },
+  {
+    code: 'answer-book',
+    name: '答案之书',
+    stage: '已接入',
+    tone: '碰一下，得到一张克制、正念、带一点反差感的回应卡。',
+    runtime: 'whatmint.tap / random draw / object_events',
+    content: '答案牌组、回应、行动提示',
+    operatorPath: '/official/answer-book',
+    publicPath: '/answer?key=...',
+    accent: '#9a6a2f',
+  },
 ];
+
+const futureApps = [
+  { name: '传信小狗', note: '实体成为情绪信箱，适合重要节点留言。' },
+  { name: '收藏作品履历', note: '非标作品拥有故事、履历和收藏关系。' },
+  { name: '第三方轻应用', note: '通过 manifest 描述入口、内容能力和触碰运行时。' },
+];
+
+const registryByCode = computed(() => {
+  const map: Record<string, any> = {};
+  for (const app of applications.value) map[app.code] = app;
+  return map;
+});
+
+const appCards = computed(() => installedApps.map(app => ({
+  ...app,
+  registry: registryByCode.value[app.code],
+})).concat(
+  applications.value
+    .filter(app => !installedApps.some(installed => installed.code === app.code))
+    .map(app => ({
+      code: app.code,
+      name: app.name,
+      stage: app.status === 'active' ? '已注册' : app.status,
+      tone: app.description || '这个应用已进入系统目录，等待补充运营工作台和公开入口。',
+      runtime: app.interaction_type || 'manifest pending',
+      content: '待声明内容能力',
+      operatorPath: '',
+      publicPath: '待声明',
+      accent: '#26324a',
+      registry: app,
+    }))
+));
 
 const loadData = async () => {
   loading.value = true;
@@ -30,368 +80,354 @@ const loadData = async () => {
   loading.value = false;
 };
 
-const resetForm = () => {
-  editingId.value = '';
-  form.value = { name: '', code: '', interaction_type: '', description: '', status: 'active' };
-};
-
-const fillPreset = (preset: any) => {
-  editingId.value = '';
-  form.value = { ...preset, status: 'active' };
-};
-
-const editApp = (app: any) => {
-  editingId.value = app.id;
-  form.value = {
-    name: app.name || '',
-    code: app.code || '',
-    interaction_type: app.interaction_type || '',
-    description: app.description || '',
-    status: app.status || 'active',
-  };
-};
-
-const submit = async () => {
-  msg.value = '';
-  msgError.value = false;
-
-  const payload = {
-    name: form.value.name.trim(),
-    code: form.value.code.trim(),
-    interaction_type: form.value.interaction_type.trim(),
-    description: form.value.description.trim(),
-    status: form.value.status,
-  };
-
-  if (!payload.name || !payload.interaction_type) {
-    msg.value = '请填写应用名称和交互方式';
-    msgError.value = true;
-    return;
-  }
-
-  const result = editingId.value
-    ? await updateApplication(editingId.value, payload)
-    : await createApplication(payload);
-
-  if (result.error) {
-    msg.value = result.error;
-    msgError.value = true;
-    return;
-  }
-
-  msg.value = editingId.value ? '应用已更新' : '应用已创建';
-  resetForm();
-  await loadData();
-};
-
-const removeApp = async (app: any) => {
-  if (!confirm(`确定删除应用「${app.name}」？关联系列会保留，但会解除应用关联。`)) return;
-  const result = await deleteApplication(app.id);
-  if (result.error) {
-    msg.value = result.error;
-    msgError.value = true;
-    return;
-  }
-  await loadData();
-};
-
 onMounted(loadData);
 </script>
 
 <template>
-  <div class="app-manage">
-    <header class="page-head">
-      <h2>应用管理</h2>
-      <p>应用是技术层的交互方式，不直接展示给用户。用户仍然只看到系列和 IP。</p>
+  <div class="app-directory">
+    <header class="directory-hero">
+      <div>
+        <p>WhatMint OS</p>
+        <h2>应用目录</h2>
+        <span>这里不再手动“注册应用”。一个场景应用被实现后，会通过系统清单自动出现在这里；运营只进入对应应用工作台。</span>
+      </div>
+      <button @click="loadData">{{ loading ? '同步中...' : '同步应用状态' }}</button>
     </header>
 
-    <section class="preset-card">
-      <h3>快速模板</h3>
-      <div class="preset-list">
-        <button v-for="preset in presets" :key="preset.code" @click="fillPreset(preset)">
-          <strong>{{ preset.name }}</strong>
-          <span>{{ preset.interaction_type }}</span>
-        </button>
-      </div>
+    <section class="principle-card">
+      <strong>当前范式</strong>
+      <p>应用不是模板库里的一个表单，而是一段已经实现的轻应用体验：它拥有公共入口、运营工作台、内容能力、触碰运行时和事件语义。</p>
     </section>
 
-    <section class="form-card">
-      <h3>{{ editingId ? '编辑应用' : '创建应用' }}</h3>
-      <div class="form-grid">
-        <label>
-          <span>应用名称</span>
-          <input v-model="form.name" placeholder="例如：情绪 IP" />
-        </label>
-        <label>
-          <span>应用 code</span>
-          <input v-model="form.code" placeholder="emotion-ip" />
-        </label>
-        <label>
-          <span>交互方式</span>
-          <input v-model="form.interaction_type" placeholder="tap_to_emotion_content" />
-        </label>
-        <label>
-          <span>状态</span>
-          <select v-model="form.status">
-            <option value="active">active</option>
-            <option value="paused">paused</option>
-          </select>
-        </label>
-        <label class="full">
-          <span>说明</span>
-          <textarea v-model="form.description" placeholder="用于描述这个应用类型承载的交互方式和业务边界"></textarea>
-        </label>
-      </div>
-      <div class="form-actions">
-        <button class="primary" @click="submit">{{ editingId ? '保存修改' : '创建应用' }}</button>
-        <button class="ghost" @click="resetForm">清空</button>
-      </div>
-      <p v-if="msg" :class="['msg', { error: msgError }]">{{ msg }}</p>
-    </section>
-
-    <section class="list-card">
-      <h3>已有应用</h3>
-      <div v-if="loading" class="empty">加载中...</div>
-      <div v-else-if="applications.length === 0" class="empty">暂无应用</div>
-      <div v-else class="app-list">
-        <article v-for="app in applications" :key="app.id" class="app-item">
+    <section class="app-grid">
+      <article
+        v-for="app in appCards"
+        :key="app.code"
+        class="app-card"
+        :style="{ '--app-accent': app.accent }"
+      >
+        <div class="card-top">
           <div>
-            <div class="item-title">
-              <strong>{{ app.name }}</strong>
-              <code>{{ app.code }}</code>
-              <span>{{ app.status }}</span>
-            </div>
-            <p>{{ app.description || '暂无说明' }}</p>
-            <small>交互方式：{{ app.interaction_type }} · 系列数：{{ app.series_count || 0 }}</small>
+            <span>{{ app.stage }}</span>
+            <h3>{{ app.name }}</h3>
           </div>
-          <div class="item-actions">
-            <button @click="editApp(app)">编辑</button>
-            <button class="danger" @click="removeApp(app)">删除</button>
+          <code>{{ app.code }}</code>
+        </div>
+
+        <p class="tone">{{ app.tone }}</p>
+
+        <dl>
+          <div>
+            <dt>运行时</dt>
+            <dd>{{ app.runtime }}</dd>
           </div>
-        </article>
+          <div>
+            <dt>内容能力</dt>
+            <dd>{{ app.content }}</dd>
+          </div>
+          <div>
+            <dt>公开入口</dt>
+            <dd>{{ app.publicPath }}</dd>
+          </div>
+          <div>
+            <dt>系统状态</dt>
+            <dd>{{ app.registry?.status || 'auto-register pending' }}</dd>
+          </div>
+        </dl>
+
+        <router-link v-if="app.operatorPath" :to="app.operatorPath">进入工作台</router-link>
+        <span v-else class="pending-link">等待接入工作台</span>
+      </article>
+    </section>
+
+    <section class="access-pattern">
+      <div>
+        <p>未来接入范式</p>
+        <h3>第三方应用应该像插件一样进入，而不是让运营手动拼表。</h3>
+        <span>先不实施，但方向要清楚：开发者提交 app manifest，声明入口、内容块能力、权限、事件、管理页和公开页，系统自动出现在应用目录。</span>
       </div>
+      <ol>
+        <li><strong>实现轻应用页面</strong><span>公开触碰页和官方管理页先存在。</span></li>
+        <li><strong>声明 manifest</strong><span>描述 app_code、入口、内容能力、事件和权限。</span></li>
+        <li><strong>接入运行时</strong><span>返回 whatmint.tap，写入 object_events。</span></li>
+        <li><strong>绑定内容集合</strong><span>需要多媒介内容时使用 Content Collection。</span></li>
+      </ol>
+    </section>
+
+    <section class="future-grid">
+      <article v-for="item in futureApps" :key="item.name">
+        <strong>{{ item.name }}</strong>
+        <p>{{ item.note }}</p>
+      </article>
     </section>
   </div>
 </template>
 
 <style scoped>
-.app-manage {
+.app-directory {
   display: grid;
+  gap: 16px;
+}
+
+.directory-hero,
+.principle-card,
+.app-card,
+.access-pattern,
+.future-grid article {
+  border: 1px solid rgba(32, 27, 34, 0.08);
+  background: rgba(255, 255, 255, 0.86);
+}
+
+.directory-hero {
+  display: flex;
+  justify-content: space-between;
   gap: 18px;
+  align-items: flex-end;
+  padding: 26px;
+  border-radius: 26px;
+  color: #fff;
+  background:
+    radial-gradient(circle at 12% 16%, rgba(255, 255, 255, 0.18), transparent 30%),
+    linear-gradient(135deg, #17121a, #26324a 58%, #2f6f5e);
 }
 
-.page-head h2 {
-  margin: 0 0 6px;
-  font-size: 20px;
-  font-weight: 800;
-}
-
-.page-head p {
+.directory-hero p,
+.directory-hero h2,
+.directory-hero span {
   margin: 0;
-  color: #888;
-  font-size: 13px;
-  line-height: 1.6;
 }
 
-.preset-card,
-.form-card,
-.list-card {
-  padding: 18px;
-  border: 1px solid #f0f0f0;
-  border-radius: 14px;
+.directory-hero p {
+  color: #d7e7dd;
+  font-size: 12px;
+  font-weight: 950;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.directory-hero h2 {
+  margin-top: 8px;
+  font-size: clamp(28px, 4vw, 40px);
+}
+
+.directory-hero span {
+  display: block;
+  margin-top: 8px;
+  max-width: 760px;
+  color: rgba(255, 255, 255, 0.76);
+  line-height: 1.7;
+}
+
+.directory-hero button,
+.app-card a,
+.pending-link {
+  border: 0;
+  border-radius: 13px;
+  padding: 11px 15px;
   background: #fff;
-}
-
-.preset-card h3,
-.form-card h3,
-.list-card h3 {
-  margin: 0 0 14px;
-  font-size: 16px;
-}
-
-.preset-list {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: 10px;
-}
-
-.preset-list button {
-  display: grid;
-  gap: 5px;
-  padding: 12px;
-  border: 1px solid #eee;
-  border-radius: 12px;
-  background: #fafafa;
+  color: #17121a;
   cursor: pointer;
-  text-align: left;
-}
-
-.preset-list button:hover {
-  border-color: #d8caff;
-  background: #f8f5ff;
-}
-
-.preset-list strong {
-  color: #333;
   font-size: 13px;
+  font-weight: 900;
+  text-decoration: none;
 }
 
-.preset-list span {
-  color: #888;
+.principle-card {
+  display: grid;
+  gap: 6px;
+  padding: 18px;
+  border-radius: 20px;
+}
+
+.principle-card strong {
+  color: #26324a;
+  font-size: 14px;
+}
+
+.principle-card p {
+  margin: 0;
+  color: #6f6672;
+  line-height: 1.7;
+}
+
+.app-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.app-card {
+  --app-accent: #2f6f5e;
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+  padding: 18px;
+  border-radius: 22px;
+  border-top: 6px solid var(--app-accent);
+}
+
+.card-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.card-top span {
+  color: var(--app-accent);
+  font-size: 12px;
+  font-weight: 950;
+}
+
+.card-top h3 {
+  margin: 5px 0 0;
+  font-size: 22px;
+}
+
+code {
+  color: #6f6672;
   font-size: 11px;
   word-break: break-all;
 }
 
-.form-grid {
+.tone {
+  margin: 0;
+  color: #4f4652;
+  line-height: 1.7;
+}
+
+dl {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+  gap: 9px;
+  margin: 0;
 }
 
-.form-grid label {
+dl div {
   display: grid;
-  gap: 6px;
-  color: #666;
-  font-size: 12px;
-  font-weight: 700;
+  gap: 3px;
 }
 
-.form-grid .full {
-  grid-column: 1 / -1;
-}
-
-.form-grid input,
-.form-grid select,
-.form-grid textarea {
-  width: 100%;
-  box-sizing: border-box;
-  padding: 10px 12px;
-  border: 1px solid #e8e8e8;
-  border-radius: 10px;
-  background: #fff;
-  color: #222;
-  font-size: 13px;
-  outline: none;
-}
-
-.form-grid textarea {
-  min-height: 82px;
-  resize: vertical;
-}
-
-.form-grid input:focus,
-.form-grid select:focus,
-.form-grid textarea:focus {
-  border-color: #7c4dff;
-}
-
-.form-actions,
-.item-actions {
-  display: flex;
-  gap: 8px;
-  margin-top: 14px;
-}
-
-.primary,
-.ghost,
-.item-actions button {
-  padding: 8px 14px;
-  border-radius: 9px;
-  cursor: pointer;
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.primary {
-  border: none;
-  background: #1a1a1a;
-  color: #fff;
-}
-
-.ghost,
-.item-actions button {
-  border: 1px solid #eee;
-  background: #fff;
-  color: #666;
-}
-
-.item-actions .danger {
-  border-color: #ffd6d6;
-  color: #d32f2f;
-}
-
-.msg {
-  margin: 10px 0 0;
-  color: #2e7d32;
-  font-size: 12px;
-}
-
-.msg.error {
-  color: #d32f2f;
-}
-
-.empty {
-  padding: 28px;
-  color: #999;
-  text-align: center;
-}
-
-.app-list {
-  display: grid;
-  gap: 10px;
-}
-
-.app-item {
-  display: flex;
-  justify-content: space-between;
-  gap: 14px;
-  padding: 14px;
-  border: 1px solid #f0f0f0;
-  border-radius: 12px;
-}
-
-.item-title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.item-title strong {
-  font-size: 15px;
-}
-
-.item-title code,
-.item-title span {
-  padding: 3px 8px;
-  border-radius: 999px;
-  background: #f5f5f5;
-  color: #777;
+dt {
+  color: #9a909d;
   font-size: 11px;
+  font-weight: 900;
 }
 
-.app-item p {
-  margin: 7px 0 5px;
-  color: #777;
+dd {
+  margin: 0;
+  color: #29242d;
   font-size: 13px;
   line-height: 1.5;
 }
 
-.app-item small {
-  color: #999;
+.app-card a {
+  justify-self: start;
+  color: #fff;
+  background: linear-gradient(135deg, #17121a, var(--app-accent));
 }
 
-@media (max-width: 640px) {
-  .form-grid {
+.pending-link {
+  justify-self: start;
+  color: #756c78;
+  background: #f3eee8;
+}
+
+.access-pattern {
+  display: grid;
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+  gap: 18px;
+  padding: 22px;
+  border-radius: 24px;
+}
+
+.access-pattern p {
+  margin: 0 0 8px;
+  color: #2f6f5e;
+  font-size: 12px;
+  font-weight: 950;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.access-pattern h3 {
+  margin: 0 0 10px;
+  font-size: 24px;
+  line-height: 1.25;
+}
+
+.access-pattern span,
+.future-grid p {
+  color: #756c78;
+  line-height: 1.7;
+}
+
+ol {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: steps;
+}
+
+ol li {
+  counter-increment: steps;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px 12px;
+  padding: 12px;
+  border-radius: 16px;
+  background: #f6f2ed;
+}
+
+ol li::before {
+  content: counter(steps);
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: #17121a;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+ol strong,
+ol span {
+  grid-column: 2;
+}
+
+ol span {
+  margin-top: -6px;
+  font-size: 13px;
+}
+
+.future-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.future-grid article {
+  padding: 16px;
+  border-radius: 18px;
+}
+
+.future-grid p {
+  margin: 6px 0 0;
+  font-size: 13px;
+}
+
+@media (max-width: 960px) {
+  .app-grid,
+  .future-grid,
+  .access-pattern {
     grid-template-columns: 1fr;
   }
 
-  .app-item {
-    flex-direction: column;
-  }
-
-  .item-actions {
-    margin-top: 0;
+  .directory-hero {
+    display: grid;
   }
 }
 </style>

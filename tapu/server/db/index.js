@@ -5,6 +5,7 @@ import { fileURLToPath } from 'url';
 import { createUniqueEntityToken, resultToObjects } from '../services/tokens.js';
 import { ensureJasmineRainEarphonesStory } from '../services/dailyStickerSeed.js';
 import { ensureAnswerBookSeed } from '../services/answerBookSeed.js';
+import { ensureApplicationRegistry } from '../services/applicationRegistry.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -583,6 +584,10 @@ export async function getDb() {
     db.run(`UPDATE site_config SET value = '*/1 * * * *' WHERE key = 'daily_sticker_release_cron' AND value = '0 8 * * *'`);
     db.run(`INSERT OR IGNORE INTO site_config (key, value) VALUES ('daily_sticker_release_timezone', 'Asia/Shanghai')`);
   } catch (e) { /* ignore */ }
+
+  try {
+    ensureApplicationRegistry(db);
+  } catch (e) { /* application registry should never block startup */ }
 
   try {
     db.run(
