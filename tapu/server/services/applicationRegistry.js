@@ -27,6 +27,13 @@ const BUILT_IN_APPLICATIONS = [
     description: '把一个值得纪念的时刻封存在可触碰的物里。',
     status: 'active',
   },
+  {
+    name: '旅行轨迹',
+    code: 'travel-trail',
+    interaction_type: 'tap_to_travel_trace',
+    description: '贴在行李或旅行物件上，触碰后把去过的地点画成一条动态轨迹。',
+    status: 'active',
+  },
 ];
 
 export function getBuiltInApplications() {

@@ -1,0 +1,547 @@
+<script setup lang="ts">
+import { computed, onMounted, ref, watch } from 'vue';
+import { useRoute } from 'vue-router';
+import { addTravelTrailPlaceByKey, resolveTravelTrail } from '../api';
+
+const route = useRoute();
+const loading = ref(true);
+const saving = ref(false);
+const error = ref('');
+const message = ref('');
+const data = ref<any>(null);
+const placeName = ref('');
+const placeNote = ref('');
+
+const token = computed(() => String(route.query.key || '').trim());
+const trail = computed(() => data.value?.trail || {});
+const places = computed(() => Array.isArray(data.value?.places) ? data.value.places : []);
+const themeColor = computed(() => data.value?.content?.themeColor || trail.value.theme_color || '#2f6f5e');
+const title = computed(() => data.value?.content?.title || trail.value.title || '旅行轨迹');
+const subtitle = computed(() => data.value?.content?.subtitle || trail.value.subtitle || '每到一个地方，就把它轻轻接到这条线上。');
+
+const pointFor = (index: number, total: number) => {
+  if (total <= 1) return { x: 50, y: 54 };
+  const progress = index / Math.max(1, total - 1);
+  const x = 10 + progress * 80;
+  const y = 50 + Math.sin(progress * Math.PI * 2.2 - 0.8) * 18 + (index % 2 ? 6 : -4);
+  return { x: Number(x.toFixed(2)), y: Number(y.toFixed(2)) };
+};
+
+const points = computed(() => places.value.map((place: any, index: number) => ({
+  ...pointFor(index, places.value.length),
+  place,
+})));
+
+const pathD = computed(() => {
+  if (points.value.length === 0) return '';
+  if (points.value.length === 1) return `M ${points.value[0].x} ${points.value[0].y}`;
+  return points.value.reduce((path, point, index) => {
+    if (index === 0) return `M ${point.x} ${point.y}`;
+    const prev = points.value[index - 1];
+    const cx = (prev.x + point.x) / 2;
+    const cy = Math.min(prev.y, point.y) - 16 + (index % 2 ? 8 : 0);
+    return `${path} Q ${cx.toFixed(2)} ${cy.toFixed(2)} ${point.x} ${point.y}`;
+  }, '');
+});
+
+const load = async () => {
+  loading.value = true;
+  error.value = '';
+  message.value = '';
+  if (!token.value) {
+    error.value = '缺少旅行轨迹链接，请确认 NFC 写入地址是否完整。';
+    loading.value = false;
+    return;
+  }
+  const result = await resolveTravelTrail(token.value);
+  if (result.error) {
+    error.value = result.error;
+  } else {
+    data.value = result;
+  }
+  loading.value = false;
+};
+
+const addPlace = async () => {
+  const name = placeName.value.trim();
+  if (!name || saving.value) return;
+  saving.value = true;
+  error.value = '';
+  message.value = '';
+  const result = await addTravelTrailPlaceByKey(token.value, {
+    name,
+    note: placeNote.value.trim() || undefined,
+  });
+  saving.value = false;
+  if (result.error) {
+    error.value = result.error;
+    return;
+  }
+  data.value = {
+    ...data.value,
+    trail: result.trail,
+    places: result.trail?.places || [],
+  };
+  placeName.value = '';
+  placeNote.value = '';
+  message.value = '新的地点已经接到轨迹上。';
+};
+
+onMounted(load);
+watch(() => route.fullPath, load);
+</script>
+
+<template>
+  <main class="trail-page" :style="{ '--trail-accent': themeColor }">
+    <div class="stamp stamp-a">WMT</div>
+    <div class="stamp stamp-b">NFC</div>
+
+    <section class="trail-shell">
+      <p class="app-mark">WhatMint Travel Trail</p>
+
+      <div v-if="loading" class="state-card">
+        <span class="loading-dot"></span>
+        <h1>正在展开这段路线</h1>
+        <p>行李牌里的地点正在排成一条线。</p>
+      </div>
+
+      <div v-else-if="error && !data" class="state-card">
+        <span class="error-dot">?</span>
+        <h1>这条轨迹暂时没有打开</h1>
+        <p>{{ error }}</p>
+      </div>
+
+      <article v-else class="trail-card">
+        <header class="trail-head">
+          <span>{{ places.length }} stops</span>
+          <h1>{{ title }}</h1>
+          <p>{{ subtitle }}</p>
+        </header>
+
+        <section class="map-card">
+          <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+            <path v-if="pathD" class="route-shadow" :d="pathD" />
+            <path v-if="pathD" class="route-line" :d="pathD" />
+          </svg>
+
+          <div
+            v-for="(point, index) in points"
+            :key="point.place.id || `${point.place.name}-${index}`"
+            class="pin"
+            :class="{ latest: index === points.length - 1 }"
+            :style="{ left: `${point.x}%`, top: `${point.y}%`, '--delay': `${index * 0.08}s` }"
+          >
+            <span>{{ index + 1 }}</span>
+            <strong>{{ point.place.name }}</strong>
+          </div>
+
+          <div v-if="places.length === 0" class="empty-map">
+            <strong>还没有地点</strong>
+            <p>输入第一个地方，让这枚贴纸开始旅行。</p>
+          </div>
+        </section>
+
+        <form class="add-card" @submit.prevent="addPlace">
+          <div>
+            <label>加入新的地点</label>
+            <input v-model="placeName" placeholder="例如：京都 / 冰岛黑沙滩 / 成都东站" />
+          </div>
+          <div>
+            <label>一句备注，可选</label>
+            <input v-model="placeNote" placeholder="那天风很大，箱子也很轻。" />
+          </div>
+          <button :disabled="saving || !placeName.trim()">{{ saving ? '加入中...' : '接到轨迹上' }}</button>
+        </form>
+
+        <p v-if="message" class="message">{{ message }}</p>
+        <p v-else-if="error" class="message error">{{ error }}</p>
+
+        <ol v-if="places.length" class="place-list">
+          <li v-for="(place, index) in places" :key="place.id || `${place.name}-${index}`">
+            <span>{{ String(index + 1).padStart(2, '0') }}</span>
+            <div>
+              <strong>{{ place.name }}</strong>
+              <p v-if="place.note">{{ place.note }}</p>
+            </div>
+          </li>
+        </ol>
+      </article>
+    </section>
+  </main>
+</template>
+
+<style scoped>
+.trail-page {
+  --trail-accent: #2f6f5e;
+  min-height: 100vh;
+  position: relative;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  padding: 30px 16px;
+  color: #17211d;
+  background:
+    radial-gradient(circle at 12% 8%, color-mix(in srgb, var(--trail-accent), transparent 72%), transparent 28%),
+    radial-gradient(circle at 88% 12%, rgba(185, 130, 52, 0.22), transparent 32%),
+    linear-gradient(145deg, #f8f2e8 0%, #e4efe9 52%, #d3dfd6 100%);
+  font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+
+.stamp {
+  position: absolute;
+  width: 120px;
+  height: 120px;
+  display: grid;
+  place-items: center;
+  border: 2px solid rgba(23, 33, 29, 0.08);
+  border-radius: 999px;
+  color: rgba(23, 33, 29, 0.08);
+  font-size: 28px;
+  font-weight: 950;
+  letter-spacing: -0.08em;
+  transform: rotate(-16deg);
+}
+
+.stamp-a {
+  left: 6%;
+  top: 10%;
+}
+
+.stamp-b {
+  right: 7%;
+  bottom: 10%;
+  transform: rotate(14deg);
+}
+
+.trail-shell {
+  position: relative;
+  z-index: 1;
+  width: min(100%, 720px);
+}
+
+.app-mark {
+  margin: 0 0 14px;
+  color: rgba(23, 33, 29, 0.54);
+  font-size: 12px;
+  font-weight: 950;
+  letter-spacing: 0.18em;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.state-card,
+.trail-card {
+  border: 1px solid rgba(23, 33, 29, 0.12);
+  background: rgba(255, 252, 244, 0.86);
+  box-shadow: 0 28px 80px rgba(47, 62, 54, 0.18);
+  backdrop-filter: blur(18px);
+}
+
+.state-card {
+  min-height: 430px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 14px;
+  padding: 34px;
+  border-radius: 34px;
+  text-align: center;
+}
+
+.loading-dot,
+.error-dot {
+  width: 64px;
+  height: 64px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  color: #fff;
+  background: var(--trail-accent);
+  box-shadow: 0 0 0 12px color-mix(in srgb, var(--trail-accent), transparent 84%);
+}
+
+.loading-dot {
+  animation: breathe 1.4s ease-in-out infinite;
+}
+
+.error-dot {
+  font-size: 28px;
+  font-weight: 950;
+}
+
+.state-card h1,
+.state-card p {
+  margin: 0;
+}
+
+.trail-card {
+  overflow: hidden;
+  padding: clamp(22px, 5vw, 38px);
+  border-radius: 38px;
+  animation: pageIn 0.48s ease both;
+}
+
+.trail-head {
+  text-align: center;
+}
+
+.trail-head span {
+  color: var(--trail-accent);
+  font-size: 13px;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
+.trail-head h1 {
+  margin: 8px 0 10px;
+  font-size: clamp(38px, 9vw, 74px);
+  line-height: 0.98;
+  letter-spacing: -0.08em;
+}
+
+.trail-head p {
+  max-width: 520px;
+  margin: 0 auto;
+  color: rgba(23, 33, 29, 0.62);
+  line-height: 1.8;
+}
+
+.map-card {
+  position: relative;
+  min-height: 360px;
+  margin-top: 28px;
+  overflow: hidden;
+  border: 1px solid rgba(23, 33, 29, 0.1);
+  border-radius: 30px;
+  background:
+    linear-gradient(90deg, rgba(23, 33, 29, 0.04) 1px, transparent 1px),
+    linear-gradient(180deg, rgba(23, 33, 29, 0.04) 1px, transparent 1px),
+    radial-gradient(circle at 20% 20%, rgba(47, 111, 94, 0.12), transparent 26%),
+    #f8f1e4;
+  background-size: 28px 28px, 28px 28px, auto, auto;
+}
+
+svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.route-shadow,
+.route-line {
+  fill: none;
+  vector-effect: non-scaling-stroke;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.route-shadow {
+  stroke: rgba(23, 33, 29, 0.1);
+  stroke-width: 7;
+}
+
+.route-line {
+  stroke: var(--trail-accent);
+  stroke-width: 3;
+  stroke-dasharray: 220;
+  stroke-dashoffset: 220;
+  animation: drawRoute 1.15s ease forwards;
+}
+
+.pin {
+  --delay: 0s;
+  position: absolute;
+  z-index: 2;
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  transform: translate(-50%, -50%);
+  animation: pinIn 0.42s ease both;
+  animation-delay: var(--delay);
+}
+
+.pin span {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border: 3px solid #fffaf4;
+  border-radius: 999px;
+  color: #fff;
+  background: var(--trail-accent);
+  box-shadow: 0 10px 24px rgba(47, 111, 94, 0.24);
+  font-size: 12px;
+  font-weight: 950;
+}
+
+.pin.latest span {
+  background: #9a6a2f;
+}
+
+.pin strong {
+  max-width: 110px;
+  padding: 5px 8px;
+  border-radius: 999px;
+  color: #26332e;
+  background: rgba(255, 252, 244, 0.88);
+  box-shadow: 0 8px 20px rgba(47, 62, 54, 0.08);
+  font-size: 12px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.empty-map {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 8px;
+  text-align: center;
+}
+
+.empty-map strong {
+  font-size: 24px;
+}
+
+.empty-map p {
+  margin: 0;
+  color: rgba(23, 33, 29, 0.58);
+}
+
+.add-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  gap: 10px;
+  margin-top: 18px;
+  padding: 14px;
+  border-radius: 24px;
+  background: rgba(23, 33, 29, 0.05);
+}
+
+.add-card div {
+  display: grid;
+  gap: 6px;
+}
+
+.add-card label {
+  color: rgba(23, 33, 29, 0.58);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.add-card input {
+  min-height: 42px;
+  border: 1px solid rgba(23, 33, 29, 0.12);
+  border-radius: 14px;
+  padding: 0 12px;
+  background: rgba(255, 252, 244, 0.9);
+  outline: none;
+}
+
+.add-card button {
+  align-self: end;
+  min-height: 42px;
+  border: 0;
+  border-radius: 14px;
+  padding: 0 16px;
+  color: #fff;
+  background: linear-gradient(135deg, #17121a, var(--trail-accent));
+  cursor: pointer;
+  font-weight: 950;
+}
+
+.add-card button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
+.message {
+  margin: 12px 0 0;
+  color: var(--trail-accent);
+  font-size: 13px;
+  font-weight: 900;
+  text-align: center;
+}
+
+.message.error {
+  color: #c92752;
+}
+
+.place-list {
+  display: grid;
+  gap: 8px;
+  margin: 18px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.place-list li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  padding: 12px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.62);
+}
+
+.place-list span {
+  color: var(--trail-accent);
+  font-size: 12px;
+  font-weight: 950;
+}
+
+.place-list strong,
+.place-list p {
+  margin: 0;
+}
+
+.place-list p {
+  margin-top: 3px;
+  color: rgba(23, 33, 29, 0.58);
+  line-height: 1.6;
+}
+
+@keyframes pageIn {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes breathe {
+  50% { transform: scale(0.9); opacity: 0.72; }
+}
+
+@keyframes drawRoute {
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes pinIn {
+  from { opacity: 0; transform: translate(-50%, -38%) scale(0.72); }
+  to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+
+@media (max-width: 680px) {
+  .trail-page {
+    align-items: stretch;
+    padding: 18px 12px;
+  }
+
+  .trail-shell {
+    display: grid;
+    align-content: center;
+  }
+
+  .trail-card {
+    border-radius: 30px;
+  }
+
+  .map-card {
+    min-height: 300px;
+  }
+
+  .add-card {
+    grid-template-columns: 1fr;
+  }
+}
+</style>

@@ -338,6 +338,33 @@ CREATE TABLE IF NOT EXISTS moment_tokens (
   FOREIGN KEY (collection_id) REFERENCES content_collections(id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS travel_trails (
+  id TEXT PRIMARY KEY,
+  token TEXT UNIQUE NOT NULL,
+  work_id TEXT,
+  title TEXT NOT NULL,
+  subtitle TEXT,
+  object_label TEXT,
+  theme_color TEXT,
+  status TEXT DEFAULT 'active' CHECK(status IN ('active', 'draft', 'archived')),
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (work_id) REFERENCES works(id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS travel_trail_places (
+  id TEXT PRIMARY KEY,
+  trail_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  note TEXT,
+  visited_at TEXT,
+  lat REAL,
+  lng REAL,
+  sort_order INTEGER DEFAULT 0,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (trail_id) REFERENCES travel_trails(id) ON DELETE CASCADE
+);
+
 CREATE TABLE IF NOT EXISTS site_config (
   key TEXT PRIMARY KEY,
   value TEXT
@@ -649,3 +676,15 @@ ON moment_tokens(collection_id);
 
 CREATE INDEX IF NOT EXISTS idx_moment_tokens_status
 ON moment_tokens(status);
+
+CREATE INDEX IF NOT EXISTS idx_travel_trails_token
+ON travel_trails(token);
+
+CREATE INDEX IF NOT EXISTS idx_travel_trails_work
+ON travel_trails(work_id);
+
+CREATE INDEX IF NOT EXISTS idx_travel_trails_status
+ON travel_trails(status);
+
+CREATE INDEX IF NOT EXISTS idx_travel_trail_places_trail
+ON travel_trail_places(trail_id, sort_order);

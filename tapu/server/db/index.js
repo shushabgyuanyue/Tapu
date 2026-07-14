@@ -211,6 +211,7 @@ export async function getDb() {
     'ALTER TABLE orders ADD COLUMN nfc_written_at DATETIME',
     'ALTER TABLE orders ADD COLUMN token_delivered_at DATETIME',
     'ALTER TABLE moment_tokens ADD COLUMN work_id TEXT',
+    'ALTER TABLE travel_trails ADD COLUMN work_id TEXT',
     `CREATE TABLE IF NOT EXISTS auth_sessions (
       token TEXT PRIMARY KEY,
       user_id TEXT NOT NULL,
@@ -370,6 +371,31 @@ export async function getDb() {
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (work_id) REFERENCES works(id) ON DELETE SET NULL,
       FOREIGN KEY (collection_id) REFERENCES content_collections(id) ON DELETE CASCADE
+    )`,
+    `CREATE TABLE IF NOT EXISTS travel_trails (
+      id TEXT PRIMARY KEY,
+      token TEXT UNIQUE NOT NULL,
+      work_id TEXT,
+      title TEXT NOT NULL,
+      subtitle TEXT,
+      object_label TEXT,
+      theme_color TEXT,
+      status TEXT DEFAULT 'active' CHECK(status IN ('active', 'draft', 'archived')),
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (work_id) REFERENCES works(id) ON DELETE SET NULL
+    )`,
+    `CREATE TABLE IF NOT EXISTS travel_trail_places (
+      id TEXT PRIMARY KEY,
+      trail_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      note TEXT,
+      visited_at TEXT,
+      lat REAL,
+      lng REAL,
+      sort_order INTEGER DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (trail_id) REFERENCES travel_trails(id) ON DELETE CASCADE
     )`,
     `CREATE TABLE IF NOT EXISTS orders (
       id TEXT PRIMARY KEY,
@@ -818,6 +844,10 @@ export async function getDb() {
     db.run('CREATE INDEX IF NOT EXISTS idx_moment_tokens_token ON moment_tokens(token)');
     db.run('CREATE INDEX IF NOT EXISTS idx_moment_tokens_collection ON moment_tokens(collection_id)');
     db.run('CREATE INDEX IF NOT EXISTS idx_moment_tokens_status ON moment_tokens(status)');
+    db.run('CREATE INDEX IF NOT EXISTS idx_travel_trails_token ON travel_trails(token)');
+    db.run('CREATE INDEX IF NOT EXISTS idx_travel_trails_work ON travel_trails(work_id)');
+    db.run('CREATE INDEX IF NOT EXISTS idx_travel_trails_status ON travel_trails(status)');
+    db.run('CREATE INDEX IF NOT EXISTS idx_travel_trail_places_trail ON travel_trail_places(trail_id, sort_order)');
   } catch (e) { /* ignore */ }
 
   try {

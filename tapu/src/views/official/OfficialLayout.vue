@@ -28,6 +28,7 @@ const navModules = [
       { path: '/official/daily-stickers', label: '手账慢故事贴纸' },
       { path: '/official/answer-book', label: '答案之书' },
       { path: '/official/moments', label: '纪念瞬间' },
+      { path: '/official/travel-trails', label: '旅行轨迹' },
     ],
   },
   {

@@ -46,6 +46,19 @@ function findMomentByToken(db, rawToken) {
   ))[0] || null;
 }
 
+function findTravelTrailByToken(db, rawToken) {
+  const token = normalizeEntityToken(rawToken);
+  if (!token) return null;
+
+  return resultToObjects(db.exec(
+    `SELECT t.*, w.intent, w.status as work_status
+     FROM travel_trails t
+     LEFT JOIN works w ON w.id = t.work_id
+     WHERE t.token = ? LIMIT 1`,
+    [token]
+  ))[0] || null;
+}
+
 export function resolveObjectByToken(db, rawToken) {
   const answerBook = findAnswerBookByToken(db, rawToken);
   if (answerBook) {
@@ -111,6 +124,28 @@ export function resolveObjectByToken(db, rawToken) {
         interactionType: 'tap_to_saved_moment',
       },
       raw: moment,
+    };
+  }
+
+  const travelTrail = findTravelTrailByToken(db, rawToken);
+  if (travelTrail) {
+    return {
+      object: {
+        type: 'nfc-sticker',
+        id: travelTrail.id,
+        tokenId: travelTrail.id,
+        token: travelTrail.token,
+        label: travelTrail.object_label || travelTrail.title,
+        status: travelTrail.status,
+        displayName: travelTrail.title || '旅行轨迹',
+        themeColor: travelTrail.theme_color || '#2f6f5e',
+      },
+      app: {
+        code: 'travel-trail',
+        name: '旅行轨迹',
+        interactionType: 'tap_to_travel_trace',
+      },
+      raw: travelTrail,
     };
   }
 

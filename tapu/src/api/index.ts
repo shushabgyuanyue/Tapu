@@ -518,6 +518,65 @@ export async function fetchWork(id: string) {
   return request(`/works/${id}`, { auth: true });
 }
 
+// ===== Travel Trail Application =====
+export type TravelTrailInput = {
+  title: string;
+  subtitle?: string;
+  object_label?: string;
+  theme_color?: string;
+  status?: string;
+  first_place?: string;
+  first_place_note?: string;
+  first_visited_at?: string;
+};
+
+export type TravelTrailPlaceInput = {
+  name: string;
+  note?: string;
+  visited_at?: string;
+  lat?: number | string;
+  lng?: number | string;
+};
+
+export async function resolveTravelTrail(key: string) {
+  const query = new URLSearchParams({ key });
+  return request(`/travel-trails/resolve?${query.toString()}`);
+}
+
+export async function fetchTravelTrails() {
+  return request('/travel-trails/trails', { auth: true });
+}
+
+export async function createTravelTrail(params: TravelTrailInput) {
+  return request('/travel-trails/trails', {
+    method: 'POST',
+    auth: true,
+    jsonBody: params,
+  });
+}
+
+export async function addTravelTrailPlace(trailId: string, params: TravelTrailPlaceInput) {
+  return request(`/travel-trails/trails/${trailId}/places`, {
+    method: 'POST',
+    auth: true,
+    jsonBody: params,
+  });
+}
+
+export async function addTravelTrailPlaceByKey(key: string, params: TravelTrailPlaceInput) {
+  return request('/travel-trails/places', {
+    method: 'POST',
+    jsonBody: { ...params, key },
+  });
+}
+
+export async function deleteTravelTrailPlace(trailId: string, placeId: string) {
+  return request(`/travel-trails/trails/${trailId}/places/${placeId}`, {
+    method: 'DELETE',
+    auth: true,
+  });
+}
+
 // ===== Daily Sticker Application =====
 export async function resolveDailySticker(key: string, opts?: { date?: string; day?: number | string }) {
   const query = new URLSearchParams({ key });

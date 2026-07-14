@@ -50,6 +50,17 @@ const installedApps = [
     publicPath: '/moment?key=...',
     accent: '#b98234',
   },
+  {
+    code: 'travel-trail',
+    name: '旅行轨迹',
+    stage: '已接入',
+    tone: '贴在行李或旅行物件上，碰一下把去过的地方画成一条动态轨迹。',
+    runtime: 'whatmint.tap / place sequence / object_events',
+    content: '地点、日期、备注、动态路线',
+    operatorPath: '/official/travel-trails',
+    publicPath: '/trail?key=...',
+    accent: '#2f6f5e',
+  },
 ];
 
 const futureApps = [

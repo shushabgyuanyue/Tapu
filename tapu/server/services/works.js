@@ -10,6 +10,7 @@ export const WORK_INTENTS = [
   'blessing',
   'message',
   'play',
+  'journey',
 ];
 
 export const WORK_INTENT_LABELS = {
@@ -20,6 +21,7 @@ export const WORK_INTENT_LABELS = {
   blessing: '祝福',
   message: '慢信息',
   play: '趣味',
+  journey: '旅程',
 };
 
 export const WORK_INTENT_DEFAULTS = {
@@ -57,6 +59,11 @@ export const WORK_INTENT_DEFAULTS = {
     persistence: 'lightweight',
     interaction: 'surprise',
     rhythm: 'casual',
+  },
+  journey: {
+    persistence: 'ongoing',
+    interaction: 'trace',
+    rhythm: 'add_place',
   },
 };
 
