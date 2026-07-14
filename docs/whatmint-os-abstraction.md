@@ -32,7 +32,12 @@ WhatMint 不是先做一个完整平台，再让应用迁入；当前策略是�
 
 当前实现入口：`tapu/server/services/objectRegistry.js`
 
-第一阶段先支持 `answer-book` token，后续再接入日常贴纸、情绪 IP 实体和收藏作品。
+已接入：
+
+- `answer-book`：答案之书贴纸。
+- `daily-sticker`：手账慢故事贴纸。
+
+后续再接入情绪 IP 实体和收藏作品。
 
 ### 2. Tap Runtime
 
@@ -59,7 +64,10 @@ WhatMint 不是先做一个完整平台，再让应用迁入；当前策略是�
 
 当前前端入口：`tapu/src/components/content/ContentRenderer.vue`
 
-当前后端接入：`answer-book /resolve` 已返回 `content.blocks`，前端优先使用协议块，缺失时回退到旧的 `card` 拼装逻辑。
+当前后端接入：
+
+- `answer-book /resolve` 已返回 `content.blocks`，前端优先使用协议块，缺失时回退到旧的 `card` 拼装逻辑。
+- `daily-sticker /resolve` 已返回 `content.blocks`，前端保留原有视觉外壳，但故事内容区交给 `ContentRenderer`。
 
 ### 4. Object Events
 
@@ -76,7 +84,10 @@ WhatMint 不是先做一个完整平台，再让应用迁入；当前策略是�
 - `user_agent`
 - `metadata_json`
 
-当前接入：答案之书抽卡会继续写入 `answer_book_draw_events`，同时写入 `object_events`。
+当前接入：
+
+- 答案之书抽卡会继续写入 `answer_book_draw_events`，同时写入 `object_events`。
+- 手账慢故事贴纸触碰会继续写入 `daily_sticker_tap_events`，同时写入 `object_events`。
 
 ## 当前不做
 
@@ -88,9 +99,9 @@ WhatMint 不是先做一个完整平台，再让应用迁入；当前策略是�
 
 ## 下一步建议
 
-1. 让日常慢故事贴纸接入 `objectRegistry` 与 `object_events`。
-2. 把情绪 IP 实体的触碰播放事件也映射到 `object_events`。
-3. 为内容创作中心定义“内容集合”和“应用绑定”的最小协议。
+1. 把情绪 IP 实体的触碰播放事件也映射到 `object_events`。
+2. 为内容创作中心定义“内容集合”和“应用绑定”的最小协议。
+3. 观察两个贴纸应用的协议差异，再决定是否需要统一 `/tap/:token` 总路由。
 4. 在内容容器中继续攻坚 iOS Safari、微信内置浏览器和 Android WebView 的媒体兼容。
 
 ## 判断标准

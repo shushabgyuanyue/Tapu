@@ -3,6 +3,9 @@ import { v4 as uuidv4 } from 'uuid';
 import { getDb, saveDb } from '../db/index.js';
 import { authRequired } from '../middleware/auth.js';
 import { createUniqueToken, normalizeEntityToken, resultToObjects } from '../services/tokens.js';
+import { recordObjectEvent } from '../services/objectEvents.js';
+import { resolveObjectByToken } from '../services/objectRegistry.js';
+import { buildContentBlocksForDailyStickerEntry, buildTapResponse } from '../services/tapRuntime.js';
 
 const router = Router();
 const DEFAULT_DAILY_STICKER_RELEASE_CRON = '*/1 * * * *';
@@ -412,17 +415,12 @@ function buildEntryParams(req, id, personaId, body, entryDate, assets) {
 
 router.get('/resolve', async (req, res) => {
   try {
-    const token = normalizeEntityToken(req.query.key);
-    if (!token) return res.status(400).json({ error: '缺少贴纸 token' });
-
     const db = await getDb();
-    const tokenRow = resultToObjects(db.exec(
-      `SELECT t.*, p.name as persona_name, p.status as persona_status
-       FROM daily_sticker_tokens t
-       JOIN daily_sticker_personas p ON p.id = t.persona_id
-       WHERE t.token = ? LIMIT 1`,
-      [token]
-    ))[0];
+    const resolvedObject = resolveObjectByToken(db, req.query.key);
+    if (!resolvedObject || resolvedObject.app.code !== 'daily-sticker') {
+      return res.status(400).json({ error: '缺少贴纸 token' });
+    }
+    const tokenRow = resolvedObject.raw;
 
     if (!tokenRow || tokenRow.status !== 'active' || tokenRow.persona_status !== 'active') {
       return res.status(404).json({ error: '贴纸不存在或未启用' });
@@ -448,9 +446,46 @@ router.get('/resolve', async (req, res) => {
       'INSERT INTO daily_sticker_tap_events (token_id, persona_id, entry_id, user_agent) VALUES (?, ?, ?, ?)',
       [tokenRow.id, tokenRow.persona_id, entry?.id || null, req.headers['user-agent'] || null]
     );
+    recordObjectEvent(db, {
+      objectType: resolvedObject.object.type,
+      objectId: resolvedObject.object.id,
+      tokenId: tokenRow.id,
+      token: tokenRow.token,
+      appCode: resolvedObject.app.code,
+      eventType: 'daily_sticker_tap',
+      contentId: entry?.id || null,
+      userId: tokenRow.user_id || null,
+      userAgent: req.headers['user-agent'] || null,
+      metadata: {
+        personaId: tokenRow.persona_id,
+        worldId: tokenRow.world_id,
+        storyArcId: tokenRow.story_arc_id,
+        currentDay: progress?.current_day || entry?.day_index || null,
+        requestedDate: releaseContext.date_key,
+      },
+    });
     saveDb();
 
+    const tapResponse = buildTapResponse({
+      object: resolvedObject.object,
+      app: resolvedObject.app,
+      content: {
+        title: world?.name || persona?.name || tokenRow.label || '日常贴纸',
+        subtitle: world?.premise || persona?.tagline || null,
+        themeColor: world?.theme_color || persona?.theme_color || '#ff4fd8',
+        blocks: buildContentBlocksForDailyStickerEntry({ entry, assets, persona }),
+      },
+      actions: [
+        { code: 'refresh_story', label: '看看现在' },
+      ],
+      permissions: {
+        anonymousTap: true,
+        ownerRequired: false,
+      },
+    });
+
     res.json({
+      ...tapResponse,
       token: {
         id: tokenRow.id,
         label: tokenRow.label,
