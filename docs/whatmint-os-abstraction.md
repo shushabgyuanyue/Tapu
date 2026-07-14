@@ -9,9 +9,10 @@ WhatMint 不是先做一个完整平台，再让应用迁入；当前策略是�
 - 现实物体需要稳定身份。
 - NFC 触碰需要统一运行时。
 - 内容需要以块协议进入容器。
+- 内容集合需要能被不同轻应用绑定。
 - 触碰和内容消费需要进入统一事件账本。
 
-## 四个核心层
+## 五个核心层
 
 ### 1. Object Identity
 
@@ -89,18 +90,53 @@ WhatMint 不是先做一个完整平台，再让应用迁入；当前策略是�
 - 答案之书抽卡会继续写入 `answer_book_draw_events`，同时写入 `object_events`。
 - 手账慢故事贴纸触碰会继续写入 `daily_sticker_tap_events`，同时写入 `object_events`。
 
+事件命名规范见：[object-event-taxonomy.md](object-event-taxonomy.md)
+
+### 5. Content Collection / App Binding
+
+内容集合是内容创作中心和轻应用之间的最小稳定边界。
+
+它解决的问题不是“现在就做 CMS”，而是先让多媒介内容拥有一个可被复用、绑定、迁移的容器：
+
+```js
+{
+  collection: {
+    id: '<collection-id>',
+    name: '<collection-name>',
+    slug: '<collection-slug>',
+    primaryModality: 'mixed',
+    blocks: []
+  },
+  binding: {
+    appCode: 'daily-sticker',
+    token: '<token>',
+    contentCollectionId: '<collection-id>',
+    role: 'primary'
+  }
+}
+```
+
+当前实现：
+
+- `content_collections`：内容集合元信息。
+- `content_collection_blocks`：集合内的 `ContentBlock` 协议块。
+- `app_bindings`：把应用、物体、token 与内容集合关联。
+- `tapu/server/services/contentCollections.js`：集合读取、块转换和 active binding 查询。
+- `tapu/server/routes/contentCollections.js`：官方 API，不做完整 CMS 页面。
+
 ## 当前不做
 
 - 不做统一前端 `/tap/:token` 总路由。
 - 不迁移所有旧应用数据。
 - 不把内容创作中心改造成完整 CMS。
+- 不把内容集合强制接管答案之书和日常贴纸的现有业务表。
 - 不提前定义复杂权限矩阵。
 - 不为了平台感牺牲轻应用的克制体验。
 
 ## 下一步建议
 
 1. 把情绪 IP 实体的触碰播放事件也映射到 `object_events`。
-2. 为内容创作中心定义“内容集合”和“应用绑定”的最小协议。
+2. 选一个新轻应用试用 `Content Collection / App Binding`，验证它是否真的减少重复劳动。
 3. 观察两个贴纸应用的协议差异，再决定是否需要统一 `/tap/:token` 总路由。
 4. 在内容容器中继续攻坚 iOS Safari、微信内置浏览器和 Android WebView 的媒体兼容。
 

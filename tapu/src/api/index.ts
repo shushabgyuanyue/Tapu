@@ -333,6 +333,119 @@ export async function deleteApplication(id: string) {
   });
 }
 
+// ===== Content Collections / App Bindings =====
+export type ContentCollectionBlockInput = {
+  id?: string;
+  kind: string;
+  role?: string;
+  title?: string;
+  body?: string;
+  url?: string;
+  alt?: string;
+  poster?: string;
+  caption?: string;
+  tag?: string;
+  href?: string;
+  label?: string;
+  action?: string;
+  emphasis?: string;
+  metadata?: unknown;
+  sort_order?: number;
+};
+
+export type ContentCollectionInput = {
+  name: string;
+  slug?: string;
+  description?: string;
+  primary_modality?: string;
+  theme_color?: string;
+  status?: string;
+  metadata?: unknown;
+  blocks?: ContentCollectionBlockInput[];
+};
+
+export type AppBindingInput = {
+  app_code: string;
+  content_collection_id: string;
+  object_type?: string;
+  object_id?: string;
+  token_id?: string;
+  token?: string;
+  binding_role?: string;
+  status?: string;
+  starts_at?: string;
+  ends_at?: string;
+  metadata?: unknown;
+};
+
+export async function fetchContentCollections(params?: { page?: number; pageSize?: number; q?: string; status?: string }) {
+  const query = new URLSearchParams();
+  if (params?.page) query.set('page', String(params.page));
+  if (params?.pageSize) query.set('page_size', String(params.pageSize));
+  if (params?.q) query.set('q', params.q);
+  if (params?.status) query.set('status', params.status);
+  const qs = query.toString();
+  return request(`/content-collections${qs ? '?' + qs : ''}`, { auth: true });
+}
+
+export async function fetchContentCollection(id: string) {
+  return request(`/content-collections/${id}`, { auth: true });
+}
+
+export async function createContentCollection(params: ContentCollectionInput) {
+  return request('/content-collections', {
+    method: 'POST',
+    auth: true,
+    jsonBody: params,
+  });
+}
+
+export async function updateContentCollection(id: string, params: ContentCollectionInput) {
+  return request(`/content-collections/${id}`, {
+    method: 'PUT',
+    auth: true,
+    jsonBody: params,
+  });
+}
+
+export async function deleteContentCollection(id: string) {
+  return request(`/content-collections/${id}`, {
+    method: 'DELETE',
+    auth: true,
+  });
+}
+
+export async function fetchAppBindings(params?: { appCode?: string; token?: string }) {
+  const query = new URLSearchParams();
+  if (params?.appCode) query.set('app_code', params.appCode);
+  if (params?.token) query.set('token', params.token);
+  const qs = query.toString();
+  return request(`/content-collections/bindings${qs ? '?' + qs : ''}`, { auth: true });
+}
+
+export async function createAppBinding(params: AppBindingInput) {
+  return request('/content-collections/bindings', {
+    method: 'POST',
+    auth: true,
+    jsonBody: params,
+  });
+}
+
+export async function updateAppBinding(id: string, params: AppBindingInput) {
+  return request(`/content-collections/bindings/${id}`, {
+    method: 'PUT',
+    auth: true,
+    jsonBody: params,
+  });
+}
+
+export async function deleteAppBinding(id: string) {
+  return request(`/content-collections/bindings/${id}`, {
+    method: 'DELETE',
+    auth: true,
+  });
+}
+
 // ===== Daily Sticker Application =====
 export async function resolveDailySticker(key: string, opts?: { date?: string; day?: number | string }) {
   const query = new URLSearchParams({ key });

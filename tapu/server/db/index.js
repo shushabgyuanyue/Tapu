@@ -242,6 +242,56 @@ export async function getDb() {
       metadata_json TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )`,
+    `CREATE TABLE IF NOT EXISTS content_collections (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      slug TEXT UNIQUE,
+      description TEXT,
+      primary_modality TEXT DEFAULT 'mixed',
+      theme_color TEXT,
+      status TEXT DEFAULT 'draft',
+      metadata_json TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE IF NOT EXISTS content_collection_blocks (
+      id TEXT PRIMARY KEY,
+      collection_id TEXT NOT NULL,
+      kind TEXT NOT NULL,
+      role TEXT,
+      title TEXT,
+      body TEXT,
+      url TEXT,
+      alt TEXT,
+      poster TEXT,
+      caption TEXT,
+      tag TEXT,
+      href TEXT,
+      label TEXT,
+      action TEXT,
+      emphasis TEXT,
+      metadata_json TEXT,
+      sort_order INTEGER DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (collection_id) REFERENCES content_collections(id) ON DELETE CASCADE
+    )`,
+    `CREATE TABLE IF NOT EXISTS app_bindings (
+      id TEXT PRIMARY KEY,
+      app_code TEXT NOT NULL,
+      object_type TEXT,
+      object_id TEXT,
+      token_id TEXT,
+      token TEXT,
+      content_collection_id TEXT NOT NULL,
+      binding_role TEXT DEFAULT 'primary',
+      status TEXT DEFAULT 'active',
+      starts_at DATETIME,
+      ends_at DATETIME,
+      metadata_json TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (content_collection_id) REFERENCES content_collections(id) ON DELETE CASCADE
+    )`,
     `CREATE TABLE IF NOT EXISTS orders (
       id TEXT PRIMARY KEY,
       buyer_user_id TEXT NOT NULL,
@@ -671,6 +721,11 @@ export async function getDb() {
     db.run('CREATE INDEX IF NOT EXISTS idx_object_events_app ON object_events(app_code)');
     db.run('CREATE INDEX IF NOT EXISTS idx_object_events_type ON object_events(event_type)');
     db.run('CREATE INDEX IF NOT EXISTS idx_object_events_created ON object_events(created_at)');
+    db.run('CREATE INDEX IF NOT EXISTS idx_content_collection_blocks_collection ON content_collection_blocks(collection_id)');
+    db.run('CREATE INDEX IF NOT EXISTS idx_app_bindings_app ON app_bindings(app_code)');
+    db.run('CREATE INDEX IF NOT EXISTS idx_app_bindings_token ON app_bindings(token)');
+    db.run('CREATE INDEX IF NOT EXISTS idx_app_bindings_object ON app_bindings(object_type, object_id)');
+    db.run('CREATE INDEX IF NOT EXISTS idx_app_bindings_collection ON app_bindings(content_collection_id)');
   } catch (e) { /* ignore */ }
 
   try {

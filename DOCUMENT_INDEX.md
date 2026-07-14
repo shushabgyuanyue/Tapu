@@ -13,10 +13,12 @@ WhatMint / tapU 是一个通过 NFC 将实体与情绪内容绑定的系统。�
 | 1 | [SPEC.md](SPEC.md) | 产品北极星和稳定原则 |
 | 2 | [docs/product-manifesto.md](docs/product-manifesto.md) | 产品宣言、品牌气质和设计语言 |
 | 3 | [docs/whatmint-os-abstraction.md](docs/whatmint-os-abstraction.md) | 物体身份、触碰运行时、内容协议和统一事件账本 |
-| 4 | [docs/business-flow.md](docs/business-flow.md) | 完整业务流程、权限规则、数据库关系、E2E 结果 |
-| 5 | [DOMAINS.md](DOMAINS.md) | 模块分工和代码入口 |
-| 6 | [develop.md](develop.md) | 阶段状态、验收和后续高收益事项 |
-| 7 | [README.md](README.md) | 本地运行和验证命令 |
+| 4 | [docs/content-collection-app-binding.md](docs/content-collection-app-binding.md) | 内容集合和应用绑定最小协议 |
+| 5 | [docs/object-event-taxonomy.md](docs/object-event-taxonomy.md) | 跨应用物体事件命名规范 |
+| 6 | [docs/business-flow.md](docs/business-flow.md) | 完整业务流程、权限规则、数据库关系、E2E 结果 |
+| 7 | [DOMAINS.md](DOMAINS.md) | 模块分工和代码入口 |
+| 8 | [develop.md](develop.md) | 阶段状态、验收和后续高收益事项 |
+| 9 | [README.md](README.md) | 本地运行和验证命令 |
 
 ## 3. 代码入口索引
 

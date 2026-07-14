@@ -18,6 +18,7 @@ import entitiesRouter from './routes/entities.js';
 import configRouter from './routes/config.js';
 import dailyStickersRouter from './routes/dailyStickers.js';
 import answerBookRouter from './routes/answerBook.js';
+import contentCollectionsRouter from './routes/contentCollections.js';
 import { getUploadsDir } from './services/storage.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -85,6 +86,7 @@ app.use('/api/entities', entitiesRouter);
 app.use('/api/config', configRouter);
 app.use('/api/daily-stickers', dailyStickersRouter);
 app.use('/api/answer-book', answerBookRouter);
+app.use('/api/content-collections', contentCollectionsRouter);
 
 // Serve frontend static files (production build)
 const distPath = path.join(__dirname, '..', 'dist');
