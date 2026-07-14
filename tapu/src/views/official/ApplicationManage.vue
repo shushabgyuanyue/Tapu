@@ -5,10 +5,26 @@ import { fetchApplications } from '../../api';
 const loading = ref(true);
 const applications = ref<any[]>([]);
 
+const appTypeMeta: Record<string, { label: string; description: string }> = {
+  meaning: {
+    label: '意义型',
+    description: '回答人生问题，强调记忆、关系、表达、收藏。',
+  },
+  behavior: {
+    label: '行为型',
+    description: '回答现实动作，让具体物件上的行为更轻、更稳、更有秩序。',
+  },
+  state: {
+    label: '状态型',
+    description: '回应当下存在，强调氛围、陪伴、情绪状态和空间感。',
+  },
+};
+
 const installedApps = [
   {
     code: 'emotion-ip',
     name: '情绪 IP',
+    appType: 'meaning',
     stage: '已接入',
     tone: '实体承载情绪表达，适合商品、礼物和长期关系载体。',
     runtime: 'entity token / video content',
@@ -20,6 +36,7 @@ const installedApps = [
   {
     code: 'daily-sticker',
     name: '手账慢故事贴纸',
+    appType: 'state',
     stage: '已接入',
     tone: '一枚贴纸进入一个连续更新的小世界。',
     runtime: 'whatmint.tap / content.blocks / object_events',
@@ -31,6 +48,7 @@ const installedApps = [
   {
     code: 'answer-book',
     name: '答案之书',
+    appType: 'state',
     stage: '已接入',
     tone: '碰一下，得到一张克制、正念、带一点反差感的回应卡。',
     runtime: 'whatmint.tap / random draw / object_events',
@@ -42,6 +60,7 @@ const installedApps = [
   {
     code: 'moment',
     name: '纪念瞬间',
+    appType: 'meaning',
     stage: '已接入',
     tone: '把一个值得记住的时刻，封存在一个可触碰的物里。',
     runtime: 'whatmint.tap / content.collections / token binding',
@@ -53,13 +72,26 @@ const installedApps = [
   {
     code: 'travel-trail',
     name: '旅行轨迹',
+    appType: 'state',
     stage: '已接入',
-    tone: '贴在行李或旅行物件上，碰一下把去过的地方画成一条动态轨迹。',
-    runtime: 'whatmint.tap / place sequence / object_events',
-    content: '地点、日期、备注、动态路线',
+    tone: '贴在行李或旅行物件上，碰一下展开出发与归来的仪式。',
+    runtime: 'whatmint.tap / journey state / object_events',
+    content: '地点、下一站、归来确认、动态路线',
     operatorPath: '/official/travel-trails',
     publicPath: '/trail?key=...',
     accent: '#2f6f5e',
+  },
+  {
+    code: 'check',
+    name: 'Check 检查',
+    appType: 'behavior',
+    stage: '已接入',
+    tone: '绑定具体物件的行为型检查清单，提供常见模板并允许自定义修改。',
+    runtime: 'whatmint.tap / checklist state / object_events',
+    content: '场景模板、检查项目、勾选状态、自定义项目',
+    operatorPath: '/official/checks',
+    publicPath: '/check?key=...',
+    accent: '#3b5f7f',
   },
 ];
 
@@ -77,6 +109,7 @@ const registryByCode = computed(() => {
 
 const appCards = computed(() => installedApps.map(app => ({
   ...app,
+  appType: registryByCode.value[app.code]?.app_type || app.appType,
   registry: registryByCode.value[app.code],
 })).concat(
   applications.value
@@ -84,6 +117,7 @@ const appCards = computed(() => installedApps.map(app => ({
     .map(app => ({
       code: app.code,
       name: app.name,
+      appType: app.app_type || 'meaning',
       stage: app.status === 'active' ? '已注册' : app.status,
       tone: app.description || '这个应用已进入系统目录，等待补充运营工作台和公开入口。',
       runtime: app.interaction_type || 'manifest pending',
@@ -121,6 +155,14 @@ onMounted(loadData);
       <p>应用不是模板库里的一个表单，而是一段已经实现的轻应用体验：它拥有公共入口、运营工作台、内容能力、触碰运行时和事件语义。</p>
     </section>
 
+    <section class="type-system">
+      <article v-for="(meta, key) in appTypeMeta" :key="key">
+        <span>{{ key }}</span>
+        <strong>{{ meta.label }}</strong>
+        <p>{{ meta.description }}</p>
+      </article>
+    </section>
+
     <section class="app-grid">
       <article
         v-for="app in appCards"
@@ -139,6 +181,10 @@ onMounted(loadData);
         <p class="tone">{{ app.tone }}</p>
 
         <dl>
+          <div>
+            <dt>应用类型</dt>
+            <dd>{{ appTypeMeta[app.appType]?.label || app.appType }}</dd>
+          </div>
           <div>
             <dt>运行时</dt>
             <dd>{{ app.runtime }}</dd>
@@ -269,6 +315,41 @@ onMounted(loadData);
 .principle-card p {
   margin: 0;
   color: #6f6672;
+  line-height: 1.7;
+}
+
+.type-system {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.type-system article {
+  padding: 16px;
+  border: 1px solid rgba(32, 27, 34, 0.08);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.86);
+}
+
+.type-system span {
+  color: #2f6f5e;
+  font-size: 11px;
+  font-weight: 950;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.type-system strong {
+  display: block;
+  margin-top: 6px;
+  color: #17121a;
+  font-size: 16px;
+}
+
+.type-system p {
+  margin: 6px 0 0;
+  color: #6f6672;
+  font-size: 13px;
   line-height: 1.7;
 }
 
@@ -443,6 +524,7 @@ ol span {
 
 @media (max-width: 960px) {
   .app-grid,
+  .type-system,
   .future-grid,
   .access-pattern {
     grid-template-columns: 1fr;

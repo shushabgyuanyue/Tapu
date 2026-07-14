@@ -6,6 +6,7 @@
 
 - [business-flow.md](business-flow.md)：当前最重要的接手文档，说明订单-token-实体-内容-NFC 全流程。
 - [product-manifesto.md](product-manifesto.md)：产品宣言、品牌气质和设计语言。
+- [product-design-principles.md](product-design-principles.md)：新轻应用立项前的产品设计规范和判断卡。
 - [content-container-architecture.md](content-container-architecture.md)：内容容器架构和后续兼容攻坚边界。
 - [content-collection-app-binding.md](content-collection-app-binding.md)：内容集合和应用绑定的最小协议。
 - [whatmint-os-abstraction.md](whatmint-os-abstraction.md)：物体身份、触碰运行时、内容协议和统一事件账本的 OS 抽象雏形。
@@ -19,6 +20,7 @@
 
 - `business-flow.md`：业务流程、权限规则、数据库关系、E2E 测试结果。
 - `product-manifesto.md`：WhatMint 的长期产品调性、设计语言和判断准则。
+- `product-design-principles.md`：物件 x 行为 x 意义、时间/空间坐标、OS/应用边界和立项评分卡。
 - `content-container-architecture.md`：统一内容容器的架构边界。
 - `content-collection-app-binding.md`：内容创作中心与轻应用运行时之间的绑定协议。
 - `whatmint-os-abstraction.md`：轻应用共性抽象和平台能力沉淀边界。

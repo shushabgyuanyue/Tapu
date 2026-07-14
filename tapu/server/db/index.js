@@ -6,6 +6,8 @@ import { createUniqueEntityToken, resultToObjects } from '../services/tokens.js'
 import { ensureJasmineRainEarphonesStory } from '../services/dailyStickerSeed.js';
 import { ensureAnswerBookSeed } from '../services/answerBookSeed.js';
 import { ensureApplicationRegistry } from '../services/applicationRegistry.js';
+import { ensureCheckTemplatesSeed } from '../services/checkTemplateSeed.js';
+import { ensureTravelTrailDemoSeed } from '../services/travelTrailSeed.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -201,11 +203,13 @@ export async function getDb() {
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
       code TEXT UNIQUE NOT NULL,
+      app_type TEXT DEFAULT 'meaning' CHECK(app_type IN ('meaning', 'behavior', 'state')),
       interaction_type TEXT NOT NULL,
       description TEXT,
       status TEXT DEFAULT 'active',
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )`,
+    "ALTER TABLE applications ADD COLUMN app_type TEXT DEFAULT 'meaning'",
     'ALTER TABLE orders ADD COLUMN external_order_no TEXT',
     "ALTER TABLE orders ADD COLUMN order_source TEXT DEFAULT 'platform'",
     'ALTER TABLE orders ADD COLUMN nfc_written_at DATETIME',
@@ -402,6 +406,53 @@ export async function getDb() {
       sort_order INTEGER DEFAULT 0,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (trail_id) REFERENCES travel_trails(id) ON DELETE CASCADE
+    )`,
+    `CREATE TABLE IF NOT EXISTS check_templates (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      scenario TEXT,
+      description TEXT,
+      object_hint TEXT,
+      theme_color TEXT DEFAULT '#2f6f5e',
+      status TEXT DEFAULT 'active' CHECK(status IN ('active', 'draft', 'archived')),
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE IF NOT EXISTS check_template_items (
+      id TEXT PRIMARY KEY,
+      template_id TEXT NOT NULL,
+      label TEXT NOT NULL,
+      hint TEXT,
+      sort_order INTEGER DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (template_id) REFERENCES check_templates(id) ON DELETE CASCADE
+    )`,
+    `CREATE TABLE IF NOT EXISTS checklists (
+      id TEXT PRIMARY KEY,
+      token TEXT UNIQUE NOT NULL,
+      work_id TEXT,
+      template_id TEXT,
+      title TEXT NOT NULL,
+      subtitle TEXT,
+      object_label TEXT,
+      scenario TEXT,
+      theme_color TEXT DEFAULT '#2f6f5e',
+      status TEXT DEFAULT 'active' CHECK(status IN ('active', 'draft', 'archived')),
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (work_id) REFERENCES works(id) ON DELETE SET NULL,
+      FOREIGN KEY (template_id) REFERENCES check_templates(id) ON DELETE SET NULL
+    )`,
+    `CREATE TABLE IF NOT EXISTS checklist_items (
+      id TEXT PRIMARY KEY,
+      checklist_id TEXT NOT NULL,
+      label TEXT NOT NULL,
+      hint TEXT,
+      is_required INTEGER DEFAULT 0,
+      is_checked INTEGER DEFAULT 0,
+      checked_at DATETIME,
+      sort_order INTEGER DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (checklist_id) REFERENCES checklists(id) ON DELETE CASCADE
     )`,
     `CREATE TABLE IF NOT EXISTS orders (
       id TEXT PRIMARY KEY,
@@ -854,6 +905,11 @@ export async function getDb() {
     db.run('CREATE INDEX IF NOT EXISTS idx_travel_trails_work ON travel_trails(work_id)');
     db.run('CREATE INDEX IF NOT EXISTS idx_travel_trails_status ON travel_trails(status)');
     db.run('CREATE INDEX IF NOT EXISTS idx_travel_trail_places_trail ON travel_trail_places(trail_id, sort_order)');
+    db.run('CREATE INDEX IF NOT EXISTS idx_check_template_items_template ON check_template_items(template_id, sort_order)');
+    db.run('CREATE INDEX IF NOT EXISTS idx_checklists_token ON checklists(token)');
+    db.run('CREATE INDEX IF NOT EXISTS idx_checklists_template ON checklists(template_id)');
+    db.run('CREATE INDEX IF NOT EXISTS idx_checklists_work ON checklists(work_id)');
+    db.run('CREATE INDEX IF NOT EXISTS idx_checklist_items_checklist ON checklist_items(checklist_id, sort_order)');
   } catch (e) { /* ignore */ }
 
   try {
@@ -869,6 +925,14 @@ export async function getDb() {
   try {
     ensureAnswerBookSeed(db);
   } catch (e) { /* answer book seed should never block startup */ }
+
+  try {
+    ensureCheckTemplatesSeed(db);
+  } catch (e) { /* check templates seed should never block startup */ }
+
+  try {
+    ensureTravelTrailDemoSeed(db);
+  } catch (e) { /* travel trail demo seed should never block startup */ }
 
   saveDb();
 

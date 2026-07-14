@@ -22,6 +22,7 @@ import contentCollectionsRouter from './routes/contentCollections.js';
 import momentsRouter from './routes/moments.js';
 import worksRouter from './routes/works.js';
 import travelTrailsRouter from './routes/travelTrails.js';
+import checklistsRouter from './routes/checklists.js';
 import { getUploadsDir } from './services/storage.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -93,6 +94,7 @@ app.use('/api/content-collections', contentCollectionsRouter);
 app.use('/api/moments', momentsRouter);
 app.use('/api/works', worksRouter);
 app.use('/api/travel-trails', travelTrailsRouter);
+app.use('/api/checks', checklistsRouter);
 
 // Serve frontend static files (production build)
 const distPath = path.join(__dirname, '..', 'dist');
