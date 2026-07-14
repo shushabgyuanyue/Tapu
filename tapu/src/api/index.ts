@@ -333,6 +333,275 @@ export async function deleteApplication(id: string) {
   });
 }
 
+// ===== Content Collections / App Bindings =====
+export type ContentCollectionBlockInput = {
+  id?: string;
+  kind: string;
+  role?: string;
+  title?: string;
+  body?: string;
+  url?: string;
+  alt?: string;
+  poster?: string;
+  caption?: string;
+  tag?: string;
+  href?: string;
+  label?: string;
+  action?: string;
+  emphasis?: string;
+  metadata?: unknown;
+  sort_order?: number;
+};
+
+export type ContentCollectionInput = {
+  name: string;
+  slug?: string;
+  description?: string;
+  primary_modality?: string;
+  theme_color?: string;
+  status?: string;
+  metadata?: unknown;
+  blocks?: ContentCollectionBlockInput[];
+};
+
+export type AppBindingInput = {
+  app_code: string;
+  collection_id: string;
+  scope_type?: 'app' | 'token' | 'object';
+  scope_id?: string;
+  binding_role?: string;
+  status?: string;
+  starts_at?: string;
+  ends_at?: string;
+  metadata?: unknown;
+};
+
+export async function fetchContentCollections(params?: { page?: number; pageSize?: number; q?: string; status?: string }) {
+  const query = new URLSearchParams();
+  if (params?.page) query.set('page', String(params.page));
+  if (params?.pageSize) query.set('page_size', String(params.pageSize));
+  if (params?.q) query.set('q', params.q);
+  if (params?.status) query.set('status', params.status);
+  const qs = query.toString();
+  return request(`/content-collections${qs ? '?' + qs : ''}`, { auth: true });
+}
+
+export async function fetchContentCollection(id: string) {
+  return request(`/content-collections/${id}`, { auth: true });
+}
+
+export async function createContentCollection(params: ContentCollectionInput) {
+  return request('/content-collections', {
+    method: 'POST',
+    auth: true,
+    jsonBody: params,
+  });
+}
+
+export async function updateContentCollection(id: string, params: ContentCollectionInput) {
+  return request(`/content-collections/${id}`, {
+    method: 'PUT',
+    auth: true,
+    jsonBody: params,
+  });
+}
+
+export async function deleteContentCollection(id: string) {
+  return request(`/content-collections/${id}`, {
+    method: 'DELETE',
+    auth: true,
+  });
+}
+
+export async function fetchAppBindings(params?: { appCode?: string; scopeType?: string; scopeId?: string }) {
+  const query = new URLSearchParams();
+  if (params?.appCode) query.set('app_code', params.appCode);
+  if (params?.scopeType) query.set('scope_type', params.scopeType);
+  if (params?.scopeId) query.set('scope_id', params.scopeId);
+  const qs = query.toString();
+  return request(`/content-collections/bindings${qs ? '?' + qs : ''}`, { auth: true });
+}
+
+export async function createAppBinding(params: AppBindingInput) {
+  return request('/content-collections/bindings', {
+    method: 'POST',
+    auth: true,
+    jsonBody: params,
+  });
+}
+
+export async function updateAppBinding(id: string, params: AppBindingInput) {
+  return request(`/content-collections/bindings/${id}`, {
+    method: 'PUT',
+    auth: true,
+    jsonBody: params,
+  });
+}
+
+export async function deleteAppBinding(id: string) {
+  return request(`/content-collections/bindings/${id}`, {
+    method: 'DELETE',
+    auth: true,
+  });
+}
+
+// ===== Moment Application =====
+export type MomentInput = {
+  title: string;
+  subtitle?: string;
+  intent?: string;
+  recipient_name?: string;
+  sender_name?: string;
+  object_label?: string;
+  event_date?: string;
+  place?: string;
+  cover_url?: string;
+  theme_color?: string;
+  status?: string;
+  starts_at?: string;
+  ends_at?: string;
+  collection_id?: string;
+  slug?: string;
+  description?: string;
+  primary_modality?: string;
+  collection_status?: string;
+  blocks?: ContentCollectionBlockInput[];
+};
+
+export async function resolveMoment(key: string) {
+  const query = new URLSearchParams({ key });
+  return request(`/moments/resolve?${query.toString()}`);
+}
+
+export async function fetchMomentTokens() {
+  return request('/moments/tokens', { auth: true });
+}
+
+export async function createMomentToken(params: MomentInput) {
+  return request('/moments/tokens', {
+    method: 'POST',
+    auth: true,
+    jsonBody: params,
+  });
+}
+
+export async function updateMomentToken(id: string, params: MomentInput) {
+  return request(`/moments/tokens/${id}`, {
+    method: 'PUT',
+    auth: true,
+    jsonBody: params,
+  });
+}
+
+export async function deleteMomentToken(id: string) {
+  return request(`/moments/tokens/${id}`, {
+    method: 'DELETE',
+    auth: true,
+  });
+}
+
+// ===== Works / Creation Center =====
+export async function fetchWorkIntents() {
+  return request('/works/intents', { auth: true });
+}
+
+export async function fetchWorks(params?: { appCode?: string; intent?: string; status?: string }) {
+  const query = new URLSearchParams();
+  if (params?.appCode) query.set('app_code', params.appCode);
+  if (params?.intent) query.set('intent', params.intent);
+  if (params?.status) query.set('status', params.status);
+  const qs = query.toString();
+  return request(`/works${qs ? '?' + qs : ''}`, { auth: true });
+}
+
+export async function fetchWork(id: string) {
+  return request(`/works/${id}`, { auth: true });
+}
+
+// ===== Travel Trail Application =====
+export type TravelTrailInput = {
+  title: string;
+  subtitle?: string;
+  object_label?: string;
+  next_place?: string;
+  next_place_note?: string;
+  journey_state?: string;
+  theme_color?: string;
+  status?: string;
+  first_place?: string;
+  first_place_note?: string;
+  first_visited_at?: string;
+};
+
+export type TravelTrailPlaceInput = {
+  name: string;
+  note?: string;
+  visited_at?: string;
+  lat?: number | string;
+  lng?: number | string;
+};
+
+export async function resolveTravelTrail(key: string) {
+  const query = new URLSearchParams({ key });
+  return request(`/travel-trails/resolve?${query.toString()}`);
+}
+
+export async function fetchTravelTrails() {
+  return request('/travel-trails/trails', { auth: true });
+}
+
+export async function createTravelTrail(params: TravelTrailInput) {
+  return request('/travel-trails/trails', {
+    method: 'POST',
+    auth: true,
+    jsonBody: params,
+  });
+}
+
+export async function addTravelTrailPlace(trailId: string, params: TravelTrailPlaceInput) {
+  return request(`/travel-trails/trails/${trailId}/places`, {
+    method: 'POST',
+    auth: true,
+    jsonBody: params,
+  });
+}
+
+export async function addTravelTrailPlaceByKey(key: string, params: TravelTrailPlaceInput) {
+  return request('/travel-trails/places', {
+    method: 'POST',
+    jsonBody: { ...params, key },
+  });
+}
+
+export async function setTravelTrailNextDestination(trailId: string, params: { next_place?: string; next_place_note?: string; journey_state?: string }) {
+  return request(`/travel-trails/trails/${trailId}/next-destination`, {
+    method: 'PUT',
+    auth: true,
+    jsonBody: params,
+  });
+}
+
+export async function setTravelTrailNextDestinationByKey(key: string, params: { next_place: string; next_place_note?: string }) {
+  return request('/travel-trails/next-destination', {
+    method: 'POST',
+    jsonBody: { ...params, key },
+  });
+}
+
+export async function confirmTravelTrailReturn(key: string, params?: { note?: string; visited_at?: string }) {
+  return request('/travel-trails/return', {
+    method: 'POST',
+    jsonBody: { ...(params || {}), key },
+  });
+}
+
+export async function deleteTravelTrailPlace(trailId: string, placeId: string) {
+  return request(`/travel-trails/trails/${trailId}/places/${placeId}`, {
+    method: 'DELETE',
+    auth: true,
+  });
+}
+
 // ===== Daily Sticker Application =====
 export async function resolveDailySticker(key: string, opts?: { date?: string; day?: number | string }) {
   const query = new URLSearchParams({ key });
@@ -652,6 +921,124 @@ export async function unbindDailyStickerToken(tokenId: string) {
 
 export async function getDailyStickerAssets() {
   return request('/daily-stickers/my-assets', { auth: true });
+}
+
+// ===== Answer Book Application =====
+export async function resolveAnswerBook(key: string, opts?: { exclude?: string }) {
+  const query = new URLSearchParams({ key });
+  if (opts?.exclude) query.set('exclude', opts.exclude);
+  return request(`/answer-book/resolve?${query.toString()}`);
+}
+
+export async function fetchAnswerBookDecks() {
+  return request('/answer-book/decks', { auth: true });
+}
+
+export async function createAnswerBookDeck(params: {
+  name: string;
+  subtitle?: string;
+  description?: string;
+  tone_notes?: string;
+  theme_color?: string;
+  status?: string;
+}) {
+  return request('/answer-book/decks', {
+    method: 'POST',
+    auth: true,
+    jsonBody: params,
+  });
+}
+
+export async function updateAnswerBookDeck(id: string, params: {
+  name: string;
+  subtitle?: string;
+  description?: string;
+  tone_notes?: string;
+  theme_color?: string;
+  status?: string;
+}) {
+  return request(`/answer-book/decks/${id}`, {
+    method: 'PUT',
+    auth: true,
+    jsonBody: params,
+  });
+}
+
+export async function fetchAnswerBookCards(deckId?: string) {
+  const query = new URLSearchParams();
+  if (deckId) query.set('deck_id', deckId);
+  const qs = query.toString();
+  return request(`/answer-book/cards${qs ? '?' + qs : ''}`, { auth: true });
+}
+
+export async function createAnswerBookCard(params: {
+  deck_id: string;
+  answer: string;
+  response?: string;
+  action?: string;
+  tag?: string;
+  status?: string;
+  sort_order?: number;
+}) {
+  return request('/answer-book/cards', {
+    method: 'POST',
+    auth: true,
+    jsonBody: params,
+  });
+}
+
+export async function updateAnswerBookCard(id: string, params: {
+  deck_id: string;
+  answer: string;
+  response?: string;
+  action?: string;
+  tag?: string;
+  status?: string;
+  sort_order?: number;
+}) {
+  return request(`/answer-book/cards/${id}`, {
+    method: 'PUT',
+    auth: true,
+    jsonBody: params,
+  });
+}
+
+export async function deleteAnswerBookCard(id: string) {
+  return request(`/answer-book/cards/${id}`, {
+    method: 'DELETE',
+    auth: true,
+  });
+}
+
+export async function fetchAnswerBookTokens(params?: { page?: number; pageSize?: number; q?: string; deckId?: string }) {
+  const query = new URLSearchParams();
+  if (params?.page) query.set('page', String(params.page));
+  if (params?.pageSize) query.set('page_size', String(params.pageSize));
+  if (params?.q) query.set('q', params.q);
+  if (params?.deckId) query.set('deck_id', params.deckId);
+  const qs = query.toString();
+  return request(`/answer-book/tokens${qs ? '?' + qs : ''}`, { auth: true });
+}
+
+export async function createAnswerBookTokens(params: {
+  deck_id: string;
+  label?: string;
+  token?: string;
+  count?: number;
+  status?: string;
+}) {
+  return request('/answer-book/tokens', {
+    method: 'POST',
+    auth: true,
+    jsonBody: params,
+  });
+}
+
+export async function deleteAnswerBookToken(id: string) {
+  return request(`/answer-book/tokens/${id}`, {
+    method: 'DELETE',
+    auth: true,
+  });
 }
 
 // ===== Stats =====

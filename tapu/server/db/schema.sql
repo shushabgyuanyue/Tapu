@@ -209,6 +209,165 @@ CREATE TABLE IF NOT EXISTS entity_ownership_events (
   FOREIGN KEY (actor_user_id) REFERENCES users(id) ON DELETE SET NULL
 );
 
+CREATE TABLE IF NOT EXISTS object_events (
+  id TEXT PRIMARY KEY,
+  object_type TEXT,
+  object_id TEXT,
+  token_id TEXT,
+  token TEXT,
+  app_code TEXT,
+  event_type TEXT NOT NULL,
+  content_id TEXT,
+  user_id TEXT,
+  user_agent TEXT,
+  metadata_json TEXT,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS content_collections (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  slug TEXT UNIQUE NOT NULL,
+  description TEXT,
+  primary_modality TEXT DEFAULT 'mixed',
+  theme_color TEXT,
+  status TEXT DEFAULT 'draft' CHECK(status IN ('draft', 'published', 'archived')),
+  metadata_json TEXT,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS content_collection_blocks (
+  id TEXT PRIMARY KEY,
+  collection_id TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  role TEXT,
+  title TEXT,
+  body TEXT,
+  url TEXT,
+  alt TEXT,
+  poster TEXT,
+  caption TEXT,
+  tag TEXT,
+  href TEXT,
+  label TEXT,
+  action TEXT,
+  emphasis TEXT,
+  metadata_json TEXT,
+  sort_order INTEGER DEFAULT 0,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (collection_id) REFERENCES content_collections(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS app_bindings (
+  id TEXT PRIMARY KEY,
+  app_code TEXT NOT NULL,
+  scope_type TEXT DEFAULT 'app' CHECK(scope_type IN ('app', 'token', 'object')),
+  scope_id TEXT NOT NULL DEFAULT '',
+  collection_id TEXT NOT NULL,
+  binding_role TEXT DEFAULT 'primary',
+  status TEXT DEFAULT 'active' CHECK(status IN ('active', 'paused')),
+  starts_at DATETIME,
+  ends_at DATETIME,
+  metadata_json TEXT,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (collection_id) REFERENCES content_collections(id) ON DELETE CASCADE,
+  UNIQUE(app_code, scope_type, scope_id, binding_role)
+);
+
+CREATE TABLE IF NOT EXISTS works (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  description TEXT,
+  app_code TEXT NOT NULL,
+  intent TEXT DEFAULT 'commemorate',
+  status TEXT DEFAULT 'draft' CHECK(status IN ('draft', 'active', 'archived')),
+  collection_id TEXT,
+  entity_id TEXT,
+  token_id TEXT,
+  token TEXT,
+  recipient_name TEXT,
+  sender_name TEXT,
+  starts_at DATETIME,
+  ends_at DATETIME,
+  version INTEGER DEFAULT 1,
+  created_by TEXT,
+  metadata_json TEXT,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (collection_id) REFERENCES content_collections(id) ON DELETE SET NULL,
+  FOREIGN KEY (entity_id) REFERENCES entities(id) ON DELETE SET NULL,
+  FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS work_versions (
+  id TEXT PRIMARY KEY,
+  work_id TEXT NOT NULL,
+  version INTEGER NOT NULL,
+  title TEXT NOT NULL,
+  description TEXT,
+  app_code TEXT NOT NULL,
+  intent TEXT,
+  collection_id TEXT,
+  snapshot_json TEXT,
+  created_by TEXT,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (work_id) REFERENCES works(id) ON DELETE CASCADE,
+  FOREIGN KEY (collection_id) REFERENCES content_collections(id) ON DELETE SET NULL,
+  FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
+  UNIQUE(work_id, version)
+);
+
+CREATE TABLE IF NOT EXISTS moment_tokens (
+  id TEXT PRIMARY KEY,
+  token TEXT UNIQUE NOT NULL,
+  work_id TEXT,
+  collection_id TEXT NOT NULL,
+  title TEXT NOT NULL,
+  subtitle TEXT,
+  object_label TEXT,
+  event_date TEXT,
+  place TEXT,
+  cover_url TEXT,
+  theme_color TEXT,
+  status TEXT DEFAULT 'active' CHECK(status IN ('active', 'draft', 'archived')),
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (work_id) REFERENCES works(id) ON DELETE SET NULL,
+  FOREIGN KEY (collection_id) REFERENCES content_collections(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS travel_trails (
+  id TEXT PRIMARY KEY,
+  token TEXT UNIQUE NOT NULL,
+  work_id TEXT,
+  title TEXT NOT NULL,
+  subtitle TEXT,
+  object_label TEXT,
+  next_place TEXT,
+  next_place_note TEXT,
+  journey_state TEXT DEFAULT 'planning' CHECK(journey_state IN ('planning', 'traveling', 'returned')),
+  theme_color TEXT,
+  status TEXT DEFAULT 'active' CHECK(status IN ('active', 'draft', 'archived')),
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (work_id) REFERENCES works(id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS travel_trail_places (
+  id TEXT PRIMARY KEY,
+  trail_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  note TEXT,
+  visited_at TEXT,
+  lat REAL,
+  lng REAL,
+  sort_order INTEGER DEFAULT 0,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (trail_id) REFERENCES travel_trails(id) ON DELETE CASCADE
+);
+
 CREATE TABLE IF NOT EXISTS site_config (
   key TEXT PRIMARY KEY,
   value TEXT
@@ -410,3 +569,125 @@ ON daily_sticker_tokens(user_id);
 
 CREATE INDEX IF NOT EXISTS idx_daily_sticker_ownership_events_token
 ON daily_sticker_ownership_events(token_id);
+
+CREATE TABLE IF NOT EXISTS answer_book_decks (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  subtitle TEXT,
+  description TEXT,
+  tone_notes TEXT,
+  theme_color TEXT DEFAULT '#2f6f5e',
+  status TEXT DEFAULT 'active',
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS answer_book_cards (
+  id TEXT PRIMARY KEY,
+  deck_id TEXT NOT NULL,
+  answer TEXT NOT NULL,
+  response TEXT,
+  action TEXT,
+  tag TEXT,
+  status TEXT DEFAULT 'active',
+  sort_order INTEGER DEFAULT 0,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (deck_id) REFERENCES answer_book_decks(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS answer_book_tokens (
+  id TEXT PRIMARY KEY,
+  deck_id TEXT NOT NULL,
+  token TEXT UNIQUE NOT NULL,
+  label TEXT,
+  status TEXT DEFAULT 'active',
+  issued_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (deck_id) REFERENCES answer_book_decks(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS answer_book_draw_events (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  token_id TEXT,
+  deck_id TEXT,
+  card_id TEXT,
+  user_agent TEXT,
+  drawn_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (token_id) REFERENCES answer_book_tokens(id) ON DELETE SET NULL,
+  FOREIGN KEY (deck_id) REFERENCES answer_book_decks(id) ON DELETE SET NULL,
+  FOREIGN KEY (card_id) REFERENCES answer_book_cards(id) ON DELETE SET NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_answer_book_cards_deck
+ON answer_book_cards(deck_id);
+
+CREATE INDEX IF NOT EXISTS idx_answer_book_tokens_deck
+ON answer_book_tokens(deck_id);
+
+CREATE INDEX IF NOT EXISTS idx_answer_book_draw_events_token
+ON answer_book_draw_events(token_id);
+
+CREATE INDEX IF NOT EXISTS idx_object_events_token
+ON object_events(token);
+
+CREATE INDEX IF NOT EXISTS idx_object_events_app
+ON object_events(app_code);
+
+CREATE INDEX IF NOT EXISTS idx_object_events_type
+ON object_events(event_type);
+
+CREATE INDEX IF NOT EXISTS idx_object_events_created
+ON object_events(created_at);
+
+CREATE INDEX IF NOT EXISTS idx_content_collection_blocks_collection
+ON content_collection_blocks(collection_id);
+
+CREATE INDEX IF NOT EXISTS idx_app_bindings_app
+ON app_bindings(app_code);
+
+CREATE INDEX IF NOT EXISTS idx_app_bindings_scope
+ON app_bindings(scope_type, scope_id);
+
+CREATE INDEX IF NOT EXISTS idx_app_bindings_app_scope
+ON app_bindings(app_code, scope_type, scope_id);
+
+CREATE INDEX IF NOT EXISTS idx_app_bindings_collection
+ON app_bindings(collection_id);
+
+CREATE INDEX IF NOT EXISTS idx_works_app
+ON works(app_code);
+
+CREATE INDEX IF NOT EXISTS idx_works_intent
+ON works(intent);
+
+CREATE INDEX IF NOT EXISTS idx_works_collection
+ON works(collection_id);
+
+CREATE INDEX IF NOT EXISTS idx_works_token
+ON works(token);
+
+CREATE INDEX IF NOT EXISTS idx_work_versions_work
+ON work_versions(work_id);
+
+CREATE INDEX IF NOT EXISTS idx_moment_tokens_work
+ON moment_tokens(work_id);
+
+CREATE INDEX IF NOT EXISTS idx_moment_tokens_token
+ON moment_tokens(token);
+
+CREATE INDEX IF NOT EXISTS idx_moment_tokens_collection
+ON moment_tokens(collection_id);
+
+CREATE INDEX IF NOT EXISTS idx_moment_tokens_status
+ON moment_tokens(status);
+
+CREATE INDEX IF NOT EXISTS idx_travel_trails_token
+ON travel_trails(token);
+
+CREATE INDEX IF NOT EXISTS idx_travel_trails_work
+ON travel_trails(work_id);
+
+CREATE INDEX IF NOT EXISTS idx_travel_trails_status
+ON travel_trails(status);
+
+CREATE INDEX IF NOT EXISTS idx_travel_trail_places_trail
+ON travel_trail_places(trail_id, sort_order);

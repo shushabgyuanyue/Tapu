@@ -8,32 +8,48 @@ const route = useRoute();
 
 const navModules = [
   {
-    key: 'apps',
-    label: '应用运营',
-    description: 'IP、贴纸和应用注册',
+    key: 'business',
+    label: '商业与资产',
+    description: '商品、订单、持有关系和售后流转。',
+    accent: '#2f6f5e',
     items: [
-      { path: '/official', label: '情绪 IP / 商品', exact: true },
-      { path: '/official/daily-stickers', label: '日常贴纸' },
-      { path: '/official/applications', label: '应用注册' },
-    ],
-  },
-  {
-    key: 'assets',
-    label: '资产流转',
-    description: '订单、申诉和持有记录',
-    items: [
+      { path: '/official', label: 'IP / 商品', exact: true },
       { path: '/official/orders', label: '订单 / Token' },
       { path: '/official/appeals', label: '申诉处理' },
       { path: '/official/ownership', label: '持有记录' },
     ],
   },
   {
-    key: 'system',
-    label: '数据系统',
-    description: '统计和全局开关',
+    key: 'light-apps',
+    label: '轻应用运营',
+    description: '每个已实现场景应用都有独立工作台。',
+    accent: '#d98fb7',
     items: [
-      { path: '/official/stats', label: '数据统计' },
-      { path: '/official/settings', label: '开关设置' },
+      { path: '/official/daily-stickers', label: '手账慢故事贴纸' },
+      { path: '/official/answer-book', label: '答案之书' },
+      { path: '/official/moments', label: '纪念瞬间' },
+      { path: '/official/travel-trails', label: '旅行轨迹' },
+    ],
+  },
+  {
+    key: 'creation',
+    label: '内容创作',
+    description: '内容集合、媒介块和应用绑定。',
+    accent: '#9a6a2f',
+    items: [
+      { path: '/official/works', label: '作品中心' },
+      { path: '/official/content-collections', label: '内容集合' },
+    ],
+  },
+  {
+    key: 'os',
+    label: 'WhatMint OS',
+    description: '应用目录、协议边界和全局系统开关。',
+    accent: '#26324a',
+    items: [
+      { path: '/official/applications', label: '应用目录' },
+      { path: '/official/stats', label: '数据观察' },
+      { path: '/official/settings', label: '全局开关' },
     ],
   },
 ];
@@ -43,23 +59,24 @@ const isActiveItem = (item: any) => {
   return route.path.startsWith(item.path);
 };
 
-const activeModule = computed(() => {
-  return navModules.find(module => module.items.some(isActiveItem)) || navModules[0];
-});
+const activeModule = computed(() => (
+  navModules.find(module => module.items.some(isActiveItem)) || navModules[0]
+));
 </script>
 
 <template>
-  <div class="official-app">
+  <div class="official-app" :style="{ '--module-accent': activeModule.accent }">
     <NavBar />
 
     <div class="official-shell">
-      <aside class="primary-nav" aria-label="官方管理一级菜单">
+      <aside class="primary-nav" aria-label="官方后台一级导航">
         <router-link
           v-for="module in navModules"
           :key="module.key"
           :to="module.items[0].path"
           class="module-card"
           :class="{ active: activeModule.key === module.key }"
+          :style="{ '--card-accent': module.accent }"
         >
           <span>{{ module.label }}</span>
           <small>{{ module.description }}</small>
@@ -68,14 +85,12 @@ const activeModule = computed(() => {
 
       <section class="official-main">
         <header class="module-header">
-          <div>
-            <span class="eyebrow">Official Console</span>
-            <h1>{{ activeModule.label }}</h1>
-            <p>{{ activeModule.description }}</p>
-          </div>
+          <span class="eyebrow">WhatMint Console</span>
+          <h1>{{ activeModule.label }}</h1>
+          <p>{{ activeModule.description }}</p>
         </header>
 
-        <nav class="secondary-nav" aria-label="官方管理二级菜单">
+        <nav class="secondary-nav" aria-label="官方后台二级导航">
           <router-link
             v-for="item in activeModule.items"
             :key="item.path"
@@ -97,20 +112,21 @@ const activeModule = computed(() => {
 
 <style scoped>
 .official-app {
+  --module-accent: #2f6f5e;
   min-height: 100vh;
+  color: #201b22;
   background:
-    radial-gradient(circle at 8% 0%, rgba(255, 79, 216, 0.10), transparent 26%),
-    radial-gradient(circle at 90% 8%, rgba(124, 77, 255, 0.10), transparent 30%),
-    var(--bg-page);
-  color: var(--text-primary);
-  font-family: var(--font);
+    radial-gradient(circle at 8% 0%, color-mix(in srgb, var(--module-accent), transparent 88%), transparent 26%),
+    radial-gradient(circle at 90% 8%, rgba(38, 50, 74, 0.08), transparent 30%),
+    #f7f4ef;
+  font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
 }
 
 .official-shell {
-  max-width: 1280px;
+  max-width: 1320px;
   margin: 0 auto;
   display: grid;
-  grid-template-columns: 248px minmax(0, 1fr);
+  grid-template-columns: 260px minmax(0, 1fr);
   gap: 22px;
   padding: 24px;
 }
@@ -124,30 +140,30 @@ const activeModule = computed(() => {
 }
 
 .module-card {
+  --card-accent: #2f6f5e;
   display: grid;
   gap: 6px;
   padding: 16px;
-  border: 1px solid #eee7f4;
-  border-radius: 20px;
-  background: rgba(255, 255, 255, 0.82);
-  color: #6b6172;
+  border: 1px solid rgba(32, 27, 34, 0.08);
+  border-left: 5px solid color-mix(in srgb, var(--card-accent), transparent 40%);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.78);
+  color: #625762;
   text-decoration: none;
-  transition: transform 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
+  transition: transform 0.16s ease, box-shadow 0.16s ease, background 0.16s ease;
 }
 
 .module-card:hover {
   transform: translateY(-2px);
-  border-color: #e7d6f1;
-  box-shadow: 0 16px 34px rgba(50, 24, 68, 0.08);
+  box-shadow: 0 18px 40px rgba(38, 31, 43, 0.08);
 }
 
 .module-card.active {
   color: #fff;
-  border-color: transparent;
   background:
-    radial-gradient(circle at 12% 10%, rgba(255, 79, 216, 0.34), transparent 32%),
-    linear-gradient(135deg, #1b1023, #7c4dff);
-  box-shadow: 0 18px 42px rgba(124, 77, 255, 0.22);
+    radial-gradient(circle at 12% 10%, rgba(255, 255, 255, 0.18), transparent 34%),
+    linear-gradient(135deg, #17121a, var(--card-accent));
+  box-shadow: 0 20px 46px color-mix(in srgb, var(--card-accent), transparent 72%);
 }
 
 .module-card span {
@@ -157,7 +173,7 @@ const activeModule = computed(() => {
 
 .module-card small {
   color: currentColor;
-  opacity: 0.72;
+  opacity: 0.74;
   font-size: 12px;
   line-height: 1.5;
 }
@@ -167,34 +183,31 @@ const activeModule = computed(() => {
 }
 
 .module-header {
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
   margin-bottom: 14px;
-  padding: 22px 24px;
-  border: 1px solid #eee7f4;
+  padding: 24px;
+  border: 1px solid rgba(32, 27, 34, 0.08);
   border-radius: 24px;
-  background: rgba(255, 255, 255, 0.86);
-  box-shadow: 0 18px 44px rgba(45, 24, 58, 0.06);
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 18px 44px rgba(38, 31, 43, 0.06);
 }
 
 .eyebrow {
-  color: #b93198;
+  color: var(--module-accent);
   font-size: 11px;
   font-weight: 950;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
 }
 
 .module-header h1 {
   margin: 6px 0;
-  font-size: 28px;
+  font-size: 30px;
   letter-spacing: -0.04em;
 }
 
 .module-header p {
   margin: 0;
-  color: #81768a;
+  color: #756c78;
   font-size: 13px;
   line-height: 1.7;
 }
@@ -208,7 +221,7 @@ const activeModule = computed(() => {
   margin-bottom: 18px;
   padding: 7px;
   overflow-x: auto;
-  border: 1px solid #eee7f4;
+  border: 1px solid rgba(32, 27, 34, 0.08);
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.90);
   backdrop-filter: blur(18px);
@@ -218,7 +231,7 @@ const activeModule = computed(() => {
   flex: 0 0 auto;
   padding: 10px 15px;
   border-radius: 13px;
-  color: #746a7c;
+  color: #706774;
   font-size: 13px;
   font-weight: 900;
   text-decoration: none;
@@ -226,13 +239,13 @@ const activeModule = computed(() => {
 }
 
 .sub-tab:hover {
-  color: #251229;
-  background: #f7f1fa;
+  color: #17121a;
+  background: #f2ece7;
 }
 
 .sub-tab.active {
   color: #fff;
-  background: linear-gradient(135deg, #251229, #7c4dff);
+  background: linear-gradient(135deg, #17121a, var(--module-accent));
 }
 
 .main-body {
@@ -249,25 +262,14 @@ const activeModule = computed(() => {
 
   .primary-nav {
     position: static;
-    display: grid;
     grid-auto-flow: column;
-    grid-auto-columns: minmax(170px, 1fr);
+    grid-auto-columns: minmax(190px, 1fr);
     overflow-x: auto;
     padding-bottom: 2px;
   }
 
-  .module-card {
-    padding: 14px;
-    border-radius: 18px;
-  }
-
   .module-header {
     display: none;
-  }
-
-  .secondary-nav {
-    top: 0;
-    margin-bottom: 14px;
   }
 }
 
@@ -277,14 +279,7 @@ const activeModule = computed(() => {
   }
 
   .primary-nav {
-    grid-auto-columns: 76%;
-    margin: 0 -2px;
-  }
-
-  .secondary-nav {
-    margin-left: -2px;
-    margin-right: -2px;
-    border-radius: 16px;
+    grid-auto-columns: 78%;
   }
 
   .sub-tab {

@@ -2,6 +2,8 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { resolveDailySticker } from '../api';
+import ContentRenderer from '../components/content/ContentRenderer.vue';
+import type { ContentBlock } from '../components/content/types';
 
 const route = useRoute();
 const loading = ref(true);
@@ -14,13 +16,44 @@ const persona = computed(() => data.value?.persona || {});
 const world = computed(() => data.value?.world || {});
 const storyArc = computed(() => data.value?.story_arc || {});
 const entry = computed(() => data.value?.entry || null);
+const tapContent = computed(() => data.value?.content || null);
 const assets = computed(() => Array.isArray(entry.value?.assets) ? entry.value.assets : []);
 const imageAssets = computed(() => assets.value.filter((asset: any) => ['image', 'illustration'].includes(asset.asset_type)));
-const audioAssets = computed(() => assets.value.filter((asset: any) => asset.asset_type === 'audio'));
-const animationAssets = computed(() => assets.value.filter((asset: any) => ['animation', 'video'].includes(asset.asset_type)));
-const themeColor = computed(() => world.value.theme_color || persona.value.theme_color || '#ff4fd8');
-const objectTitle = computed(() => world.value.name || persona.value.name || '一枚日常贴纸');
-const objectTagline = computed(() => world.value.premise || persona.value.tagline || '碰一下，回到这个物品的小世界。');
+const themeColor = computed(() => tapContent.value?.themeColor || world.value.theme_color || persona.value.theme_color || '#ff4fd8');
+const objectTitle = computed(() => tapContent.value?.title || world.value.name || persona.value.name || '一枚日常贴纸');
+const objectTagline = computed(() => tapContent.value?.subtitle || world.value.premise || persona.value.tagline || '碰一下，回到这个物品的小世界。');
+const contentBlocks = computed<ContentBlock[]>(() => {
+  if (Array.isArray(tapContent.value?.blocks) && tapContent.value.blocks.length > 0) {
+    return tapContent.value.blocks;
+  }
+  if (!entry.value) return [];
+  return [
+    {
+      id: `${entry.value.id}-voice`,
+      kind: 'text',
+      body: persona.value.voice,
+      emphasis: 'quiet',
+      tag: entry.value.mood,
+    },
+    {
+      id: `${entry.value.id}-title`,
+      kind: 'heading',
+      body: entry.value.title,
+    },
+    {
+      id: `${entry.value.id}-body`,
+      kind: 'text',
+      body: entry.value.body,
+      emphasis: 'strong',
+    },
+    {
+      id: `${entry.value.id}-quote`,
+      kind: 'quote',
+      body: entry.value.quote,
+      caption: entry.value.quote_author,
+    },
+  ].filter(block => block.body);
+});
 const modalityLabel = computed(() => {
   const modality = entry.value?.primary_modality || (assets.value[0]?.asset_type ?? 'text');
   const labels: Record<string, string> = {
@@ -42,11 +75,6 @@ const dateText = computed(() => {
     weekday: 'long',
   });
 });
-
-const isVideoLike = (asset: any) => {
-  const url = asset?.url || '';
-  return asset?.asset_type === 'video' || /\.(mp4|webm|mov)$/i.test(url);
-};
 
 const clearRefreshTimer = () => {
   if (refreshTimer.value) {
@@ -142,36 +170,11 @@ watch(() => route.fullPath, () => {
         </div>
 
         <div v-if="entry" class="story-card" :class="`motion-${entry.motion_preset || 'float'}`">
-          <p class="voice">{{ persona.voice || '今天这个小世界发生了：' }}</p>
-          <h2 v-if="entry.title">{{ entry.title }}</h2>
-          <p v-if="entry.body" class="body">{{ entry.body }}</p>
-
-          <div v-if="animationAssets.length" class="media-stack">
-            <template v-for="asset in animationAssets" :key="asset.id || asset.url">
-              <video
-                v-if="isVideoLike(asset)"
-                :src="asset.url"
-                class="media-video"
-                autoplay
-                muted
-                loop
-                playsinline
-              ></video>
-              <img v-else class="media-image" :src="asset.url" :alt="asset.alt_text || '动画素材'" />
-            </template>
-          </div>
-
-          <div v-if="audioAssets.length" class="audio-stack">
-            <div v-for="asset in audioAssets" :key="asset.id || asset.url" class="audio-card">
-              <span>{{ asset.alt_text || '今天的一段声音' }}</span>
-              <audio :src="asset.url" controls preload="metadata"></audio>
-            </div>
-          </div>
-
-          <blockquote v-if="entry.quote">
-            <span>{{ entry.quote }}</span>
-            <cite v-if="entry.quote_author">-- {{ entry.quote_author }}</cite>
-          </blockquote>
+          <ContentRenderer
+            class="daily-content"
+            :blocks="contentBlocks"
+            :context="{ surface: 'tap', appCode: 'daily-sticker', themeColor, autoplay: true, muted: true, controls: true }"
+          />
         </div>
 
         <div v-else class="story-card">
@@ -363,6 +366,14 @@ h1 {
     radial-gradient(circle at 100% 0%, color-mix(in srgb, var(--sticker-accent), transparent 72%), transparent 36%),
     rgba(0, 0, 0, 0.28);
   border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.daily-content {
+  --content-accent: var(--sticker-accent);
+  --content-ink: #fff;
+  --content-ink-soft: rgba(255, 255, 255, 0.88);
+  --content-muted: rgba(255, 255, 255, 0.58);
+  --content-muted-strong: rgba(255, 255, 255, 0.78);
 }
 
 .motion-float {

@@ -17,6 +17,11 @@ import ordersRouter from './routes/orders.js';
 import entitiesRouter from './routes/entities.js';
 import configRouter from './routes/config.js';
 import dailyStickersRouter from './routes/dailyStickers.js';
+import answerBookRouter from './routes/answerBook.js';
+import contentCollectionsRouter from './routes/contentCollections.js';
+import momentsRouter from './routes/moments.js';
+import worksRouter from './routes/works.js';
+import travelTrailsRouter from './routes/travelTrails.js';
 import { getUploadsDir } from './services/storage.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -83,6 +88,11 @@ app.use('/api/orders', ordersRouter);
 app.use('/api/entities', entitiesRouter);
 app.use('/api/config', configRouter);
 app.use('/api/daily-stickers', dailyStickersRouter);
+app.use('/api/answer-book', answerBookRouter);
+app.use('/api/content-collections', contentCollectionsRouter);
+app.use('/api/moments', momentsRouter);
+app.use('/api/works', worksRouter);
+app.use('/api/travel-trails', travelTrailsRouter);
 
 // Serve frontend static files (production build)
 const distPath = path.join(__dirname, '..', 'dist');

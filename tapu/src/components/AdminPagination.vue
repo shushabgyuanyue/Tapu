@@ -71,17 +71,22 @@ const onPageSizeChange = (event: Event) => {
 .pager-meta { display: flex; justify-content: space-between; align-items: center; gap: 12px; color: var(--text-muted); font-size: 12px; }
 .pager-size { display: inline-flex; align-items: center; gap: 6px; }
 .pager-size select {
-  padding: 6px 8px; border: 1px solid var(--border); border-radius: 8px; background: #fff; color: #666;
+  padding: 7px 10px; border: 1px solid var(--border); border-radius: 12px; background: var(--bg-input); color: var(--text-secondary); font-weight: 800;
 }
 .pager { display: flex; align-items: center; justify-content: center; gap: 12px; }
 .pager-num { font-size: 12px; color: var(--text-muted); }
 .pager-pages { display: flex; align-items: center; gap: 6px; }
 .pager-btn, .pager-page {
-  min-width: 32px; height: 32px; border-radius: 8px; border: 1px solid var(--border); background: #fff; color: #666; cursor: pointer;
+  min-width: 34px; height: 34px; border-radius: 12px; border: 1px solid var(--border); background: var(--bg-card); color: var(--text-secondary); cursor: pointer; font-weight: 900;
 }
 .pager-btn { padding: 0 12px; }
 .pager-btn:disabled, .pager-page:disabled { opacity: 0.45; cursor: default; }
-.pager-page.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+.pager-btn:not(:disabled):hover,
+.pager-page:not(.active):hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+.pager-page.active { background: linear-gradient(135deg, #17121a, var(--accent)); color: #fff; border-color: transparent; }
 @media (max-width: 640px) {
   .pager-meta, .pager { flex-wrap: wrap; justify-content: center; }
 }

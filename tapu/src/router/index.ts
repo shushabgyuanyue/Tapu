@@ -18,6 +18,21 @@ const routes = [
     component: () => import('../views/DailyStickerPage.vue'),
   },
   {
+    path: '/answer',
+    name: 'answer-book',
+    component: () => import('../views/AnswerBookPage.vue'),
+  },
+  {
+    path: '/moment',
+    name: 'moment',
+    component: () => import('../views/MomentPage.vue'),
+  },
+  {
+    path: '/trail',
+    name: 'travel-trail',
+    component: () => import('../views/TravelTrailPage.vue'),
+  },
+  {
     path: '/community',
     name: 'community',
     component: () => import('../views/CommunityPage.vue'),
@@ -98,7 +113,12 @@ const routes = [
     children: [
       { path: '', name: 'official-groups', component: () => import('../views/admin/GroupManage.vue') },
       { path: 'applications', name: 'official-applications', component: () => import('../views/official/ApplicationManage.vue') },
+      { path: 'works', name: 'official-works', component: () => import('../views/official/WorkManage.vue') },
+      { path: 'content-collections', name: 'official-content-collections', component: () => import('../views/official/ContentCollectionManage.vue') },
       { path: 'daily-stickers', name: 'official-daily-stickers', component: () => import('../views/official/DailyStickerManage.vue') },
+      { path: 'answer-book', name: 'official-answer-book', component: () => import('../views/official/AnswerBookManage.vue') },
+      { path: 'moments', name: 'official-moments', component: () => import('../views/official/MomentManage.vue') },
+      { path: 'travel-trails', name: 'official-travel-trails', component: () => import('../views/official/TravelTrailManage.vue') },
       { path: 'orders', name: 'official-orders', component: () => import('../views/official/OrderManage.vue') },
       { path: 'appeals', name: 'official-appeals', component: () => import('../views/official/AppealManage.vue') },
       { path: 'ownership', name: 'official-ownership', component: () => import('../views/official/OwnershipManage.vue') },
@@ -148,6 +168,18 @@ router.beforeEach(async (to, _from, next) => {
   }
   if (key && to.path === '/sticker') {
     // Daily sticker NFC links resolve publicly without login.
+    return next();
+  }
+  if (key && to.path === '/answer') {
+    // Answer Book NFC links resolve publicly without login.
+    return next();
+  }
+  if (key && to.path === '/moment') {
+    // Moment NFC links resolve publicly without login.
+    return next();
+  }
+  if (key && to.path === '/trail') {
+    // Travel trail NFC links resolve publicly without login.
     return next();
   }
   if (key && to.path === '/assets') {
