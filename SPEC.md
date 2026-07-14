@@ -43,6 +43,7 @@ WhatMint 的设计语言以 [docs/product-manifesto.md](docs/product-manifesto.m
 ## 指针
 
 - 业务流程与权限规则：[docs/business-flow.md](docs/business-flow.md)
+- OS 抽象雏形：[docs/whatmint-os-abstraction.md](docs/whatmint-os-abstraction.md)
 - 模块与分工：[DOMAINS.md](DOMAINS.md)
 - 阶段与验收：[develop.md](develop.md)
 - 文档地图：[DOCUMENT_INDEX.md](DOCUMENT_INDEX.md)

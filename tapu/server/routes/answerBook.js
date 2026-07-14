@@ -3,6 +3,9 @@ import { v4 as uuidv4 } from 'uuid';
 import { getDb, saveDb } from '../db/index.js';
 import { authRequired } from '../middleware/auth.js';
 import { createUniqueToken, normalizeEntityToken, resultToObjects } from '../services/tokens.js';
+import { recordObjectEvent } from '../services/objectEvents.js';
+import { resolveObjectByToken } from '../services/objectRegistry.js';
+import { buildContentBlocksForAnswerCard, buildTapResponse } from '../services/tapRuntime.js';
 
 const router = Router();
 
@@ -20,19 +23,6 @@ function cleanString(value) {
 function parsePositiveInt(value, fallback) {
   const num = Number.parseInt(value, 10);
   return Number.isFinite(num) && num > 0 ? num : fallback;
-}
-
-function getTokenRow(db, rawToken) {
-  const token = normalizeEntityToken(rawToken);
-  if (!token) return null;
-  return resultToObjects(db.exec(
-    `SELECT t.*, d.name as deck_name, d.subtitle, d.description, d.tone_notes,
-            d.theme_color, d.status as deck_status
-     FROM answer_book_tokens t
-     JOIN answer_book_decks d ON d.id = t.deck_id
-     WHERE t.token = ? LIMIT 1`,
-    [token]
-  ))[0] || null;
 }
 
 function getDeck(db, deckId) {
@@ -77,20 +67,57 @@ function recordDraw(db, tokenRow, card, req) {
 
 router.get('/resolve', async (req, res) => {
   try {
-    const tokenRow = getTokenRow(await getDb(), req.query.key);
+    const db = await getDb();
+    const resolvedObject = resolveObjectByToken(db, req.query.key);
+    const tokenRow = resolvedObject?.raw;
     if (!tokenRow) return res.status(400).json({ error: '缺少或无效的答案之书 token' });
     if (tokenRow.status !== 'active' || tokenRow.deck_status !== 'active') {
       return res.status(404).json({ error: '这本答案之书暂时没有回应' });
     }
 
-    const db = await getDb();
     const card = chooseCard(db, tokenRow.deck_id, cleanString(req.query.exclude));
     if (!card) return res.status(404).json({ error: '这个牌组还没有可用答案' });
 
     recordDraw(db, tokenRow, card, req);
+    recordObjectEvent(db, {
+      objectType: resolvedObject.object.type,
+      objectId: resolvedObject.object.id,
+      tokenId: tokenRow.id,
+      token: tokenRow.token,
+      appCode: resolvedObject.app.code,
+      eventType: 'answer_draw',
+      contentId: card.id,
+      userAgent: req.headers['user-agent'] || null,
+      metadata: {
+        deckId: tokenRow.deck_id,
+        excludedCardId: cleanString(req.query.exclude) || null,
+      },
+    });
     saveDb();
 
+    const tapResponse = buildTapResponse({
+      object: resolvedObject.object,
+      app: resolvedObject.app,
+      content: {
+        title: tokenRow.deck_name,
+        subtitle: tokenRow.subtitle,
+        description: tokenRow.description,
+        toneNotes: tokenRow.tone_notes,
+        themeColor: tokenRow.theme_color,
+        blocks: buildContentBlocksForAnswerCard(card),
+      },
+      actions: [
+        { code: 'draw_again', label: '再问一次' },
+        { code: 'copy_answer', label: '复制答案' },
+      ],
+      permissions: {
+        anonymousTap: true,
+        ownerRequired: false,
+      },
+    });
+
     res.json({
+      ...tapResponse,
       token: {
         id: tokenRow.id,
         label: tokenRow.label,

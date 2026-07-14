@@ -228,6 +228,20 @@ export async function getDb() {
       FOREIGN KEY (to_user_id) REFERENCES users(id) ON DELETE SET NULL,
       FOREIGN KEY (actor_user_id) REFERENCES users(id) ON DELETE SET NULL
     )`,
+    `CREATE TABLE IF NOT EXISTS object_events (
+      id TEXT PRIMARY KEY,
+      object_type TEXT,
+      object_id TEXT,
+      token_id TEXT,
+      token TEXT,
+      app_code TEXT,
+      event_type TEXT NOT NULL,
+      content_id TEXT,
+      user_id TEXT,
+      user_agent TEXT,
+      metadata_json TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`,
     `CREATE TABLE IF NOT EXISTS orders (
       id TEXT PRIMARY KEY,
       buyer_user_id TEXT NOT NULL,
@@ -653,6 +667,10 @@ export async function getDb() {
     db.run('CREATE INDEX IF NOT EXISTS idx_answer_book_cards_deck ON answer_book_cards(deck_id)');
     db.run('CREATE INDEX IF NOT EXISTS idx_answer_book_tokens_deck ON answer_book_tokens(deck_id)');
     db.run('CREATE INDEX IF NOT EXISTS idx_answer_book_draw_events_token ON answer_book_draw_events(token_id)');
+    db.run('CREATE INDEX IF NOT EXISTS idx_object_events_token ON object_events(token)');
+    db.run('CREATE INDEX IF NOT EXISTS idx_object_events_app ON object_events(app_code)');
+    db.run('CREATE INDEX IF NOT EXISTS idx_object_events_type ON object_events(event_type)');
+    db.run('CREATE INDEX IF NOT EXISTS idx_object_events_created ON object_events(created_at)');
   } catch (e) { /* ignore */ }
 
   try {

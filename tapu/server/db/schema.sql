@@ -209,6 +209,21 @@ CREATE TABLE IF NOT EXISTS entity_ownership_events (
   FOREIGN KEY (actor_user_id) REFERENCES users(id) ON DELETE SET NULL
 );
 
+CREATE TABLE IF NOT EXISTS object_events (
+  id TEXT PRIMARY KEY,
+  object_type TEXT,
+  object_id TEXT,
+  token_id TEXT,
+  token TEXT,
+  app_code TEXT,
+  event_type TEXT NOT NULL,
+  content_id TEXT,
+  user_id TEXT,
+  user_agent TEXT,
+  metadata_json TEXT,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS site_config (
   key TEXT PRIMARY KEY,
   value TEXT
@@ -466,3 +481,15 @@ ON answer_book_tokens(deck_id);
 
 CREATE INDEX IF NOT EXISTS idx_answer_book_draw_events_token
 ON answer_book_draw_events(token_id);
+
+CREATE INDEX IF NOT EXISTS idx_object_events_token
+ON object_events(token);
+
+CREATE INDEX IF NOT EXISTS idx_object_events_app
+ON object_events(app_code);
+
+CREATE INDEX IF NOT EXISTS idx_object_events_type
+ON object_events(event_type);
+
+CREATE INDEX IF NOT EXISTS idx_object_events_created
+ON object_events(created_at);

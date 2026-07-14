@@ -14,9 +14,15 @@ const copied = ref(false);
 
 const token = computed(() => String(route.query.key || '').trim());
 const deck = computed(() => data.value?.deck || {});
+const tapContent = computed(() => data.value?.content || null);
 const card = computed(() => data.value?.card || null);
-const themeColor = computed(() => deck.value.theme_color || '#2f6f5e');
+const themeColor = computed(() => tapContent.value?.themeColor || deck.value.theme_color || '#2f6f5e');
+const deckTitle = computed(() => tapContent.value?.title || deck.value.name || '答案之书');
+const deckSubtitle = computed(() => tapContent.value?.subtitle || deck.value.subtitle || '');
 const contentBlocks = computed<ContentBlock[]>(() => {
+  if (Array.isArray(tapContent.value?.blocks) && tapContent.value.blocks.length > 0) {
+    return tapContent.value.blocks;
+  }
   if (!card.value) return [];
   return [
     {
@@ -100,7 +106,7 @@ onMounted(() => load());
 
       <article v-else class="answer-card" :class="{ drawing }" :key="card?.id">
         <div class="deck-line">
-          <span>{{ deck.name || '答案之书' }}</span>
+          <span>{{ deckTitle }}</span>
           <small>{{ card?.tag || '当下' }}</small>
         </div>
 
@@ -120,7 +126,7 @@ onMounted(() => load());
         </footer>
       </article>
 
-      <p v-if="deck.subtitle" class="deck-subtitle">{{ deck.subtitle }}</p>
+      <p v-if="deckSubtitle" class="deck-subtitle">{{ deckSubtitle }}</p>
     </section>
   </main>
 </template>
