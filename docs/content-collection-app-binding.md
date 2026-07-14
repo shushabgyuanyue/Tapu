@@ -42,11 +42,9 @@ Content Collection 是“内容创作中心”和“轻应用运行时”之间�
 应用绑定关系。
 
 - `app_code`
-- `object_type`
-- `object_id`
-- `token_id`
-- `token`
-- `content_collection_id`
+- `scope_type`
+- `scope_id`
+- `collection_id`
 - `binding_role`
 - `status`
 - `starts_at`
@@ -57,12 +55,14 @@ Content Collection 是“内容创作中心”和“轻应用运行时”之间�
 
 运行时查询 active binding 时，优先级从高到低：
 
-1. token 绑定。
-2. token_id 绑定。
-3. object 绑定。
-4. app 级默认绑定。
+1. `scope_type = token`
+2. `scope_type = object`
+3. `scope_type = app`
 
 这样一个轻应用可以先有默认内容，也可以为某个具体贴纸或摆件覆写内容。
+
+`scope_type = app` 时，`scope_id` 使用空字符串，表示应用默认内容。
+其它 scope 必须提供 `scope_id`。
 
 ## 当前 API
 

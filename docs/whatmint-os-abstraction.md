@@ -109,8 +109,9 @@ WhatMint 不是先做一个完整平台，再让应用迁入；当前策略是�
   },
   binding: {
     appCode: 'daily-sticker',
-    token: '<token>',
-    contentCollectionId: '<collection-id>',
+    scopeType: 'token',
+    scopeId: '<token>',
+    collectionId: '<collection-id>',
     role: 'primary'
   }
 }
@@ -120,7 +121,7 @@ WhatMint 不是先做一个完整平台，再让应用迁入；当前策略是�
 
 - `content_collections`：内容集合元信息。
 - `content_collection_blocks`：集合内的 `ContentBlock` 协议块。
-- `app_bindings`：把应用、物体、token 与内容集合关联。
+- `app_bindings`：通过 `scope_type + scope_id` 把应用、物体或 token 与内容集合关联。
 - `tapu/server/services/contentCollections.js`：集合读取、块转换和 active binding 查询。
 - `tapu/server/routes/contentCollections.js`：官方 API，不做完整 CMS 页面。
 

@@ -115,6 +115,23 @@ function relaxDailyStickerEntryBody(database) {
   }
 }
 
+function resetContentBindingSchemaIfNeeded(database) {
+  const bindingColumns = getTableInfo(database, 'app_bindings');
+  const hasOldBindingShape = bindingColumns.some(column => column.name === 'content_collection_id')
+    || bindingColumns.some(column => column.name === 'token')
+    || bindingColumns.some(column => column.name === 'object_id');
+  if (hasOldBindingShape) {
+    database.run('DROP TABLE IF EXISTS app_bindings');
+  }
+
+  const collectionColumns = getTableInfo(database, 'content_collections');
+  const slugColumn = collectionColumns.find(column => column.name === 'slug');
+  if (slugColumn && Number(slugColumn.notnull) !== 1) {
+    database.run('DROP TABLE IF EXISTS content_collection_blocks');
+    database.run('DROP TABLE IF EXISTS content_collections');
+  }
+}
+
 export async function getDb() {
   if (db) return db;
 
@@ -129,6 +146,8 @@ export async function getDb() {
 
   // Run schema
   const schema = fs.readFileSync(SCHEMA_PATH, 'utf-8');
+  runSchemaSafely(db, schema);
+  resetContentBindingSchemaIfNeeded(db);
   runSchemaSafely(db, schema);
 
   // Migrations: add columns if missing
@@ -245,11 +264,11 @@ export async function getDb() {
     `CREATE TABLE IF NOT EXISTS content_collections (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
-      slug TEXT UNIQUE,
+      slug TEXT UNIQUE NOT NULL,
       description TEXT,
       primary_modality TEXT DEFAULT 'mixed',
       theme_color TEXT,
-      status TEXT DEFAULT 'draft',
+      status TEXT DEFAULT 'draft' CHECK(status IN ('draft', 'published', 'archived')),
       metadata_json TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -278,19 +297,18 @@ export async function getDb() {
     `CREATE TABLE IF NOT EXISTS app_bindings (
       id TEXT PRIMARY KEY,
       app_code TEXT NOT NULL,
-      object_type TEXT,
-      object_id TEXT,
-      token_id TEXT,
-      token TEXT,
-      content_collection_id TEXT NOT NULL,
+      scope_type TEXT DEFAULT 'app' CHECK(scope_type IN ('app', 'token', 'object')),
+      scope_id TEXT NOT NULL DEFAULT '',
+      collection_id TEXT NOT NULL,
       binding_role TEXT DEFAULT 'primary',
-      status TEXT DEFAULT 'active',
+      status TEXT DEFAULT 'active' CHECK(status IN ('active', 'paused')),
       starts_at DATETIME,
       ends_at DATETIME,
       metadata_json TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (content_collection_id) REFERENCES content_collections(id) ON DELETE CASCADE
+      FOREIGN KEY (collection_id) REFERENCES content_collections(id) ON DELETE CASCADE,
+      UNIQUE(app_code, scope_type, scope_id, binding_role)
     )`,
     `CREATE TABLE IF NOT EXISTS orders (
       id TEXT PRIMARY KEY,
@@ -723,9 +741,9 @@ export async function getDb() {
     db.run('CREATE INDEX IF NOT EXISTS idx_object_events_created ON object_events(created_at)');
     db.run('CREATE INDEX IF NOT EXISTS idx_content_collection_blocks_collection ON content_collection_blocks(collection_id)');
     db.run('CREATE INDEX IF NOT EXISTS idx_app_bindings_app ON app_bindings(app_code)');
-    db.run('CREATE INDEX IF NOT EXISTS idx_app_bindings_token ON app_bindings(token)');
-    db.run('CREATE INDEX IF NOT EXISTS idx_app_bindings_object ON app_bindings(object_type, object_id)');
-    db.run('CREATE INDEX IF NOT EXISTS idx_app_bindings_collection ON app_bindings(content_collection_id)');
+    db.run('CREATE INDEX IF NOT EXISTS idx_app_bindings_scope ON app_bindings(scope_type, scope_id)');
+    db.run('CREATE INDEX IF NOT EXISTS idx_app_bindings_app_scope ON app_bindings(app_code, scope_type, scope_id)');
+    db.run('CREATE INDEX IF NOT EXISTS idx_app_bindings_collection ON app_bindings(collection_id)');
   } catch (e) { /* ignore */ }
 
   try {

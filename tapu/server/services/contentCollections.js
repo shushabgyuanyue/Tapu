@@ -29,6 +29,16 @@ export function normalizeSlug(value, fallback = '') {
     .slice(0, 64);
 }
 
+export function normalizeScopeType(value) {
+  const scopeType = cleanString(value || 'app');
+  return ['app', 'token', 'object'].includes(scopeType) ? scopeType : 'app';
+}
+
+export function normalizeScopeId(scopeType, value) {
+  if (scopeType === 'app') return '';
+  return cleanString(value);
+}
+
 export function stringifyJson(value) {
   if (value === undefined || value === null || value === '') return null;
   if (typeof value === 'string') {
@@ -140,22 +150,19 @@ export function findActiveAppBinding(db, params = {}) {
   const rows = resultToObjects(db.exec(
     `SELECT b.*, c.name as collection_name, c.slug as collection_slug, c.status as collection_status
      FROM app_bindings b
-     JOIN content_collections c ON c.id = b.content_collection_id
+     JOIN content_collections c ON c.id = b.collection_id
      WHERE b.app_code = ?
        AND b.status = 'active'
        AND c.status = 'published'
        AND (b.starts_at IS NULL OR b.starts_at <= ?)
        AND (b.ends_at IS NULL OR b.ends_at >= ?)
-       AND (
-         (b.token IS NULL AND b.token_id IS NULL AND b.object_id IS NULL)
-         OR (? IS NOT NULL AND (b.token = ? OR b.token_id = ?))
-         OR (? IS NOT NULL AND b.object_type = ? AND b.object_id = ?)
-       )
+       AND (b.scope_type = 'app'
+         OR (b.scope_type = 'token' AND b.scope_id = ?)
+         OR (b.scope_type = 'object' AND b.scope_id = ?))
      ORDER BY
        CASE
-         WHEN b.token IS NOT NULL THEN 0
-         WHEN b.token_id IS NOT NULL THEN 1
-         WHEN b.object_id IS NOT NULL THEN 2
+         WHEN b.scope_type = 'token' THEN 0
+         WHEN b.scope_type = 'object' THEN 1
          ELSE 3
        END,
        b.created_at DESC
@@ -164,11 +171,7 @@ export function findActiveAppBinding(db, params = {}) {
       appCode,
       now,
       now,
-      params.token || params.tokenId || null,
       params.token || null,
-      params.tokenId || null,
-      params.objectId || null,
-      params.objectType || null,
       params.objectId || null,
     ]
   ))[0] || null;
@@ -177,6 +180,6 @@ export function findActiveAppBinding(db, params = {}) {
   return {
     ...rows,
     metadata: parseJson(rows.metadata_json, {}),
-    collection: getContentCollection(db, rows.content_collection_id),
+    collection: getContentCollection(db, rows.collection_id),
   };
 }

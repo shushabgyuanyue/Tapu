@@ -227,11 +227,11 @@ CREATE TABLE IF NOT EXISTS object_events (
 CREATE TABLE IF NOT EXISTS content_collections (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
-  slug TEXT UNIQUE,
+  slug TEXT UNIQUE NOT NULL,
   description TEXT,
   primary_modality TEXT DEFAULT 'mixed',
   theme_color TEXT,
-  status TEXT DEFAULT 'draft',
+  status TEXT DEFAULT 'draft' CHECK(status IN ('draft', 'published', 'archived')),
   metadata_json TEXT,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -262,19 +262,18 @@ CREATE TABLE IF NOT EXISTS content_collection_blocks (
 CREATE TABLE IF NOT EXISTS app_bindings (
   id TEXT PRIMARY KEY,
   app_code TEXT NOT NULL,
-  object_type TEXT,
-  object_id TEXT,
-  token_id TEXT,
-  token TEXT,
-  content_collection_id TEXT NOT NULL,
+  scope_type TEXT DEFAULT 'app' CHECK(scope_type IN ('app', 'token', 'object')),
+  scope_id TEXT NOT NULL DEFAULT '',
+  collection_id TEXT NOT NULL,
   binding_role TEXT DEFAULT 'primary',
-  status TEXT DEFAULT 'active',
+  status TEXT DEFAULT 'active' CHECK(status IN ('active', 'paused')),
   starts_at DATETIME,
   ends_at DATETIME,
   metadata_json TEXT,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (content_collection_id) REFERENCES content_collections(id) ON DELETE CASCADE
+  FOREIGN KEY (collection_id) REFERENCES content_collections(id) ON DELETE CASCADE,
+  UNIQUE(app_code, scope_type, scope_id, binding_role)
 );
 
 CREATE TABLE IF NOT EXISTS site_config (
@@ -553,11 +552,11 @@ ON content_collection_blocks(collection_id);
 CREATE INDEX IF NOT EXISTS idx_app_bindings_app
 ON app_bindings(app_code);
 
-CREATE INDEX IF NOT EXISTS idx_app_bindings_token
-ON app_bindings(token);
+CREATE INDEX IF NOT EXISTS idx_app_bindings_scope
+ON app_bindings(scope_type, scope_id);
 
-CREATE INDEX IF NOT EXISTS idx_app_bindings_object
-ON app_bindings(object_type, object_id);
+CREATE INDEX IF NOT EXISTS idx_app_bindings_app_scope
+ON app_bindings(app_code, scope_type, scope_id);
 
 CREATE INDEX IF NOT EXISTS idx_app_bindings_collection
-ON app_bindings(content_collection_id);
+ON app_bindings(collection_id);

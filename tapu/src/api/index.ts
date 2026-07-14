@@ -366,11 +366,9 @@ export type ContentCollectionInput = {
 
 export type AppBindingInput = {
   app_code: string;
-  content_collection_id: string;
-  object_type?: string;
-  object_id?: string;
-  token_id?: string;
-  token?: string;
+  collection_id: string;
+  scope_type?: 'app' | 'token' | 'object';
+  scope_id?: string;
   binding_role?: string;
   status?: string;
   starts_at?: string;
@@ -415,10 +413,11 @@ export async function deleteContentCollection(id: string) {
   });
 }
 
-export async function fetchAppBindings(params?: { appCode?: string; token?: string }) {
+export async function fetchAppBindings(params?: { appCode?: string; scopeType?: string; scopeId?: string }) {
   const query = new URLSearchParams();
   if (params?.appCode) query.set('app_code', params.appCode);
-  if (params?.token) query.set('token', params.token);
+  if (params?.scopeType) query.set('scope_type', params.scopeType);
+  if (params?.scopeId) query.set('scope_id', params.scopeId);
   const qs = query.toString();
   return request(`/content-collections/bindings${qs ? '?' + qs : ''}`, { auth: true });
 }

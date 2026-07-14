@@ -19,8 +19,8 @@
 - timestamp: 2026-07-14T23:23:55+08:00
 - round: r5
 - question: Does the service layer correctly resolve a token-level app binding?
-- finding: A direct service-layer verification created a temporary published collection with two blocks, bound it to `daily-sticker` token `test-token-r5`, and resolved it back with `findActiveAppBinding`.
-- evidence: command output showed `blockCount: 2`, `bindingCollectionId: test-collection-1784042550291`, `firstBlockKind: heading`
+- finding: A direct service-layer verification created a temporary published collection with two blocks, bound it with `scope_type=token` and `scope_id=test-token-r6`, and resolved it back with `findActiveAppBinding`.
+- evidence: command output showed `blockCount: 2`, `collectionId: test-collection-1784043249255`, `scopeType: token`, `scopeId: test-token-r6`, `firstBlockKind: heading`
 
 - observer: codex
 - timestamp: 2026-07-14T23:23:55+08:00

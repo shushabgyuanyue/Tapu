@@ -6,6 +6,8 @@ import { resultToObjects } from '../services/tokens.js';
 import {
   cleanString,
   getContentCollection,
+  normalizeScopeId,
+  normalizeScopeType,
   normalizeSlug,
   parseJson,
   replaceCollectionBlocks,
@@ -24,6 +26,16 @@ function adminOnly(req, res, next) {
 function parsePositiveInt(value, fallback) {
   const num = Number.parseInt(value, 10);
   return Number.isFinite(num) && num > 0 ? num : fallback;
+}
+
+function normalizeCollectionStatus(value) {
+  const status = cleanString(value || 'draft');
+  return ['draft', 'published', 'archived'].includes(status) ? status : 'draft';
+}
+
+function normalizeBindingStatus(value) {
+  const status = cleanString(value || 'active');
+  return ['active', 'paused'].includes(status) ? status : 'active';
 }
 
 function collectionSummary(row) {
@@ -58,7 +70,7 @@ router.get('/', authRequired, adminOnly, async (req, res) => {
               COUNT(DISTINCT ab.id) as binding_count
        FROM content_collections c
        LEFT JOIN content_collection_blocks b ON b.collection_id = c.id
-       LEFT JOIN app_bindings ab ON ab.content_collection_id = c.id
+       LEFT JOIN app_bindings ab ON ab.collection_id = c.id
        ${where}
        GROUP BY c.id
        ORDER BY c.updated_at DESC, c.created_at DESC
@@ -79,7 +91,7 @@ router.post('/', authRequired, adminOnly, async (req, res) => {
 
     const db = await getDb();
     const id = uuidv4();
-    const slug = normalizeSlug(req.body.slug, name) || null;
+    const slug = normalizeSlug(req.body.slug, name) || id;
     db.run(
       `INSERT INTO content_collections
        (id, name, slug, description, primary_modality, theme_color, status, metadata_json)
@@ -91,7 +103,7 @@ router.post('/', authRequired, adminOnly, async (req, res) => {
         cleanString(req.body.description) || null,
         cleanString(req.body.primary_modality) || 'mixed',
         cleanString(req.body.theme_color) || null,
-        cleanString(req.body.status) || 'draft',
+        normalizeCollectionStatus(req.body.status),
         stringifyJson(req.body.metadata),
       ]
     );
@@ -111,22 +123,27 @@ router.get('/bindings', authRequired, adminOnly, async (req, res) => {
   try {
     const db = await getDb();
     const appCode = cleanString(req.query.app_code);
-    const token = cleanString(req.query.token);
+    const scopeType = normalizeScopeType(req.query.scope_type);
+    const scopeId = cleanString(req.query.scope_id);
     const conditions = [];
     const params = [];
     if (appCode) {
       conditions.push('b.app_code = ?');
       params.push(appCode);
     }
-    if (token) {
-      conditions.push('(b.token = ? OR b.token_id = ?)');
-      params.push(token, token);
+    if (req.query.scope_type) {
+      conditions.push('b.scope_type = ?');
+      params.push(scopeType);
+    }
+    if (scopeId) {
+      conditions.push('b.scope_id = ?');
+      params.push(scopeId);
     }
     const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
     const rows = resultToObjects(db.exec(
       `SELECT b.*, c.name as collection_name, c.slug as collection_slug
        FROM app_bindings b
-       LEFT JOIN content_collections c ON c.id = b.content_collection_id
+       LEFT JOIN content_collections c ON c.id = b.collection_id
        ${where}
        ORDER BY b.updated_at DESC, b.created_at DESC`,
       params
@@ -141,8 +158,11 @@ router.get('/bindings', authRequired, adminOnly, async (req, res) => {
 router.post('/bindings', authRequired, adminOnly, async (req, res) => {
   try {
     const appCode = cleanString(req.body.app_code);
-    const collectionId = cleanString(req.body.content_collection_id);
-    if (!appCode || !collectionId) return res.status(400).json({ error: '请填写 app_code 和 content_collection_id' });
+    const collectionId = cleanString(req.body.collection_id);
+    const scopeType = normalizeScopeType(req.body.scope_type);
+    const scopeId = normalizeScopeId(scopeType, req.body.scope_id);
+    if (!appCode || !collectionId) return res.status(400).json({ error: '请填写 app_code 和 collection_id' });
+    if (scopeType !== 'app' && !scopeId) return res.status(400).json({ error: '非 app 级绑定需要 scope_id' });
 
     const db = await getDb();
     if (!getContentCollection(db, collectionId)) return res.status(404).json({ error: '内容集合不存在' });
@@ -150,18 +170,16 @@ router.post('/bindings', authRequired, adminOnly, async (req, res) => {
     const id = uuidv4();
     db.run(
       `INSERT INTO app_bindings
-       (id, app_code, object_type, object_id, token_id, token, content_collection_id, binding_role, status, starts_at, ends_at, metadata_json)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       (id, app_code, scope_type, scope_id, collection_id, binding_role, status, starts_at, ends_at, metadata_json)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id,
         appCode,
-        cleanString(req.body.object_type) || null,
-        cleanString(req.body.object_id) || null,
-        cleanString(req.body.token_id) || null,
-        cleanString(req.body.token) || null,
+        scopeType,
+        scopeId,
         collectionId,
         cleanString(req.body.binding_role) || 'primary',
-        cleanString(req.body.status) || 'active',
+        normalizeBindingStatus(req.body.status),
         cleanString(req.body.starts_at) || null,
         cleanString(req.body.ends_at) || null,
         stringifyJson(req.body.metadata),
@@ -170,6 +188,9 @@ router.post('/bindings', authRequired, adminOnly, async (req, res) => {
     saveDb();
     res.json({ success: true, id });
   } catch (error) {
+    if (String(error?.message || '').includes('UNIQUE')) {
+      return res.status(400).json({ error: '该作用域已经绑定内容集合' });
+    }
     console.error('Create app binding error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
@@ -202,11 +223,11 @@ router.put('/:id', authRequired, adminOnly, async (req, res) => {
        WHERE id = ?`,
       [
         name,
-        normalizeSlug(req.body.slug, name) || null,
+        normalizeSlug(req.body.slug, name) || existing.id,
         cleanString(req.body.description) || null,
         cleanString(req.body.primary_modality) || 'mixed',
         cleanString(req.body.theme_color) || null,
-        cleanString(req.body.status) || 'draft',
+        normalizeCollectionStatus(req.body.status),
         stringifyJson(req.body.metadata),
         existing.id,
       ]
@@ -238,27 +259,28 @@ router.delete('/:id', authRequired, adminOnly, async (req, res) => {
 router.put('/bindings/:id', authRequired, adminOnly, async (req, res) => {
   try {
     const appCode = cleanString(req.body.app_code);
-    const collectionId = cleanString(req.body.content_collection_id);
-    if (!appCode || !collectionId) return res.status(400).json({ error: '请填写 app_code 和 content_collection_id' });
+    const collectionId = cleanString(req.body.collection_id);
+    const scopeType = normalizeScopeType(req.body.scope_type);
+    const scopeId = normalizeScopeId(scopeType, req.body.scope_id);
+    if (!appCode || !collectionId) return res.status(400).json({ error: '请填写 app_code 和 collection_id' });
+    if (scopeType !== 'app' && !scopeId) return res.status(400).json({ error: '非 app 级绑定需要 scope_id' });
 
     const db = await getDb();
     if (!getContentCollection(db, collectionId)) return res.status(404).json({ error: '内容集合不存在' });
 
     db.run(
       `UPDATE app_bindings
-       SET app_code = ?, object_type = ?, object_id = ?, token_id = ?, token = ?,
-           content_collection_id = ?, binding_role = ?, status = ?, starts_at = ?,
+       SET app_code = ?, scope_type = ?, scope_id = ?, collection_id = ?,
+           binding_role = ?, status = ?, starts_at = ?,
            ends_at = ?, metadata_json = ?, updated_at = CURRENT_TIMESTAMP
        WHERE id = ?`,
       [
         appCode,
-        cleanString(req.body.object_type) || null,
-        cleanString(req.body.object_id) || null,
-        cleanString(req.body.token_id) || null,
-        cleanString(req.body.token) || null,
+        scopeType,
+        scopeId,
         collectionId,
         cleanString(req.body.binding_role) || 'primary',
-        cleanString(req.body.status) || 'active',
+        normalizeBindingStatus(req.body.status),
         cleanString(req.body.starts_at) || null,
         cleanString(req.body.ends_at) || null,
         stringifyJson(req.body.metadata),
@@ -268,6 +290,9 @@ router.put('/bindings/:id', authRequired, adminOnly, async (req, res) => {
     saveDb();
     res.json({ success: true });
   } catch (error) {
+    if (String(error?.message || '').includes('UNIQUE')) {
+      return res.status(400).json({ error: '该作用域已经绑定内容集合' });
+    }
     console.error('Update app binding error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
