@@ -23,12 +23,17 @@ const defaultBlocks = (): ContentCollectionBlockInput[] => [
 const form = ref<MomentInput>({
   title: '',
   subtitle: '',
+  intent: 'commemorate',
+  recipient_name: '',
+  sender_name: '',
   object_label: '',
   event_date: '',
   place: '',
   cover_url: '',
   theme_color: '#9a6a2f',
   status: 'active',
+  starts_at: '',
+  ends_at: '',
   collection_status: 'published',
   primary_modality: 'mixed',
   blocks: defaultBlocks(),
@@ -45,12 +50,17 @@ const resetForm = () => {
   form.value = {
     title: '',
     subtitle: '',
+    intent: 'commemorate',
+    recipient_name: '',
+    sender_name: '',
     object_label: '',
     event_date: '',
     place: '',
     cover_url: '',
     theme_color: '#9a6a2f',
     status: 'active',
+    starts_at: '',
+    ends_at: '',
     collection_status: 'published',
     primary_modality: 'mixed',
     blocks: defaultBlocks(),
@@ -126,11 +136,26 @@ onMounted(loadData);
 
         <div class="form-grid">
           <label><span>标题</span><input v-model="form.title" placeholder="例如：第一次海边旅行" /></label>
+          <label><span>作品意图</span>
+            <select v-model="form.intent">
+              <option value="commemorate">纪念</option>
+              <option value="blessing">祝福</option>
+              <option value="connection">联结</option>
+              <option value="companionship">陪伴</option>
+              <option value="reflection">思考</option>
+              <option value="message">慢信息</option>
+              <option value="play">趣味</option>
+            </select>
+          </label>
           <label><span>物品标签</span><input v-model="form.object_label" placeholder="例如：海边明信片 / 婚礼桌卡" /></label>
+          <label><span>送给谁</span><input v-model="form.recipient_name" placeholder="例如：小林 / 全体宾客" /></label>
+          <label><span>来自谁</span><input v-model="form.sender_name" placeholder="例如：WhatMint Studio" /></label>
           <label><span>日期</span><input v-model="form.event_date" type="date" /></label>
           <label><span>地点</span><input v-model="form.place" placeholder="例如：厦门黄厝海滩" /></label>
           <label><span>封面 URL</span><input v-model="form.cover_url" placeholder="/uploads/..." /></label>
           <label><span>主题色</span><input v-model="form.theme_color" type="color" /></label>
+          <label><span>触碰生效</span><input v-model="form.starts_at" type="datetime-local" /></label>
+          <label><span>触碰结束</span><input v-model="form.ends_at" type="datetime-local" /></label>
           <label class="full"><span>一句说明</span><textarea v-model="form.subtitle" placeholder="这不是完整复盘，只是想把那天的一点光保存下来。"></textarea></label>
         </div>
 
@@ -187,6 +212,7 @@ onMounted(loadData);
             <h4>{{ item.title }}</h4>
             <p>{{ item.subtitle || item.collection?.description || '暂无说明' }}</p>
             <small>{{ item.event_date || '未设置日期' }} · {{ item.place || '未设置地点' }} · {{ item.tap_count || 0 }} taps</small>
+            <small v-if="item.intent">作品意图：{{ item.intent }} · v{{ item.work_version || 1 }}</small>
           </div>
           <div class="item-actions">
             <button @click="copyLink(item)">复制链接</button>

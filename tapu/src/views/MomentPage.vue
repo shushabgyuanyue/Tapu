@@ -12,6 +12,7 @@ const data = ref<any>(null);
 
 const token = computed(() => String(route.query.key || '').trim());
 const moment = computed(() => data.value?.moment || {});
+const work = computed(() => data.value?.work || {});
 const tapContent = computed(() => data.value?.content || null);
 const collection = computed(() => data.value?.collection || {});
 const themeColor = computed(() => tapContent.value?.themeColor || moment.value.theme_color || collection.value.theme_color || '#9a6a2f');
@@ -95,6 +96,8 @@ watch(() => route.fullPath, load);
 
         <footer class="moment-footer">
           <span>{{ data?.object?.label || '一件被保存过的物' }}</span>
+          <span v-if="work.intent_label">意图：{{ work.intent_label }}</span>
+          <span v-if="work.recipient_name">送给：{{ work.recipient_name }}</span>
           <span>碰一下，回到那一刻</span>
         </footer>
       </article>

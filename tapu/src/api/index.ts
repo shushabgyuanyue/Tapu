@@ -449,12 +449,17 @@ export async function deleteAppBinding(id: string) {
 export type MomentInput = {
   title: string;
   subtitle?: string;
+  intent?: string;
+  recipient_name?: string;
+  sender_name?: string;
   object_label?: string;
   event_date?: string;
   place?: string;
   cover_url?: string;
   theme_color?: string;
   status?: string;
+  starts_at?: string;
+  ends_at?: string;
   collection_id?: string;
   slug?: string;
   description?: string;
@@ -493,6 +498,24 @@ export async function deleteMomentToken(id: string) {
     method: 'DELETE',
     auth: true,
   });
+}
+
+// ===== Works / Creation Center =====
+export async function fetchWorkIntents() {
+  return request('/works/intents', { auth: true });
+}
+
+export async function fetchWorks(params?: { appCode?: string; intent?: string; status?: string }) {
+  const query = new URLSearchParams();
+  if (params?.appCode) query.set('app_code', params.appCode);
+  if (params?.intent) query.set('intent', params.intent);
+  if (params?.status) query.set('status', params.status);
+  const qs = query.toString();
+  return request(`/works${qs ? '?' + qs : ''}`, { auth: true });
+}
+
+export async function fetchWork(id: string) {
+  return request(`/works/${id}`, { auth: true });
 }
 
 // ===== Daily Sticker Application =====

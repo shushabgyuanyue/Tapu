@@ -276,6 +276,68 @@ CREATE TABLE IF NOT EXISTS app_bindings (
   UNIQUE(app_code, scope_type, scope_id, binding_role)
 );
 
+CREATE TABLE IF NOT EXISTS works (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  description TEXT,
+  app_code TEXT NOT NULL,
+  intent TEXT DEFAULT 'commemorate',
+  status TEXT DEFAULT 'draft' CHECK(status IN ('draft', 'active', 'archived')),
+  collection_id TEXT,
+  entity_id TEXT,
+  token_id TEXT,
+  token TEXT,
+  recipient_name TEXT,
+  sender_name TEXT,
+  starts_at DATETIME,
+  ends_at DATETIME,
+  version INTEGER DEFAULT 1,
+  created_by TEXT,
+  metadata_json TEXT,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (collection_id) REFERENCES content_collections(id) ON DELETE SET NULL,
+  FOREIGN KEY (entity_id) REFERENCES entities(id) ON DELETE SET NULL,
+  FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS work_versions (
+  id TEXT PRIMARY KEY,
+  work_id TEXT NOT NULL,
+  version INTEGER NOT NULL,
+  title TEXT NOT NULL,
+  description TEXT,
+  app_code TEXT NOT NULL,
+  intent TEXT,
+  collection_id TEXT,
+  snapshot_json TEXT,
+  created_by TEXT,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (work_id) REFERENCES works(id) ON DELETE CASCADE,
+  FOREIGN KEY (collection_id) REFERENCES content_collections(id) ON DELETE SET NULL,
+  FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
+  UNIQUE(work_id, version)
+);
+
+CREATE TABLE IF NOT EXISTS moment_tokens (
+  id TEXT PRIMARY KEY,
+  token TEXT UNIQUE NOT NULL,
+  work_id TEXT,
+  collection_id TEXT NOT NULL,
+  title TEXT NOT NULL,
+  subtitle TEXT,
+  object_label TEXT,
+  event_date TEXT,
+  place TEXT,
+  cover_url TEXT,
+  theme_color TEXT,
+  status TEXT DEFAULT 'active' CHECK(status IN ('active', 'draft', 'archived')),
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (work_id) REFERENCES works(id) ON DELETE SET NULL,
+  FOREIGN KEY (collection_id) REFERENCES content_collections(id) ON DELETE CASCADE
+);
+
 CREATE TABLE IF NOT EXISTS site_config (
   key TEXT PRIMARY KEY,
   value TEXT
@@ -560,3 +622,30 @@ ON app_bindings(app_code, scope_type, scope_id);
 
 CREATE INDEX IF NOT EXISTS idx_app_bindings_collection
 ON app_bindings(collection_id);
+
+CREATE INDEX IF NOT EXISTS idx_works_app
+ON works(app_code);
+
+CREATE INDEX IF NOT EXISTS idx_works_intent
+ON works(intent);
+
+CREATE INDEX IF NOT EXISTS idx_works_collection
+ON works(collection_id);
+
+CREATE INDEX IF NOT EXISTS idx_works_token
+ON works(token);
+
+CREATE INDEX IF NOT EXISTS idx_work_versions_work
+ON work_versions(work_id);
+
+CREATE INDEX IF NOT EXISTS idx_moment_tokens_work
+ON moment_tokens(work_id);
+
+CREATE INDEX IF NOT EXISTS idx_moment_tokens_token
+ON moment_tokens(token);
+
+CREATE INDEX IF NOT EXISTS idx_moment_tokens_collection
+ON moment_tokens(collection_id);
+
+CREATE INDEX IF NOT EXISTS idx_moment_tokens_status
+ON moment_tokens(status);

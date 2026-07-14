@@ -36,6 +36,7 @@ const navModules = [
     description: '内容集合、媒介块和应用绑定。',
     accent: '#9a6a2f',
     items: [
+      { path: '/official/works', label: '作品中心' },
       { path: '/official/content-collections', label: '内容集合' },
     ],
   },

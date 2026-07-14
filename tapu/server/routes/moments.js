@@ -13,6 +13,7 @@ import {
   replaceCollectionBlocks,
   stringifyJson,
 } from '../services/contentCollections.js';
+import { createWork, getWork, updateWork } from '../services/works.js';
 
 const router = Router();
 const APP_CODE = 'moment';
@@ -86,7 +87,7 @@ function createMomentCollection(db, reqBody, momentId) {
   return { collectionId, slug };
 }
 
-function ensureMomentBinding(db, token, collectionId) {
+function ensureMomentBinding(db, token, collectionId, workId = null) {
   const id = uuidv4();
   db.run(
     `INSERT INTO app_bindings
@@ -102,9 +103,43 @@ function ensureMomentBinding(db, token, collectionId) {
       APP_CODE,
       token,
       collectionId,
-      stringifyJson({ createdBy: 'moment-workbench' }),
+      stringifyJson({ createdBy: 'moment-workbench', workId }),
     ]
   );
+}
+
+function workPayloadFromMoment(reqBody, params = {}) {
+  const momentStatus = normalizeStatus(reqBody.status);
+  return {
+    title: cleanString(reqBody.title) || params.title,
+    description: cleanString(reqBody.description || reqBody.subtitle) || null,
+    appCode: APP_CODE,
+    intent: cleanString(reqBody.intent) || 'commemorate',
+    status: momentStatus === 'archived' ? 'archived' : (momentStatus === 'active' ? 'active' : 'draft'),
+    collectionId: params.collectionId,
+    tokenId: params.tokenId,
+    token: params.token,
+    recipientName: cleanString(reqBody.recipient_name) || null,
+    senderName: cleanString(reqBody.sender_name) || null,
+    startsAt: cleanString(reqBody.starts_at) || null,
+    endsAt: cleanString(reqBody.ends_at) || null,
+    createdBy: params.userId || null,
+    updatedBy: params.userId || null,
+    metadata: {
+      objectLabel: cleanString(reqBody.object_label) || null,
+      eventDate: cleanString(reqBody.event_date) || null,
+      place: cleanString(reqBody.place) || null,
+      coverUrl: cleanString(reqBody.cover_url) || null,
+    },
+  };
+}
+
+function isWithinWorkWindow(work) {
+  if (!work) return true;
+  const now = new Date();
+  if (work.starts_at && new Date(work.starts_at) > now) return false;
+  if (work.ends_at && new Date(work.ends_at) < now) return false;
+  return true;
 }
 
 router.get('/resolve', async (req, res) => {
@@ -121,6 +156,10 @@ router.get('/resolve', async (req, res) => {
 
     const collection = getContentCollection(db, tokenRow.collection_id);
     if (!collection) return res.status(404).json({ error: '纪念内容不存在' });
+    const work = tokenRow.work_id ? getWork(db, tokenRow.work_id) : null;
+    if (!isWithinWorkWindow(work)) {
+      return res.status(403).json({ error: '这个纪念瞬间还没有到可以打开的时候' });
+    }
 
     recordObjectEvent(db, {
       objectType: resolvedObject.object.type,
@@ -146,6 +185,8 @@ router.get('/resolve', async (req, res) => {
         subtitle: tokenRow.subtitle || collection.description,
         description: collection.description,
         themeColor: tokenRow.theme_color || collection.theme_color || '#9a6a2f',
+        intent: work?.intent || 'commemorate',
+        intentDefaults: work?.intent_defaults || {},
         blocks: collection.blocks || [],
       },
       actions: [
@@ -167,6 +208,7 @@ router.get('/resolve', async (req, res) => {
       },
       moment: {
         id: tokenRow.id,
+        work_id: tokenRow.work_id,
         title: tokenRow.title,
         subtitle: tokenRow.subtitle,
         event_date: tokenRow.event_date,
@@ -174,6 +216,7 @@ router.get('/resolve', async (req, res) => {
         cover_url: tokenRow.cover_url,
         theme_color: tokenRow.theme_color,
       },
+      work,
       collection,
     });
   } catch (error) {
@@ -188,9 +231,11 @@ router.get('/tokens', authRequired, adminOnly, async (_req, res) => {
     const rows = resultToObjects(db.exec(
       `SELECT m.*, c.name as collection_name, c.slug as collection_slug,
               c.status as collection_status, c.primary_modality,
+              w.intent, w.recipient_name, w.sender_name, w.version as work_version,
               COUNT(DISTINCT e.id) as tap_count
        FROM moment_tokens m
        LEFT JOIN content_collections c ON c.id = m.collection_id
+       LEFT JOIN works w ON w.id = m.work_id
        LEFT JOIN object_events e ON e.token_id = m.id AND e.app_code = ?
        GROUP BY m.id
        ORDER BY m.updated_at DESC, m.created_at DESC`,
@@ -217,14 +262,22 @@ router.post('/tokens', authRequired, adminOnly, async (req, res) => {
 
     const collectionId = cleanString(req.body.collection_id) || createMomentCollection(db, req.body, id).collectionId;
     if (!getContentCollection(db, collectionId)) return res.status(404).json({ error: '内容集合不存在' });
+    const work = createWork(db, workPayloadFromMoment(req.body, {
+      collectionId,
+      tokenId: id,
+      token,
+      title,
+      userId: req.user.id,
+    }));
 
     db.run(
       `INSERT INTO moment_tokens
-       (id, token, collection_id, title, subtitle, object_label, event_date, place, cover_url, theme_color, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       (id, token, work_id, collection_id, title, subtitle, object_label, event_date, place, cover_url, theme_color, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id,
         token,
+        work.id,
         collectionId,
         title,
         cleanString(req.body.subtitle) || null,
@@ -236,9 +289,9 @@ router.post('/tokens', authRequired, adminOnly, async (req, res) => {
         normalizeStatus(req.body.status),
       ]
     );
-    ensureMomentBinding(db, token, collectionId);
+    ensureMomentBinding(db, token, collectionId, work.id);
     saveDb();
-    res.json({ success: true, id, token, collection_id: collectionId });
+    res.json({ success: true, id, token, collection_id: collectionId, work_id: work.id });
   } catch (error) {
     if (String(error?.message || '').includes('UNIQUE')) {
       return res.status(400).json({ error: '纪念瞬间 slug 或 token 已存在' });
@@ -281,9 +334,29 @@ router.put('/tokens/:id', authRequired, adminOnly, async (req, res) => {
     if (Array.isArray(req.body.blocks)) {
       replaceCollectionBlocks(db, collectionId, req.body.blocks);
     }
-    ensureMomentBinding(db, existing.token, collectionId);
+    let work = existing.work_id ? updateWork(db, existing.work_id, {
+      ...workPayloadFromMoment(req.body, {
+        collectionId,
+        tokenId: existing.id,
+        token: existing.token,
+        title,
+        userId: req.user.id,
+      }),
+      versionNote: 'moment-update',
+    }) : null;
+    if (!work) {
+      work = createWork(db, workPayloadFromMoment(req.body, {
+        collectionId,
+        tokenId: existing.id,
+        token: existing.token,
+        title,
+        userId: req.user.id,
+      }));
+      db.run('UPDATE moment_tokens SET work_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [work.id, existing.id]);
+    }
+    ensureMomentBinding(db, existing.token, collectionId, work.id);
     saveDb();
-    res.json({ success: true });
+    res.json({ success: true, work_id: work.id });
   } catch (error) {
     console.error('Update moment error:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -296,6 +369,12 @@ router.delete('/tokens/:id', authRequired, adminOnly, async (req, res) => {
     const existing = resultToObjects(db.exec('SELECT * FROM moment_tokens WHERE id = ? LIMIT 1', [req.params.id]))[0] || null;
     if (existing) {
       db.run('DELETE FROM app_bindings WHERE app_code = ? AND scope_type = ? AND scope_id = ?', [APP_CODE, 'token', existing.token]);
+      if (existing.work_id) {
+        updateWork(db, existing.work_id, {
+          status: 'archived',
+          versionNote: 'moment-token-deleted',
+        });
+      }
     }
     db.run('DELETE FROM moment_tokens WHERE id = ?', [req.params.id]);
     saveDb();
