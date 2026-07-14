@@ -1,7 +1,11 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
-import { addTravelTrailPlaceByKey, resolveTravelTrail } from '../api';
+import {
+  confirmTravelTrailReturn,
+  resolveTravelTrail,
+  setTravelTrailNextDestinationByKey,
+} from '../api';
 
 const route = useRoute();
 const loading = ref(true);
@@ -9,15 +13,53 @@ const saving = ref(false);
 const error = ref('');
 const message = ref('');
 const data = ref<any>(null);
-const placeName = ref('');
-const placeNote = ref('');
+const nextInput = ref('');
+const nextNoteInput = ref('');
+const returnNote = ref('');
+const checkedReminders = ref<string[]>([]);
+
+const reminderItems = [
+  { code: 'id', label: '证件 / 护照', hint: '最难补救' },
+  { code: 'charger', label: '充电器', hint: '线和头都看一眼' },
+  { code: 'keys', label: '钥匙 / 门卡', hint: '回来的入口' },
+  { code: 'medicine', label: '常用药', hint: '别指望路上买' },
+  { code: 'earbuds', label: '耳机', hint: '路上的小房间' },
+  { code: 'umbrella', label: '伞 / 外套', hint: '天气会有性格' },
+  { code: 'toiletries', label: '洗漱小包', hint: '牙刷最会缺席' },
+  { code: 'cash', label: '现金 / 银行卡', hint: '给意外留条路' },
+];
 
 const token = computed(() => String(route.query.key || '').trim());
 const trail = computed(() => data.value?.trail || {});
+const ritual = computed(() => data.value?.ritual || {});
 const places = computed(() => Array.isArray(data.value?.places) ? data.value.places : []);
+const nextPlace = computed(() => trail.value.next_place || ritual.value.nextPlace || '');
+const nextPlaceNote = computed(() => trail.value.next_place_note || ritual.value.nextPlaceNote || '');
 const themeColor = computed(() => data.value?.content?.themeColor || trail.value.theme_color || '#2f6f5e');
 const title = computed(() => data.value?.content?.title || trail.value.title || '旅行轨迹');
-const subtitle = computed(() => data.value?.content?.subtitle || trail.value.subtitle || '每到一个地方，就把它轻轻接到这条线上。');
+const subtitle = computed(() => (
+  data.value?.content?.subtitle
+  || trail.value.subtitle
+  || '每次出发前碰一下行李箱，回来后再把这一站接进人生轨迹。'
+));
+const lifeQuestion = computed(() => ritual.value.lifeQuestion || '我的人生走过了哪些地方？');
+const objectLabel = computed(() => data.value?.token?.object_label || trail.value.object_label || '这件会移动的物品');
+const checklistStorageKey = computed(() => `whatmint:travel-trail:${token.value}:${nextPlace.value || 'no-next'}:reminders`);
+const checkedReminderSet = computed(() => new Set(checkedReminders.value));
+const checkedReminderCount = computed(() => checkedReminders.value.length);
+
+const displayPlaces = computed(() => {
+  const base = places.value.map((place: any) => ({ ...place, future: false }));
+  if (nextPlace.value) {
+    base.push({
+      id: '__next',
+      name: nextPlace.value,
+      note: nextPlaceNote.value,
+      future: true,
+    });
+  }
+  return base;
+});
 
 const pointFor = (index: number, total: number) => {
   if (total <= 1) return { x: 50, y: 54 };
@@ -27,8 +69,8 @@ const pointFor = (index: number, total: number) => {
   return { x: Number(x.toFixed(2)), y: Number(y.toFixed(2)) };
 };
 
-const points = computed(() => places.value.map((place: any, index: number) => ({
-  ...pointFor(index, places.value.length),
+const points = computed(() => displayPlaces.value.map((place: any, index: number) => ({
+  ...pointFor(index, displayPlaces.value.length),
   place,
 })));
 
@@ -44,6 +86,48 @@ const pathD = computed(() => {
   }, '');
 });
 
+const syncTrail = (result: any, nextMessage: string) => {
+  data.value = {
+    ...data.value,
+    trail: result.trail,
+    places: result.trail?.places || [],
+    ritual: {
+      ...(data.value?.ritual || {}),
+      nextPlace: result.trail?.next_place || null,
+      nextPlaceNote: result.trail?.next_place_note || null,
+      journeyState: result.trail?.journey_state || 'planning',
+    },
+  };
+  message.value = nextMessage;
+};
+
+const loadChecklist = () => {
+  try {
+    const raw = localStorage.getItem(checklistStorageKey.value);
+    const parsed = raw ? JSON.parse(raw) : [];
+    checkedReminders.value = Array.isArray(parsed) ? parsed.filter(item => typeof item === 'string') : [];
+  } catch {
+    checkedReminders.value = [];
+  }
+};
+
+const saveChecklist = () => {
+  try {
+    localStorage.setItem(checklistStorageKey.value, JSON.stringify(checkedReminders.value));
+  } catch {
+    // Checklist state is a convenience only; failing silently keeps the tap flow light.
+  }
+};
+
+const toggleReminder = (code: string) => {
+  if (checkedReminderSet.value.has(code)) {
+    checkedReminders.value = checkedReminders.value.filter(item => item !== code);
+  } else {
+    checkedReminders.value = [...checkedReminders.value, code];
+  }
+  saveChecklist();
+};
+
 const load = async () => {
   loading.value = true;
   error.value = '';
@@ -58,37 +142,51 @@ const load = async () => {
     error.value = result.error;
   } else {
     data.value = result;
+    loadChecklist();
   }
   loading.value = false;
 };
 
-const addPlace = async () => {
-  const name = placeName.value.trim();
-  if (!name || saving.value) return;
+const planNextStop = async () => {
+  const next = nextInput.value.trim();
+  if (!next || saving.value) return;
   saving.value = true;
   error.value = '';
   message.value = '';
-  const result = await addTravelTrailPlaceByKey(token.value, {
-    name,
-    note: placeNote.value.trim() || undefined,
+  const result = await setTravelTrailNextDestinationByKey(token.value, {
+    next_place: next,
+    next_place_note: nextNoteInput.value.trim() || undefined,
   });
   saving.value = false;
   if (result.error) {
     error.value = result.error;
     return;
   }
-  data.value = {
-    ...data.value,
-    trail: result.trail,
-    places: result.trail?.places || [],
-  };
-  placeName.value = '';
-  placeNote.value = '';
-  message.value = '新的地点已经接到轨迹上。';
+  nextInput.value = '';
+  nextNoteInput.value = '';
+  syncTrail(result, `下一站：${result.trail?.next_place || next}。出发前，行李已经记住它了。`);
+};
+
+const confirmReturn = async () => {
+  if (!nextPlace.value || saving.value) return;
+  saving.value = true;
+  error.value = '';
+  message.value = '';
+  const result = await confirmTravelTrailReturn(token.value, {
+    note: returnNote.value.trim() || undefined,
+  });
+  saving.value = false;
+  if (result.error) {
+    error.value = result.error;
+    return;
+  }
+  returnNote.value = '';
+  syncTrail(result, `${result.place?.name || '这一站'}已经加入你的生命轨迹。`);
 };
 
 onMounted(load);
 watch(() => route.fullPath, load);
+watch(checklistStorageKey, loadChecklist);
 </script>
 
 <template>
@@ -102,7 +200,7 @@ watch(() => route.fullPath, load);
       <div v-if="loading" class="state-card">
         <span class="loading-dot"></span>
         <h1>正在展开这段路线</h1>
-        <p>行李牌里的地点正在排成一条线。</p>
+        <p>{{ objectLabel }}里的地点正在排成一条线。</p>
       </div>
 
       <div v-else-if="error && !data" class="state-card">
@@ -113,7 +211,8 @@ watch(() => route.fullPath, load);
 
       <article v-else class="trail-card">
         <header class="trail-head">
-          <span>{{ places.length }} stops</span>
+          <span>{{ places.length }} stops · {{ objectLabel }}</span>
+          <p class="question">{{ lifeQuestion }}</p>
           <h1>{{ title }}</h1>
           <p>{{ subtitle }}</p>
         </header>
@@ -128,29 +227,65 @@ watch(() => route.fullPath, load);
             v-for="(point, index) in points"
             :key="point.place.id || `${point.place.name}-${index}`"
             class="pin"
-            :class="{ latest: index === points.length - 1 }"
+            :class="{ latest: index === places.length - 1 && !point.place.future, future: point.place.future }"
             :style="{ left: `${point.x}%`, top: `${point.y}%`, '--delay': `${index * 0.08}s` }"
           >
-            <span>{{ index + 1 }}</span>
+            <span>{{ point.place.future ? '→' : index + 1 }}</span>
             <strong>{{ point.place.name }}</strong>
           </div>
 
-          <div v-if="places.length === 0" class="empty-map">
-            <strong>还没有地点</strong>
-            <p>输入第一个地方，让这枚贴纸开始旅行。</p>
+          <div v-if="displayPlaces.length === 0" class="empty-map">
+            <strong>还没有出发</strong>
+            <p>先写下第一段下一站，让这件物品开始拥有方向。</p>
           </div>
         </section>
 
-        <form class="add-card" @submit.prevent="addPlace">
-          <div>
-            <label>加入新的地点</label>
-            <input v-model="placeName" placeholder="例如：京都 / 冰岛黑沙滩 / 成都东站" />
+        <section v-if="nextPlace" class="ritual-card active-ritual">
+          <p>出发前</p>
+          <h2>下一站：{{ nextPlace }}</h2>
+          <span v-if="nextPlaceNote">{{ nextPlaceNote }}</span>
+          <span v-else>它还没有成为过去，但已经被这件行李轻轻记住。</span>
+
+          <div class="reminder-card">
+            <div class="reminder-head">
+              <div>
+                <strong>临出门，最容易忘的东西</strong>
+                <small>{{ checkedReminderCount }}/{{ reminderItems.length }} checked</small>
+              </div>
+              <em>轻轻确认，不必完美。</em>
+            </div>
+            <div class="reminder-grid">
+              <button
+                v-for="item in reminderItems"
+                :key="item.code"
+                type="button"
+                class="reminder-item"
+                :class="{ checked: checkedReminderSet.has(item.code) }"
+                @click="toggleReminder(item.code)"
+              >
+                <span>{{ checkedReminderSet.has(item.code) ? '✓' : '' }}</span>
+                <strong>{{ item.label }}</strong>
+                <small>{{ item.hint }}</small>
+              </button>
+            </div>
           </div>
-          <div>
-            <label>一句备注，可选</label>
-            <input v-model="placeNote" placeholder="那天风很大，箱子也很轻。" />
+
+          <div class="return-row">
+            <input v-model="returnNote" placeholder="回来后，可以给这一站留一句话" @keyup.enter="confirmReturn" />
+            <button :disabled="saving" @click="confirmReturn">
+              {{ saving ? '记录中...' : '我回来了，把这一站加入轨迹' }}
+            </button>
           </div>
-          <button :disabled="saving || !placeName.trim()">{{ saving ? '加入中...' : '接到轨迹上' }}</button>
+        </section>
+
+        <form v-else class="ritual-card plan-card" @submit.prevent="planNextStop">
+          <p>出发的仪式</p>
+          <h2>写下下一站</h2>
+          <div class="plan-grid">
+            <input v-model="nextInput" placeholder="例如：东京 / 京都 / 冰岛黑沙滩" />
+            <input v-model="nextNoteInput" placeholder="一句出发前的心情，可选" />
+            <button :disabled="saving || !nextInput.trim()">{{ saving ? '写入中...' : '让行李记住它' }}</button>
+          </div>
         </form>
 
         <p v-if="message" class="message">{{ message }}</p>
@@ -216,7 +351,7 @@ watch(() => route.fullPath, load);
 .trail-shell {
   position: relative;
   z-index: 1;
-  width: min(100%, 720px);
+  width: min(100%, 760px);
 }
 
 .app-mark {
@@ -292,6 +427,14 @@ watch(() => route.fullPath, load);
   text-transform: uppercase;
 }
 
+.question {
+  margin: 12px auto 0;
+  color: #9a6a2f;
+  font-size: 14px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+
 .trail-head h1 {
   margin: 8px 0 10px;
   font-size: clamp(38px, 9vw, 74px);
@@ -299,8 +442,8 @@ watch(() => route.fullPath, load);
   letter-spacing: -0.08em;
 }
 
-.trail-head p {
-  max-width: 520px;
+.trail-head p:not(.question) {
+  max-width: 560px;
   margin: 0 auto;
   color: rgba(23, 33, 29, 0.62);
   line-height: 1.8;
@@ -379,16 +522,26 @@ svg {
   background: #9a6a2f;
 }
 
+.pin.future span {
+  border-style: dashed;
+  color: var(--trail-accent);
+  background: #fffaf4;
+}
+
 .pin strong {
-  max-width: 110px;
+  max-width: 120px;
   padding: 5px 8px;
   border-radius: 999px;
   color: #26332e;
-  background: rgba(255, 252, 244, 0.88);
+  background: rgba(255, 252, 244, 0.9);
   box-shadow: 0 8px 20px rgba(47, 62, 54, 0.08);
   font-size: 12px;
   text-align: center;
   white-space: nowrap;
+}
+
+.pin.future strong {
+  color: #9a6a2f;
 }
 
 .empty-map {
@@ -410,41 +563,170 @@ svg {
   color: rgba(23, 33, 29, 0.58);
 }
 
-.add-card {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
-  gap: 10px;
+.ritual-card {
   margin-top: 18px;
-  padding: 14px;
-  border-radius: 24px;
-  background: rgba(23, 33, 29, 0.05);
+  padding: 18px;
+  border: 1px solid rgba(23, 33, 29, 0.1);
+  border-radius: 26px;
+  background:
+    radial-gradient(circle at 100% 0%, color-mix(in srgb, var(--trail-accent), transparent 82%), transparent 34%),
+    rgba(255, 255, 255, 0.58);
 }
 
-.add-card div {
-  display: grid;
-  gap: 6px;
+.ritual-card p,
+.ritual-card h2,
+.ritual-card span {
+  margin: 0;
 }
 
-.add-card label {
-  color: rgba(23, 33, 29, 0.58);
+.ritual-card p {
+  color: var(--trail-accent);
   font-size: 12px;
-  font-weight: 900;
+  font-weight: 950;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
 }
 
-.add-card input {
-  min-height: 42px;
+.ritual-card h2 {
+  margin-top: 8px;
+  font-size: clamp(24px, 6vw, 42px);
+  letter-spacing: -0.06em;
+}
+
+.ritual-card span {
+  display: block;
+  margin-top: 8px;
+  color: rgba(23, 33, 29, 0.6);
+  line-height: 1.7;
+}
+
+.reminder-card {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+  padding: 14px;
+  border: 1px solid rgba(23, 33, 29, 0.08);
+  border-radius: 22px;
+  background: rgba(255, 252, 244, 0.72);
+}
+
+.reminder-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.reminder-head div {
+  display: grid;
+  gap: 3px;
+}
+
+.reminder-head strong,
+.reminder-head small,
+.reminder-head em {
+  margin: 0;
+}
+
+.reminder-head strong {
+  color: #17211d;
+  font-size: 14px;
+}
+
+.reminder-head small,
+.reminder-head em {
+  color: rgba(23, 33, 29, 0.52);
+  font-size: 12px;
+  font-style: normal;
+}
+
+.reminder-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.reminder-item {
+  min-height: 86px;
+  display: grid;
+  align-content: start;
+  justify-items: start;
+  gap: 5px;
+  border: 1px solid rgba(23, 33, 29, 0.09);
+  border-radius: 18px;
+  padding: 10px;
+  color: #17211d;
+  background: rgba(255, 255, 255, 0.64);
+  box-shadow: none;
+  text-align: left;
+}
+
+.reminder-item span {
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  border: 1px solid rgba(23, 33, 29, 0.18);
+  border-radius: 999px;
+  color: #fff;
+  background: transparent;
+  font-size: 12px;
+  line-height: 1;
+}
+
+.reminder-item strong,
+.reminder-item small {
+  margin: 0;
+}
+
+.reminder-item strong {
+  font-size: 13px;
+}
+
+.reminder-item small {
+  color: rgba(23, 33, 29, 0.5);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.reminder-item.checked {
+  border-color: color-mix(in srgb, var(--trail-accent), transparent 52%);
+  background: color-mix(in srgb, var(--trail-accent), white 88%);
+}
+
+.reminder-item.checked span {
+  border-color: var(--trail-accent);
+  background: var(--trail-accent);
+}
+
+.return-row,
+.plan-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.plan-grid {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+}
+
+input {
+  min-width: 0;
+  min-height: 44px;
+  box-sizing: border-box;
   border: 1px solid rgba(23, 33, 29, 0.12);
-  border-radius: 14px;
+  border-radius: 15px;
   padding: 0 12px;
-  background: rgba(255, 252, 244, 0.9);
+  background: rgba(255, 252, 244, 0.92);
   outline: none;
 }
 
-.add-card button {
-  align-self: end;
-  min-height: 42px;
+button {
+  min-height: 44px;
   border: 0;
-  border-radius: 14px;
+  border-radius: 15px;
   padding: 0 16px;
   color: #fff;
   background: linear-gradient(135deg, #17121a, var(--trail-accent));
@@ -452,7 +734,7 @@ svg {
   font-weight: 950;
 }
 
-.add-card button:disabled {
+button:disabled {
   cursor: not-allowed;
   opacity: 0.48;
 }
@@ -540,7 +822,9 @@ svg {
     min-height: 300px;
   }
 
-  .add-card {
+  .return-row,
+  .reminder-grid,
+  .plan-grid {
     grid-template-columns: 1fr;
   }
 }

@@ -523,6 +523,9 @@ export type TravelTrailInput = {
   title: string;
   subtitle?: string;
   object_label?: string;
+  next_place?: string;
+  next_place_note?: string;
+  journey_state?: string;
   theme_color?: string;
   status?: string;
   first_place?: string;
@@ -567,6 +570,28 @@ export async function addTravelTrailPlaceByKey(key: string, params: TravelTrailP
   return request('/travel-trails/places', {
     method: 'POST',
     jsonBody: { ...params, key },
+  });
+}
+
+export async function setTravelTrailNextDestination(trailId: string, params: { next_place?: string; next_place_note?: string; journey_state?: string }) {
+  return request(`/travel-trails/trails/${trailId}/next-destination`, {
+    method: 'PUT',
+    auth: true,
+    jsonBody: params,
+  });
+}
+
+export async function setTravelTrailNextDestinationByKey(key: string, params: { next_place: string; next_place_note?: string }) {
+  return request('/travel-trails/next-destination', {
+    method: 'POST',
+    jsonBody: { ...params, key },
+  });
+}
+
+export async function confirmTravelTrailReturn(key: string, params?: { note?: string; visited_at?: string }) {
+  return request('/travel-trails/return', {
+    method: 'POST',
+    jsonBody: { ...(params || {}), key },
   });
 }
 
