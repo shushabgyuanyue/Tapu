@@ -18,9 +18,10 @@ WhatMint / tapU 是一个通过 NFC 将实体与情绪内容绑定的系统。�
 | 6 | [docs/content-collection-app-binding.md](docs/content-collection-app-binding.md) | 内容集合和应用绑定最小协议 |
 | 7 | [docs/object-event-taxonomy.md](docs/object-event-taxonomy.md) | 跨应用物体事件命名规范 |
 | 8 | [docs/business-flow.md](docs/business-flow.md) | 完整业务流程、权限规则、数据库关系、E2E 结果 |
-| 9 | [DOMAINS.md](DOMAINS.md) | 模块分工和代码入口 |
-| 10 | [develop.md](develop.md) | 阶段状态、验收和后续高收益事项 |
-| 11 | [README.md](README.md) | 本地运行和验证命令 |
+| 9 | [docs/engineering-governance.md](docs/engineering-governance.md) | 工程治理护栏、编码策略和质量检查 |
+| 10 | [DOMAINS.md](DOMAINS.md) | 模块分工和代码入口 |
+| 11 | [develop.md](develop.md) | 阶段状态、验收和后续高收益事项 |
+| 12 | [README.md](README.md) | 本地运行和验证命令 |
 
 ## 3. 代码入口索引
 
@@ -32,6 +33,7 @@ WhatMint / tapU 是一个通过 NFC 将实体与情绪内容绑定的系统。�
 | API 封装 | `tapu/src/api/index.ts` |
 | 官方后台 | `tapu/src/views/official/*` |
 | 上传与存储 | `tapu/server/services/transcode.js`、`tapu/server/services/storage.js`、`tapu/server/services/r2.js` |
+| 工程治理脚本 | `tapu/scripts/check-encoding.mjs`、`tapu/scripts/check-server-syntax.mjs`、`tapu/scripts/check-file-size.mjs` |
 
 ## 4. 协议域
 

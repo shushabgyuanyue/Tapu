@@ -3,19 +3,25 @@ import { computed, inject, nextTick, onMounted, onUnmounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import {
   bindEntity,
-  fetchMintStudioLibrary,
   isLoggedIn,
   resolveMintStudio,
   setEntityDefault,
   setEntityDefaultByToken,
   updateMomentByToken,
   uploadVideo,
-  type MintStudioLibraryItem,
   type MintStudioRecipe,
 } from '../api';
 import LoginModal from '../components/LoginModal.vue';
+import MintStudioSidebar from '../components/mint/MintStudioSidebar.vue';
 import NavBar from '../components/NavBar.vue';
+import {
+  useMintStudioLibrary,
+  type MintedItem,
+} from '../composables/useMintStudioLibrary';
+import { useMintStudioDetail } from '../composables/useMintStudioDetail';
 import { commonCopy, studioCopy } from '../copy';
+import MintStudioDetailPanel from '../components/mint/MintStudioDetailPanel.vue';
+import '../styles/mintStudio.css';
 
 type Toast = { show: (text: string, duration?: number, type?: string) => void };
 type Role = 'assistant' | 'user';
@@ -30,26 +36,12 @@ type MomentDraft = {
   eventDate: string;
   subtitle: string;
 };
-type MintedItem = {
-  id: string;
-  title: string;
-  appName: string;
-  token: string;
-  previewRoute: string;
-  thumb?: string;
-  status: 'done' | 'collected' | 'work' | 'video' | 'asset' | 'collection' | string;
-  source?: string;
-  subtitle?: string;
-  createdAt: string;
-};
 type ChatMessage = {
   id: string;
   role: Role;
   text?: string;
   kind?: 'asset';
 };
-
-const MINT_HISTORY_KEY = 'whatmint_mint_studio_history';
 
 const route = useRoute();
 const router = useRouter();
@@ -76,11 +68,30 @@ const pendingLoginAction = ref<PendingLoginAction>('');
 const showLogin = ref(false);
 const navKey = ref(0);
 const sidebarOpen = ref(true);
-const localMintedItems = ref<MintedItem[]>([]);
-const serverMintedItems = ref<MintedItem[]>([]);
-const libraryLoading = ref(false);
 const threadRef = ref<HTMLElement | null>(null);
 const composerInputRef = ref<HTMLInputElement | null>(null);
+const {
+  libraryLoading,
+  mintedItems,
+  loadMintHistory,
+  loadStudioLibrary,
+  rememberMint,
+  removeMint,
+} = useMintStudioLibrary();
+const {
+  selectedMintItem,
+  connectToken,
+  detailBusy,
+  detailConnectionLabel,
+  detailCanConnect,
+  detailCanDelete,
+  detailCanRemove,
+  openLibraryDetail: openLibraryDetailBase,
+  closeLibraryDetail,
+  openSelectedPreview,
+  connectSelectedItem,
+  deleteSelectedItem,
+} = useMintStudioDetail({ toast, loadStudioLibrary, removeMint });
 
 const isBusy = computed(() => ['resolving', 'saving'].includes(phase.value));
 const canUploadVideo = computed(() => (
@@ -123,8 +134,6 @@ const sendDisabled = computed(() => {
   if (['overview', 'choice', 'readyToFinish'].includes(phase.value)) return true;
   return !tokenInput.value.trim();
 });
-const mintedItems = computed(() => mergeMintedItems([...localMintedItems.value, ...serverMintedItems.value]));
-
 function actionRequiresAuth(action: string) {
   return !!studio.value?.recipe.permissions?.actions?.[action]?.requiresAuth;
 }
@@ -165,94 +174,18 @@ function focusComposer() {
   });
 }
 
-function loadMintHistory() {
-  try {
-    const parsed = JSON.parse(localStorage.getItem(MINT_HISTORY_KEY) || '[]');
-    localMintedItems.value = Array.isArray(parsed) ? parsed.slice(0, 30) : [];
-  } catch {
-    localMintedItems.value = [];
-  }
-}
-
-function saveMintHistory() {
-  localStorage.setItem(MINT_HISTORY_KEY, JSON.stringify(localMintedItems.value.slice(0, 30)));
-}
-
-function rememberMint(status: MintedItem['status'] = 'done') {
+function rememberCurrentMint(status: MintedItem['status'] = 'done') {
   if (!studio.value) return;
   const thumb = uploadPreviewUrl.value || currentPreviewThumb.value || '';
-  const item: MintedItem = {
+  rememberMint({
     id: studio.value.token.token,
     title: currentPreviewTitle.value || studio.value.object.displayName || studio.value.app.name,
     appName: studio.value.app.name,
     token: studio.value.token.compact || studio.value.token.token,
     previewRoute: previewRoute.value,
-    thumb: thumb && !thumb.startsWith('blob:') ? thumb : undefined,
+    thumb,
     status,
-    source: 'local',
-    createdAt: new Date().toISOString(),
-  };
-  localMintedItems.value = [item, ...localMintedItems.value.filter(existing => existing.id !== item.id)].slice(0, 30);
-  saveMintHistory();
-}
-
-function mergeMintedItems(items: MintedItem[]) {
-  const seen = new Set<string>();
-  return items
-    .filter(item => {
-      const key = item.token ? `${item.appName}:${item.token}` : item.id;
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    })
-    .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
-    .slice(0, 80);
-}
-
-function libraryItemToMintedItem(item: MintStudioLibraryItem): MintedItem {
-  return {
-    id: item.id,
-    title: item.title || item.appName || 'Untitled',
-    appName: item.appName || item.appCode || 'WhatMint',
-    token: item.tokenCompact || item.token || '',
-    previewRoute: item.previewRoute || '',
-    thumb: item.thumb || undefined,
-    status: item.source || item.status || 'work',
-    source: item.source,
-    subtitle: item.subtitle || item.status || '',
-    createdAt: item.updatedAt || item.createdAt || new Date().toISOString(),
-  };
-}
-
-async function loadStudioLibrary() {
-  if (!isLoggedIn()) {
-    serverMintedItems.value = [];
-    return;
-  }
-  libraryLoading.value = true;
-  try {
-    const result = await fetchMintStudioLibrary();
-    serverMintedItems.value = Array.isArray(result?.items)
-      ? result.items.map(libraryItemToMintedItem)
-      : [];
-  } catch {
-    serverMintedItems.value = [];
-  } finally {
-    libraryLoading.value = false;
-  }
-}
-
-function mintedStatusText(item: MintedItem) {
-  if (item.source === 'work' || item.status === 'work') return studioCopy.libraryStatus.work;
-  if (item.source === 'video' || item.status === 'video') return studioCopy.libraryStatus.video;
-  if (item.source === 'asset' || item.status === 'asset' || item.status === 'collected') return studioCopy.libraryStatus.asset;
-  if (item.source === 'collection' || item.status === 'collection') return studioCopy.libraryStatus.collection;
-  return studioCopy.libraryStatus.minted;
-}
-
-function openMintedItem(item: MintedItem) {
-  if (!item.previewRoute) return;
-  window.open(item.previewRoute, '_blank', 'noopener,noreferrer');
+  });
 }
 
 function formatFileSize(file: File) {
@@ -371,6 +304,8 @@ function resetStudio() {
     revokePreviewUrl(customVideoPoster.value);
   }
   studio.value = null;
+  selectedMintItem.value = null;
+  connectToken.value = '';
   uploadFile.value = null;
   uploadTitle.value = '';
   customVideoTitle.value = '';
@@ -437,6 +372,11 @@ async function resolveToken(raw = tokenInput.value) {
 function openPreview() {
   if (!previewRoute.value) return;
   window.open(previewRoute.value, '_blank', 'noopener,noreferrer');
+}
+
+function openLibraryDetail(item: MintedItem) {
+  openLibraryDetailBase(item);
+  if (window.innerWidth <= 760) sidebarOpen.value = false;
 }
 
 function goBack() {
@@ -645,7 +585,7 @@ async function finishMint() {
 
   phase.value = 'done';
   addMessage('assistant', canCollectAsset.value ? studioCopy.messages.mintDoneWithAsset : studioCopy.messages.mintDone);
-  rememberMint('done');
+  rememberCurrentMint('done');
   loadStudioLibrary();
   toast?.show(studioCopy.toast.minted, 1600, 'success');
 }
@@ -670,7 +610,7 @@ async function collectAsset() {
   assetBound.value = true;
   phase.value = 'done';
   addMessage('assistant', studioCopy.messages.collected);
-  rememberMint('collected');
+  rememberCurrentMint('collected');
   loadStudioLibrary();
   toast?.show(studioCopy.toast.collected, 1600, 'success');
 }
@@ -740,45 +680,17 @@ onUnmounted(() => {
     <NavBar :key="navKey" />
 
     <button type="button" class="mobile-sidebar-toggle" @click="sidebarOpen = !sidebarOpen">
-      ☰
+      Menu
     </button>
 
     <div :class="['studio-layout', { 'sidebar-collapsed': !sidebarOpen }]">
-      <aside class="studio-sidebar">
-        <div class="sidebar-actions">
-          <button type="button" class="sidebar-icon" :title="studioCopy.sidebar.collapse" @click="sidebarOpen = !sidebarOpen">
-            {{ sidebarOpen ? '‹' : '›' }}
-          </button>
-          <button type="button" class="new-mint-button" :title="studioCopy.sidebar.newMintTitle" @click="resetStudio">
-            <span>＋</span>
-            <strong>{{ studioCopy.sidebar.newMint }}</strong>
-          </button>
-        </div>
-
-        <div class="sidebar-section">
-          <p class="sidebar-title">{{ studioCopy.sidebar.mintedTitle }}</p>
-          <p v-if="libraryLoading && !mintedItems.length" class="sidebar-empty">{{ studioCopy.sidebar.loading }}</p>
-          <div v-if="mintedItems.length" class="minted-list">
-            <button
-              v-for="item in mintedItems"
-              :key="item.id"
-              type="button"
-              class="minted-item"
-              @click="openMintedItem(item)"
-            >
-              <span class="minted-icon">
-                <img v-if="item.thumb && !item.thumb.startsWith('blob:')" :src="item.thumb" :alt="item.title" />
-                <span v-else>{{ item.status === 'collected' ? '✓' : '✦' }}</span>
-              </span>
-              <span class="minted-copy">
-                <strong>{{ item.title }}</strong>
-                <small>{{ item.appName }} · {{ mintedStatusText(item) }}</small>
-              </span>
-            </button>
-          </div>
-          <p v-else-if="!libraryLoading" class="sidebar-empty">{{ studioCopy.sidebar.empty }}</p>
-        </div>
-      </aside>
+      <MintStudioSidebar
+        v-model:open="sidebarOpen"
+        :items="mintedItems"
+        :loading="libraryLoading"
+        @new-mint="resetStudio"
+        @open-item="openLibraryDetail"
+      />
       <button
         v-if="sidebarOpen"
         type="button"
@@ -788,7 +700,22 @@ onUnmounted(() => {
       ></button>
 
       <main class="studio">
-        <section ref="threadRef" class="thread">
+        <MintStudioDetailPanel
+          v-if="selectedMintItem"
+          v-model:connect-token="connectToken"
+          :item="selectedMintItem"
+          :connection-label="detailConnectionLabel"
+          :can-connect="detailCanConnect"
+          :can-delete="detailCanDelete"
+          :can-remove="detailCanRemove"
+          :busy="detailBusy"
+          @close="closeLibraryDetail"
+          @preview="openSelectedPreview"
+          @connect="connectSelectedItem"
+          @delete="deleteSelectedItem"
+        />
+
+        <section v-if="!selectedMintItem" ref="threadRef" class="thread">
           <div v-for="message in messages" :key="message.id" :class="['message', `message--${message.role}`]">
             <div v-if="message.kind === 'asset'" class="asset-card">
               <div class="asset-head">
@@ -871,7 +798,7 @@ onUnmounted(() => {
           </div>
         </section>
 
-        <form class="composer" @submit.prevent="handleSend">
+        <form v-if="!selectedMintItem" class="composer" @submit.prevent="handleSend">
           <div v-if="phase === 'upload' && uploadFile" class="file-preview-card">
             <span class="file-kind-icon">▣</span>
             <span class="file-copy">
@@ -925,820 +852,3 @@ onUnmounted(() => {
     </Teleport>
   </div>
 </template>
-
-<style scoped>
-.mint-page {
-  min-height: 100vh;
-  --studio-ink: #242321;
-  --studio-muted: rgba(36, 35, 33, 0.56);
-  --studio-line: rgba(36, 35, 33, 0.09);
-  --studio-card: rgba(255, 255, 255, 0.84);
-  background:
-    radial-gradient(circle at 50% -10%, rgba(47, 111, 94, 0.12), transparent 32%),
-    linear-gradient(180deg, #faf9f5 0%, #f1f0eb 100%);
-  color: var(--studio-ink);
-  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Segoe UI", "Microsoft YaHei", sans-serif;
-  font-size: 14px;
-}
-
-.studio-layout {
-  min-height: calc(100vh - 59px);
-  position: relative;
-  display: block;
-}
-
-.studio-layout.sidebar-collapsed {
-  display: block;
-}
-
-.studio-sidebar {
-  position: fixed;
-  top: 59px;
-  left: 0;
-  z-index: 880;
-  width: 266px;
-  height: calc(100vh - 59px);
-  display: flex;
-  flex-direction: column;
-  gap: 15px;
-  padding: 16px 12px;
-  border-right: 1px solid rgba(32, 33, 35, 0.08);
-  background: rgba(255, 255, 255, 0.64);
-  backdrop-filter: blur(18px);
-  box-sizing: border-box;
-  box-shadow: 18px 0 48px rgba(32, 33, 35, 0.05);
-  transition:
-    width 0.22s ease,
-    transform 0.22s ease,
-    box-shadow 0.22s ease,
-    background 0.22s ease;
-}
-
-.sidebar-actions {
-  display: grid;
-  gap: 9px;
-}
-
-.sidebar-icon,
-.new-mint-button,
-.minted-item {
-  border: 1px solid rgba(32, 33, 35, 0.10);
-  background: rgba(255, 255, 255, 0.88);
-  color: #202123;
-  cursor: pointer;
-  font: inherit;
-  transition:
-    background 0.16s ease,
-    border-color 0.16s ease,
-    transform 0.16s ease;
-}
-
-.sidebar-icon {
-  width: 36px;
-  height: 36px;
-  display: grid;
-  place-items: center;
-  border-radius: 13px;
-  font-size: 18px;
-  font-weight: 900;
-}
-
-.new-mint-button {
-  min-height: 42px;
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  padding: 7px 10px;
-  border-radius: 15px;
-  text-align: left;
-}
-
-.new-mint-button span {
-  width: 27px;
-  height: 27px;
-  flex: 0 0 auto;
-  display: grid;
-  place-items: center;
-  border-radius: 10px;
-  background: #202123;
-  color: #fff;
-  font-size: 17px;
-  font-weight: 900;
-}
-
-.new-mint-button strong {
-  font-size: 12.5px;
-}
-
-.sidebar-section {
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 9px;
-}
-
-.sidebar-title {
-  margin: 2px 8px;
-  color: rgba(32, 33, 35, 0.52);
-  font-size: 11px;
-  font-weight: 900;
-}
-
-.minted-list {
-  min-height: 0;
-  display: grid;
-  gap: 7px;
-  overflow-y: auto;
-}
-
-.minted-item {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  min-width: 0;
-  padding: 7px;
-  border-radius: 15px;
-  text-align: left;
-}
-
-.minted-icon {
-  width: 34px;
-  height: 34px;
-  flex: 0 0 auto;
-  display: grid;
-  place-items: center;
-  overflow: hidden;
-  border-radius: 12px;
-  background: #eeeae1;
-  color: #7b5b35;
-  font-weight: 950;
-}
-
-.minted-icon img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.minted-copy {
-  min-width: 0;
-  display: grid;
-  gap: 2px;
-}
-
-.minted-copy strong,
-.minted-copy small {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.minted-copy strong {
-  font-size: 12.5px;
-}
-
-.minted-copy small,
-.sidebar-empty {
-  color: rgba(32, 33, 35, 0.54);
-  font-size: 11px;
-}
-
-.sidebar-empty {
-  margin: 0 8px;
-  line-height: 1.6;
-}
-
-.sidebar-collapsed .studio-sidebar {
-  width: 76px;
-  align-items: center;
-  background: rgba(255, 255, 255, 0.54);
-  box-shadow: 12px 0 36px rgba(32, 33, 35, 0.035);
-}
-
-.sidebar-collapsed .new-mint-button {
-  width: 44px;
-  justify-content: center;
-  padding: 8px;
-}
-
-.sidebar-collapsed .new-mint-button strong,
-.sidebar-collapsed .sidebar-title,
-.sidebar-collapsed .minted-copy,
-.sidebar-collapsed .sidebar-empty {
-  display: none;
-}
-
-.sidebar-collapsed .minted-item {
-  width: 44px;
-  justify-content: center;
-  padding: 5px;
-}
-
-.mobile-sidebar-toggle {
-  display: none;
-}
-
-.mobile-sidebar-backdrop {
-  display: none;
-}
-
-.studio {
-  width: min(860px, 100%);
-  min-height: calc(100vh - 59px);
-  display: grid;
-  grid-template-rows: 1fr auto;
-  margin: 0 auto;
-  padding: 30px 18px 24px;
-  box-sizing: border-box;
-  animation: studioIn 0.32s ease both;
-}
-
-.thread {
-  width: min(760px, 100%);
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
-  justify-self: center;
-  padding: 22px 0 26px;
-  overflow-y: auto;
-}
-
-.message {
-  width: 100%;
-  max-width: 100%;
-  color: var(--studio-ink);
-  font-size: 14px;
-  letter-spacing: 0.01em;
-  line-height: 1.68;
-  animation: messageIn 0.22s ease both;
-}
-
-.message p {
-  margin: 0;
-  white-space: pre-wrap;
-}
-
-.message--assistant {
-  align-self: flex-start;
-}
-
-.message--assistant p {
-  max-width: 720px;
-  padding: 0;
-  color: #2b2a27;
-  background: transparent;
-  border: none;
-  box-shadow: none;
-}
-
-.message--user {
-  width: auto;
-  max-width: min(680px, 86%);
-  align-self: flex-end;
-}
-
-.message--user p {
-  padding: 11px 14px;
-  border-radius: 18px;
-  background: #f4f4f4;
-  color: #202123;
-  box-shadow: inset 0 0 0 1px rgba(32, 33, 35, 0.025);
-}
-
-.asset-card {
-  width: min(520px, 100%);
-  display: grid;
-  gap: 10px;
-  padding: 12px;
-  border: 1px solid rgba(32, 33, 35, 0.08);
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.86);
-  box-shadow: 0 8px 24px rgba(32, 33, 35, 0.035);
-  animation: cardIn 0.24s ease both;
-}
-
-.asset-preview {
-  overflow: hidden;
-  border-radius: 12px;
-  background: #eeede7;
-  aspect-ratio: 16 / 9;
-}
-
-.asset-preview img {
-  width: 100%;
-  height: 100%;
-  display: block;
-  object-fit: cover;
-}
-
-.asset-preview video {
-  width: 100%;
-  height: 100%;
-  display: block;
-  object-fit: cover;
-}
-
-.asset-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid #efefea;
-}
-
-.asset-head span,
-.asset-row small {
-  color: var(--studio-muted);
-  font-size: 11px;
-}
-
-.asset-head strong {
-  font-size: 13px;
-}
-
-.asset-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.asset-row div {
-  display: grid;
-  gap: 2px;
-  min-width: 0;
-}
-
-.mini-thumb {
-  width: 46px;
-  height: 46px;
-  flex: 0 0 auto;
-  display: block;
-  overflow: hidden;
-  border-radius: 12px;
-  background: #ebeae4;
-}
-
-.mini-thumb video {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.asset-row b {
-  font-size: 13px;
-}
-
-.asset-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  padding-top: 2px;
-}
-
-.asset-meta span {
-  padding: 4px 8px;
-  border-radius: 999px;
-  background: #f2eee6;
-  color: #7b5b35;
-  font-size: 11px;
-  font-weight: 800;
-}
-
-.asset-meta p {
-  width: 100%;
-  margin: 4px 0 0;
-  color: #4b4034;
-  font-size: 12.5px;
-  line-height: 1.58;
-}
-
-.asset-row button,
-.status-pill,
-.quick-actions button {
-  border: 1px solid #deded8;
-  border-radius: 999px;
-  background: #fff;
-  color: #202123;
-  cursor: pointer;
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.asset-row button {
-  flex: 0 0 auto;
-  padding: 6px 10px;
-}
-
-.status-pill {
-  padding: 5px 9px;
-  color: #2f6f5e;
-}
-
-.quick-actions {
-  width: min(760px, 100%);
-  display: flex;
-  flex-wrap: wrap;
-  gap: 7px;
-  margin: -6px auto 2px;
-}
-
-.quick-actions button {
-  padding: 7px 11px;
-}
-
-.primary-step {
-  background: #202123 !important;
-  color: #fff !important;
-  border-color: #202123 !important;
-}
-
-.choice-card {
-  width: min(520px, 100%);
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 9px;
-  margin-top: -4px;
-}
-
-.choice-card button {
-  display: grid;
-  gap: 4px;
-  padding: 12px;
-  border: 1px solid rgba(32, 33, 35, 0.08);
-  border-radius: 15px;
-  background: rgba(255, 255, 255, 0.82);
-  color: #202123;
-  cursor: pointer;
-  text-align: left;
-  box-shadow: none;
-  transition:
-    border-color 0.16s ease,
-    background 0.16s ease,
-    transform 0.16s ease;
-}
-
-.choice-card button:hover {
-  border-color: #202123;
-  transform: translateY(-1px);
-}
-
-.choice-card strong {
-  font-size: 13px;
-}
-
-.choice-card span {
-  color: var(--studio-muted);
-  font-size: 11px;
-}
-
-.quick-actions button:hover,
-.asset-row button:hover,
-.sidebar-icon:hover,
-.new-mint-button:hover,
-.minted-item:hover,
-.file-remove:hover,
-.icon-button:hover,
-.send-button:hover:not(:disabled) {
-  background: #f0f0eb;
-}
-
-.new-mint-button:hover,
-.minted-item:hover {
-  border-color: rgba(32, 33, 35, 0.16);
-  transform: translateX(1px);
-}
-
-.sidebar-icon:hover,
-.icon-button:hover {
-  transform: translateY(-1px);
-}
-
-.composer {
-  position: sticky;
-  bottom: 0;
-  width: min(760px, 100%);
-  justify-self: center;
-  box-sizing: border-box;
-  display: grid;
-  gap: 8px;
-  padding: 9px;
-  border: 1px solid rgba(32, 33, 35, 0.10);
-  border-radius: 24px;
-  background: rgba(255, 255, 255, 0.96);
-  box-shadow: 0 14px 42px rgba(32, 33, 35, 0.10);
-  backdrop-filter: blur(18px);
-  transition:
-    border-color 0.18s ease,
-    box-shadow 0.18s ease,
-    transform 0.18s ease;
-}
-
-.composer:focus-within {
-  border-color: rgba(32, 33, 35, 0.20);
-  box-shadow: 0 18px 50px rgba(32, 33, 35, 0.13);
-  transform: translateY(-1px);
-}
-
-.composer-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.composer input {
-  min-width: 0;
-  flex: 1;
-  border: none;
-  background: transparent;
-  color: #202123;
-  font: inherit;
-  font-size: 13.5px;
-  outline: none;
-}
-
-.composer input:disabled {
-  color: #999;
-}
-
-.icon-button,
-.send-button {
-  width: 34px;
-  height: 34px;
-  flex: 0 0 auto;
-  display: grid;
-  place-items: center;
-  border: none;
-  border-radius: 50%;
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: 900;
-}
-
-.icon-button {
-  background: transparent;
-  color: #555;
-}
-
-.attach input {
-  display: none;
-}
-
-.file-preview-card {
-  width: fit-content;
-  max-width: min(420px, 100%);
-  display: grid;
-  grid-template-columns: 36px minmax(0, 1fr) 22px;
-  align-items: center;
-  gap: 10px;
-  padding: 9px 10px;
-  border: 1px solid rgba(32, 33, 35, 0.10);
-  border-radius: 14px;
-  background: #fff;
-  box-shadow: 0 8px 24px rgba(32, 33, 35, 0.06);
-  animation: fileIn 0.18s ease both;
-}
-
-.file-kind-icon {
-  width: 34px;
-  height: 34px;
-  display: grid;
-  place-items: center;
-  border-radius: 11px;
-  background: #f1f0eb;
-  color: #67635c;
-  font-size: 17px;
-}
-
-.file-copy {
-  min-width: 0;
-  display: grid;
-  gap: 1px;
-}
-
-.file-copy strong,
-.file-copy small {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.file-copy strong {
-  color: #26231f;
-  font-size: 13px;
-}
-
-.file-copy small {
-  color: #777;
-  font-size: 11px;
-  letter-spacing: 0.03em;
-}
-
-.file-remove {
-  width: 22px;
-  height: 22px;
-  display: grid;
-  place-items: center;
-  border: none;
-  border-radius: 999px;
-  background: #202123;
-  color: #fff;
-  cursor: pointer;
-  font-size: 13px;
-  line-height: 1;
-}
-
-.send-button {
-  background: #242321;
-  color: #fff;
-  font-size: 16px;
-}
-
-.send-button:disabled {
-  background: #d7d7d2;
-  cursor: not-allowed;
-}
-
-.login-mask {
-  position: fixed;
-  inset: 0;
-  z-index: 1000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
-  background: rgba(0, 0, 0, 0.36);
-}
-
-.modal-enter-active,
-.modal-leave-active {
-  transition: opacity 0.18s ease;
-}
-
-.modal-enter-from,
-.modal-leave-to {
-  opacity: 0;
-}
-
-@keyframes studioIn {
-  from {
-    opacity: 0;
-    transform: translateY(6px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes messageIn {
-  from {
-    opacity: 0;
-    transform: translateY(4px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes cardIn {
-  from {
-    opacity: 0;
-    transform: translateY(5px) scale(0.995);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-
-@keyframes fileIn {
-  from {
-    opacity: 0;
-    transform: translateY(3px) scale(0.98);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-
-@media (max-width: 760px) {
-  .studio-layout,
-  .studio-layout.sidebar-collapsed {
-    min-height: calc(100vh - 52px);
-    display: block;
-  }
-
-  .mobile-sidebar-toggle {
-    position: fixed;
-    top: 64px;
-    left: 12px;
-    z-index: 920;
-    width: 42px;
-    height: 42px;
-    display: grid;
-    place-items: center;
-    border: 1px solid rgba(32, 33, 35, 0.10);
-    border-radius: 15px;
-    background: rgba(255, 255, 255, 0.9);
-    color: #202123;
-    box-shadow: 0 12px 32px rgba(32, 33, 35, 0.12);
-    backdrop-filter: blur(14px);
-    cursor: pointer;
-    font-size: 16px;
-    font-weight: 900;
-  }
-
-  .mobile-sidebar-backdrop {
-    position: fixed;
-    inset: 52px 0 0;
-    z-index: 900;
-    display: block;
-    border: none;
-    background: rgba(32, 33, 35, 0.18);
-    backdrop-filter: blur(2px);
-    animation: backdropIn 0.18s ease both;
-  }
-
-  .studio-sidebar {
-    position: fixed;
-    inset: 52px auto 0 0;
-    z-index: 910;
-    width: min(82vw, 310px);
-    height: calc(100vh - 52px);
-    transform: translateX(0);
-    transition: transform 0.2s ease;
-    box-shadow: 22px 0 70px rgba(32, 33, 35, 0.16);
-  }
-
-  .sidebar-collapsed .studio-sidebar {
-    width: min(82vw, 310px);
-    transform: translateX(calc(-100% - 18px));
-  }
-
-  .sidebar-collapsed .new-mint-button strong,
-  .sidebar-collapsed .sidebar-title,
-  .sidebar-collapsed .minted-copy,
-  .sidebar-collapsed .sidebar-empty {
-    display: initial;
-  }
-
-  .sidebar-collapsed .studio-sidebar {
-    align-items: stretch;
-  }
-
-  .sidebar-collapsed .new-mint-button,
-  .sidebar-collapsed .minted-item {
-    width: auto;
-    justify-content: flex-start;
-  }
-
-  .studio {
-    min-height: calc(100vh - 52px);
-    padding: 58px 10px 12px;
-  }
-
-  .message {
-    max-width: 100%;
-  }
-
-  .message--user {
-    max-width: 92%;
-  }
-
-  .composer {
-    border-radius: 24px;
-  }
-
-  .file-preview-card {
-    max-width: 100%;
-  }
-
-  .choice-card {
-    grid-template-columns: 1fr;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.001ms !important;
-    animation-iteration-count: 1 !important;
-    scroll-behavior: auto !important;
-    transition-duration: 0.001ms !important;
-  }
-}
-
-@keyframes backdropIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-</style>

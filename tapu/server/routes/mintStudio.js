@@ -679,7 +679,14 @@ async function saveMomentByToken(req, res) {
 
 registerRoutes(router, [
   loginRoute('get', '/library', getStudioLibrary),
-  route('put', '/moment-by-token', { type: 'studio_action', action: 'save_moment_by_token' }, saveMomentByToken),
+  route('put', '/moment-by-token', { type: 'studio_action', action: 'save_moment_by_token' }, saveMomentByToken, [], {
+    operation: 'content:token_update',
+    summary: 'Save a Moment work through Mint Studio and an editable token.',
+    body: { key: 'string', title: 'string', subtitle: 'string?', place: 'string?', event_date: 'string?' },
+    response: { success: 'boolean', moment: 'object', nextRoutes: 'object' },
+    errors: ['LOGIN_REQUIRED', 'MINT_STUDIO_PERMISSION_DENIED', 'MINT_STUDIO_MOMENT_SAVE_FAILED'],
+    tags: ['mint-studio', 'moment', 'content'],
+  }),
 ]);
 
 export default router;

@@ -108,3 +108,191 @@ entrypoint: tapu/src/main.ts
 - post-mortem:
   - 本轮接手时已有多轮未提交改动，且当前分支已经在 `tapu-master`；本次选择完整收口提交，避免只提交 copy 抽取造成前后端状态割裂。
   - 后续应尽量恢复 `evo/<task>` 分支 + `.ledger` TODO 先行，减少主线直接积累大批未提交改动的风险。
+
+## 2026-07-16 Codex Increment 5
+
+- domain: engineering-governance, frontend-api, docs, encoding
+- ref: working-tree
+- branch_context: tapu-master working tree; this loop intentionally keeps unrelated user note changes out of the sprint scope.
+- todo:
+  - [x] 增加仓库级 `.editorconfig` 与 `.gitattributes`，固化 UTF-8、LF、二进制文件和 Windows 脚本行尾策略。
+  - [x] 增加 `check:encoding`、`check:server`、`check:size`、`check:quality`，把编码、后端 JS 语法和大文件报告纳入本地质量入口。
+  - [x] 增加 `use-utf8-terminal.ps1` 与 `check:terminal`，解决 Windows PowerShell 将无 BOM UTF-8 中文文档误读为乱码的问题。
+  - [x] 将前端 API 基础请求能力拆到 `tapu/src/api/http.ts`，将 Mint Studio 与轻应用接口拆到独立模块，并保持 `tapu/src/api/index.ts` 兼容 re-export。
+  - [x] 拆分 `MintStudioPage.vue`，将已铸造内容库抽成 `useMintStudioLibrary`，将侧边栏抽成 `MintStudioSidebar`，将页面样式抽到 `src/styles/mintStudio.css`。
+  - [x] 拆分 `server/routes/dailyStickers.js`，将贴纸发布时间、条目素材、故事进度和资产组装 runtime helpers 抽到 `server/services/dailyStickerRuntime.js`。
+  - [x] 将 `routePermissions.js` 收敛为 `PERMISSION_CHECKERS` 函数表，明确一个 permission type 对应一个调用前校验函数。
+  - [x] 增加 `server/contracts/routePermissionMap.js`，集中查询当前接口到权限类型的映射，并纳入 legacy direct routes。
+  - [x] 增加 `criticalPermissionFlows.js` 与 `check:permissions`，验证关键链路所需接口和权限类型持续存在。
+  - [x] 增加 `docs/engineering-governance.md`，沉淀文件体积阈值、编码策略、质量命令和新增功能检查卡。
+  - [x] 去除项目域历史文件 UTF-8 BOM，并让编码检查从仓库根扫描，同时排除 `archo evo/` 协议子模块。
+- evidence:
+  - `npm run check:quality`
+  - `npm run check:terminal`
+  - dot-source UTF-8 session 后读取 `docs/engineering-governance.md` 中文正常显示
+  - `npm run build`
+  - `npm run check:permissions`
+  - route map spot check: `/api/auth/entity-default-by-token -> token_unbound_or_owner`, `/api/daily-stickers/bind-token -> account_object_claimable`
+  - `git diff --check`
+- post-mortem:
+  - `src/api/index.ts`、`MintStudioPage.vue`、`server/routes/dailyStickers.js` 已从硬债区降到软债区；剩余硬债集中在 `AssetsPage.vue` 与 `src/views/official/DailyStickerManage.vue`。
+  - `git diff --check` 在 Windows 下仍会报告行尾规范化 warning，但没有 whitespace error；后续正式提交后 `.gitattributes` 会逐步稳定这些差异。
+## 2026-07-16 Codex Increment 6
+
+- domain: engineering-governance, contracts, permissions, app-manifest, database
+- ref: working-tree
+- branch_context: tapu-master working tree; unrelated local note changes remain outside this sprint scope.
+- todo:
+  - [x] Added `operation` as a semantic contract layer while keeping permission execution as `interface -> permission type -> checker -> handler`.
+  - [x] Extended route contract metadata with operation/body/query/response/errors/tags and covered the most expensive permission flows.
+  - [x] Added `test:contracts` and critical route contract assertions.
+  - [x] Added migration and seed baseline contracts plus `check:db`.
+  - [x] Added application manifests plus `check:manifests` for app type, object principle, Studio profile, operations, routes, and content capabilities.
+  - [x] Added `docs/interface-contracts.md` as the incremental contract/manifest/seed reference.
+- evidence:
+  - `npm run check:permissions`
+  - `npm run check:db`
+  - `npm run check:manifests`
+  - `npm run test:contracts`
+  - `npm run check:quality`
+  - `npm run build`
+  - `git diff --check` reports line-ending normalization warnings only.
+- post-mortem:
+  - Operation now has a useful shape without becoming a second permission system.
+  - App manifests are intentionally sidecar-only for now; deeper runtime integration should happen when the next app is added.
+  - Seed/migration governance is only a contract baseline; an executable runner can be added when schema changes begin.
+
+## 2026-07-16 Codex Increment 7
+
+- domain: design-system, frontend-governance, docs
+- ref: working-tree
+- branch_context: tapu-master working tree; builds on the existing uncommitted governance sprint.
+- todo:
+  - [x] Added `tapu/src/styles/design-system.css` as the first shared WhatMint visual token layer.
+  - [x] Wired global styles, common utilities, admin aliases, Mint Studio, and NavBar to shared design tokens.
+  - [x] Added shared utility classes for surface, focus, muted text, kicker labels, and reduced-motion behavior.
+  - [x] Added `docs/design-language.md` to separate design temperament and implementation rules from product manifesto.
+- evidence:
+  - `npm run build`
+  - `npm run check:quality`
+  - `git diff --check` reports line-ending normalization warnings only.
+- post-mortem:
+  - This sprint intentionally avoided repainting every page. The high-value move is a stable visual vocabulary first, then incremental adoption when pages are touched.
+  - Existing hardcoded colors remain in older pages; future UI work should migrate them opportunistically to tokens instead of doing a risky broad visual rewrite.
+
+## 2026-07-16 Codex Increment 8
+
+- domain: mint-studio, frontend-ia, content-assets
+- ref: working-tree
+- branch_context: tapu-master working tree; builds on existing uncommitted governance and Studio work.
+- todo:
+  - [x] Changed Mint Studio sidebar item click from direct preview open to a content detail panel.
+  - [x] Added sidebar search, type filters, and a 24-item visible limit to avoid an endless asset list.
+  - [x] Added detail actions for preview, current object connection, connect-to-object for unbound video content, delete video content, and local record removal.
+  - [x] Split the detail UI into `MintStudioDetailPanel` and moved detail state/actions into `useMintStudioDetail`.
+- evidence:
+  - `npm run build`
+  - `npm run check:quality`
+  - `git diff --check` reports line-ending normalization warnings only.
+- post-mortem:
+  - Studio now separates creation flow from content-asset inspection. The chat flow stays focused on minting; the detail panel owns lightweight asset actions.
+  - Delete remains intentionally narrow: server deletion is only enabled for video content with an existing owner permission route; other asset types show state without pretending to support unsafe deletion.
+  - `MintStudioPage.vue` returned from hard-size territory to soft-size territory after extracting panel and detail composable.
+
+## 2026-07-16 Codex Increment 9
+
+- domain: mint-studio, frontend-ia
+- ref: working-tree
+- todo:
+  - [x] Made content detail an exclusive viewing state: expanded detail hides the chat thread and composer.
+  - [x] Added a collapsible detail state so users can keep the selected content header while returning to the minting flow.
+- evidence:
+  - `npm run build`
+  - `npm run check:quality`
+  - `git diff --check` reports line-ending normalization warnings only.
+- post-mortem:
+  - Detail view now behaves like inspection, not another message in the creation conversation.
+
+## 2026-07-16 Codex Increment 10
+
+- domain: mint-studio, frontend-ia
+- ref: working-tree
+- todo:
+  - [x] Corrected the collapsible target: content detail is no longer collapsible.
+  - [x] Added collapse/expand behavior to the Mint Studio sidebar content list section instead.
+  - [x] Kept expanded detail as an exclusive inspection state that hides the chat thread and composer.
+- evidence:
+  - `npm run build`
+  - `npm run check:quality`
+  - `git diff --check` reports line-ending normalization warnings only.
+- post-mortem:
+  - The mental model is now cleaner: sidebar list can collapse for navigation density; detail remains a focused content inspection surface.
+
+## 2026-07-16 Codex Increment 11
+
+- domain: shop, product-experience
+- ref: working-tree
+- todo:
+  - [x] Added a product-detail tap experience entry that opens the official default public content, with first ready public content as fallback.
+  - [x] Added a compact touch-experience panel so a product can be felt as a real object entry, not only browsed as a catalog item.
+  - [x] Kept the copy user-facing and non-technical, with keyboard access for the panel interaction.
+- evidence:
+  - `npm run build`
+  - `npm run check:quality`
+- post-mortem:
+  - Product detail now has a clearer bridge from commerce to WhatMint's core behavior: touch the object, enter its small digital space.
+
+## 2026-07-16 Codex Increment 12
+
+- domain: content-operation, whatmint-os
+- ref: working-tree
+- todo:
+  - [x] Added the `meaningful_states` storage layer for OS-level states derived from object events.
+  - [x] Added a `contentOperation` service that derives states, builds runtime context, matches app skills, and assembles Daily Sticker crossover content.
+  - [x] Extended app manifests with initial `producesStates` and `skills` declarations for emotion IP and Daily Sticker.
+  - [x] Recorded video/IP touch resolve events into `object_events`, enabling emotion IP usage to produce meaningful states.
+  - [x] Seeded a visible Content Operation demo: earphones slow story unlocks a paper-puppy guest story.
+  - [x] Self-tested the demo on a mobile-sized page and added a first-screen relationship notice so the unlocked Mint relationship is immediately visible.
+- evidence:
+  - `npm run build`
+  - `npm run check:quality`
+  - Real API check: `/api/daily-stickers/resolve?key=9f1d7a4e6b8c4f21a3d5e7c9b0a2f416` returns `guest_character_story` and the crossover block `纸巾小狗来过`.
+- post-mortem:
+  - This keeps the first Content Operation layer intentionally small: apps do not read each other's tables; they read OS states and unlocked skills.
+  - The demo proves the ecosystem loop without committing to a heavy rules engine yet.
+
+## 2026-07-16 Codex Increment 13
+
+- domain: engineering-governance, os-app-boundary, content-operation
+- ref: working-tree
+- todo:
+  - [x] Split Daily Sticker-specific experience assembly and demo seeding out of `contentOperation` into a Daily Sticker app adapter.
+  - [x] Kept `contentOperation` focused on OS responsibilities: meaningful state storage, event-derived states, runtime context, and skill matching.
+  - [x] Strengthened app manifest checks for `producesStates` and `skills` shape, key formats, trigger states, and effects.
+  - [x] Added Content Operation contract tests for event-to-state derivation, runtime skill unlock, and app adapter content assembly.
+  - [x] Added `docs/os-app-boundary.md` to document what belongs to OS and what belongs to app expression.
+- evidence:
+  - `npm run test:contracts`
+  - `npm run check:manifests`
+  - `npm run build`
+  - `npm run check:quality`
+- post-mortem:
+  - This round turns the OS/app boundary from a product idea into enforceable engineering shape.
+  - The next app should follow the adapter pattern before new app-specific logic leaks into OS services.
+
+## 2026-07-16 Codex Increment 14
+
+- domain: evo-closeout, review, constraints
+- ref: working-tree
+- todo:
+  - [x] Added r6 Codex retro for the OS/App boundary and Content Operation governance sprint.
+  - [x] Added r6 S5 observations covering OS maturity, Content Operation MVP validation, and next diagnostic direction.
+  - [x] Updated active Codex constraints with OS/App boundary rules for future light-app work.
+  - [x] Re-ran build and quality gates before commit.
+- evidence:
+  - `npm run build`
+  - `npm run check:quality`
+  - `git diff --check` reports line-ending normalization warnings only.
+- post-mortem:
+  - The sprint is now closed according to the local evo practice: implementation, validation, review notes, constraints, and ledger are aligned.
+  - Current branch is already `tapu-master`; merge is therefore a mainline commit-and-push rather than a feature-branch merge.

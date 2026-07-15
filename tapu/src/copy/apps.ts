@@ -69,6 +69,10 @@ export const appCopy = {
       voice: '这个物品还在等第一段故事。',
       body: '官方内容配置后，同一小世界的贴纸会按节奏看到连续内容。',
     },
+    experience: {
+      crossoverKicker: '关系被点亮',
+      crossoverNotice: (title: string) => `${title}。今天的小世界多了一位来访者。`,
+    },
     footer: ['不需要 App', '不需要登录', '慢慢讲完一个小世界'],
   },
   travelTrail: {

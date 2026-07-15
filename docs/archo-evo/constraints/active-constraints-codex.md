@@ -18,3 +18,11 @@
 - `objectRegistry` 先服务已经落地的应用 token，等两个以上应用接入后再考虑统一 `/tap/:token` 路由。
 - 轻应用页面保留自己的气质和交互仪式，内容展示区逐步迁入 `ContentRenderer`。
 - `Content Collection / App Binding` 先作为后端能力存在，不强制迁移旧应用，不提前做完整 CMS。
+
+## 2026-07-16 r6 新增
+
+- OS 服务只负责身份、权限、触碰协议、内容协议、事件、状态、Skill 匹配和 runtime context；应用自己的故事、角色语气、视觉节奏和交互仪式必须留在应用层。
+- 跨应用体验优先走 `object_events -> meaningful_states -> runtimeContext -> app adapter`，不要让一个应用直接读取另一个应用的私有业务表。
+- Manifest 中新增 `producesStates` 或 `skills` 时，必须满足 `check:manifests`，并且至少有可见体验或契约测试证明它不是空声明。
+- Content Operation 可以先保持薄层，不引入通用规则引擎；只有当两个以上真实应用需要相同编排能力时，才继续上抽。
+- 新轻应用接入时先检查 `docs/os-app-boundary.md`，明确哪些是 OS 复用，哪些是应用表达。

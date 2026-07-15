@@ -1,5 +1,5 @@
 :root {
-  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Segoe UI', sans-serif;
+  font-family: var(--wm-font-sans);
   line-height: 1.5;
   font-weight: 400;
 
@@ -16,8 +16,8 @@
 body {
   margin: 0;
   padding: 0;
-  background-color: #fefefe;
-  color: #1a1a1a;
+  background-color: var(--wm-canvas);
+  color: var(--wm-ink);
 }
 
 #app {

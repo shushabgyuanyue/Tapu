@@ -82,6 +82,7 @@ export const communityCopy = {
       pledge: '参与众筹',
       unavailable: '暂不可购买',
       bindAssets: '去我的资产绑定 token',
+      touchExperience: '碰一下体验',
       wished: '已在心愿单',
       wish: '加入心愿单',
     },
@@ -94,6 +95,9 @@ export const communityCopy = {
       contentTitle: '官方内容预览',
       contentIntro: '购买后写入的是 token 链接，内容可以继续更新，实体仍然是那个实体。',
       emptyContent: '这个 IP 暂无公开内容，后续可在官方管理端补充预览。',
+      touchKicker: 'Tap Experience',
+      touchTitle: '先碰一下，进入它的小世界',
+      touchIntro: '像拿到它的那一刻一样，轻轻打开它会递出的第一段内容。',
     },
   },
 };

@@ -1,25 +1,25 @@
 /* whatmint Admin Design System */
 :root {
-  --bg-page: #f7f4ef;
-  --bg-card: rgba(255, 255, 255, 0.86);
-  --bg-hover: #f3eee8;
-  --bg-active: #eaf3ef;
-  --bg-input: #fffaf4;
+  --bg-page: var(--wm-canvas);
+  --bg-card: var(--wm-surface);
+  --bg-hover: var(--wm-surface-soft);
+  --bg-active: var(--wm-accent-soft);
+  --bg-input: var(--wm-canvas-warm);
 
-  --border: rgba(32, 27, 34, 0.09);
-  --border-light: rgba(32, 27, 34, 0.06);
+  --border: var(--wm-line);
+  --border-light: var(--wm-line-soft);
 
-  --text-primary: #201b22;
-  --text-secondary: #625762;
-  --text-muted: #9a9090;
+  --text-primary: var(--wm-ink);
+  --text-secondary: var(--wm-ink-soft);
+  --text-muted: var(--wm-faint);
 
-  --accent: #2f6f5e;
-  --accent-hover: #25594c;
-  --accent-warm: #9a6a2f;
-  --accent-rose: #d98fb7;
+  --accent: var(--wm-accent);
+  --accent-hover: var(--wm-accent-strong);
+  --accent-warm: var(--wm-warm);
+  --accent-rose: var(--wm-rose);
 
-  --radius: 22px;
-  --radius-sm: 14px;
+  --radius: var(--wm-radius-lg);
+  --radius-sm: var(--wm-radius-sm);
 
-  --font: "PingFang SC", "Microsoft YaHei", sans-serif;
+  --font: var(--wm-font-sans);
 }

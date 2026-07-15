@@ -225,6 +225,27 @@ CREATE TABLE IF NOT EXISTS object_events (
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS meaningful_states (
+  id TEXT PRIMARY KEY,
+  state_key TEXT NOT NULL,
+  subject_type TEXT NOT NULL CHECK(subject_type IN ('account', 'object', 'token', 'relationship')),
+  subject_id TEXT NOT NULL,
+  subject_token TEXT,
+  source_app_code TEXT,
+  source_object_type TEXT,
+  source_object_id TEXT DEFAULT '',
+  source_object_label TEXT,
+  category TEXT,
+  strength REAL DEFAULT 1,
+  evidence_json TEXT,
+  status TEXT DEFAULT 'active' CHECK(status IN ('active', 'paused', 'expired')),
+  started_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  last_seen_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  expires_at DATETIME,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS content_collections (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
@@ -689,6 +710,15 @@ ON object_events(event_type);
 
 CREATE INDEX IF NOT EXISTS idx_object_events_created
 ON object_events(created_at);
+
+CREATE INDEX IF NOT EXISTS idx_meaningful_states_subject
+ON meaningful_states(subject_type, subject_id);
+
+CREATE INDEX IF NOT EXISTS idx_meaningful_states_key
+ON meaningful_states(state_key);
+
+CREATE INDEX IF NOT EXISTS idx_meaningful_states_source
+ON meaningful_states(source_app_code, source_object_id);
 
 CREATE INDEX IF NOT EXISTS idx_content_collection_blocks_collection
 ON content_collection_blocks(collection_id);

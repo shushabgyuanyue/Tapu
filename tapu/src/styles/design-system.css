@@ -1,0 +1,107 @@
+:root {
+  --wm-font-sans: -apple-system, BlinkMacSystemFont, "PingFang SC", "Segoe UI", "Microsoft YaHei", sans-serif;
+  --wm-font-mono: "SFMono-Regular", "Cascadia Code", "Consolas", monospace;
+
+  --wm-ink: #201b22;
+  --wm-ink-soft: #4f4554;
+  --wm-muted: #7c727b;
+  --wm-faint: #9a9090;
+  --wm-inverse: #fffaf7;
+
+  --wm-canvas: #f7f4ef;
+  --wm-canvas-warm: #fffaf4;
+  --wm-surface: rgba(255, 255, 255, 0.88);
+  --wm-surface-solid: #ffffff;
+  --wm-surface-soft: #f3eee8;
+  --wm-line: rgba(32, 27, 34, 0.09);
+  --wm-line-soft: rgba(32, 27, 34, 0.06);
+
+  --wm-accent: #2f6f5e;
+  --wm-accent-strong: #25594c;
+  --wm-accent-soft: #eaf3ef;
+  --wm-warm: #9a6a2f;
+  --wm-warm-soft: #f7ead8;
+  --wm-rose: #c92752;
+  --wm-rose-soft: #fff1f4;
+  --wm-gold: #c98200;
+  --wm-danger: #d9305f;
+  --wm-success: #16803a;
+
+  --wm-radius-xs: 8px;
+  --wm-radius-sm: 12px;
+  --wm-radius-md: 16px;
+  --wm-radius-lg: 22px;
+  --wm-radius-xl: 30px;
+  --wm-radius-pill: 999px;
+
+  --wm-shadow-xs: 0 6px 18px rgba(32, 27, 34, 0.05);
+  --wm-shadow-sm: 0 10px 28px rgba(32, 27, 34, 0.08);
+  --wm-shadow-md: 0 20px 60px rgba(32, 27, 34, 0.12);
+  --wm-shadow-glow: 0 18px 48px rgba(47, 111, 94, 0.16);
+
+  --wm-page-max: 1120px;
+  --wm-content-max: 860px;
+  --wm-nav-height: 59px;
+
+  --wm-ease-standard: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --wm-duration-fast: 120ms;
+  --wm-duration-base: 180ms;
+  --wm-duration-slow: 320ms;
+
+  --wm-focus-ring: 0 0 0 3px rgba(47, 111, 94, 0.14);
+}
+
+.wm-surface {
+  border: 1px solid var(--wm-line);
+  border-radius: var(--wm-radius-lg);
+  background: var(--wm-surface);
+  box-shadow: var(--wm-shadow-sm);
+}
+
+.wm-focusable {
+  outline: none;
+  transition:
+    border-color var(--wm-duration-fast) var(--wm-ease-standard),
+    box-shadow var(--wm-duration-fast) var(--wm-ease-standard),
+    background var(--wm-duration-fast) var(--wm-ease-standard);
+}
+
+.wm-focusable:focus,
+.wm-focusable:focus-visible {
+  border-color: var(--wm-accent);
+  box-shadow: var(--wm-focus-ring);
+}
+
+.wm-muted {
+  color: var(--wm-muted);
+}
+
+.wm-kicker {
+  color: var(--wm-accent);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+@keyframes wm-rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}

@@ -8,6 +8,7 @@ import { ensureAnswerBookSeed } from '../services/answerBookSeed.js';
 import { ensureApplicationRegistry } from '../services/applicationRegistry.js';
 import { ensureCheckTemplatesSeed } from '../services/checkTemplateSeed.js';
 import { ensureTravelTrailDemoSeed } from '../services/travelTrailSeed.js';
+import { ensureDailyStickerExperienceDemoSeed } from '../services/dailyStickerExperience.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -270,6 +271,26 @@ export async function getDb() {
       user_agent TEXT,
       metadata_json TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE IF NOT EXISTS meaningful_states (
+      id TEXT PRIMARY KEY,
+      state_key TEXT NOT NULL,
+      subject_type TEXT NOT NULL CHECK(subject_type IN ('account', 'object', 'token', 'relationship')),
+      subject_id TEXT NOT NULL,
+      subject_token TEXT,
+      source_app_code TEXT,
+      source_object_type TEXT,
+      source_object_id TEXT DEFAULT '',
+      source_object_label TEXT,
+      category TEXT,
+      strength REAL DEFAULT 1,
+      evidence_json TEXT,
+      status TEXT DEFAULT 'active' CHECK(status IN ('active', 'paused', 'expired')),
+      started_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      last_seen_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      expires_at DATETIME,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )`,
     `CREATE TABLE IF NOT EXISTS content_collections (
       id TEXT PRIMARY KEY,
@@ -887,6 +908,9 @@ export async function getDb() {
     db.run('CREATE INDEX IF NOT EXISTS idx_object_events_app ON object_events(app_code)');
     db.run('CREATE INDEX IF NOT EXISTS idx_object_events_type ON object_events(event_type)');
     db.run('CREATE INDEX IF NOT EXISTS idx_object_events_created ON object_events(created_at)');
+    db.run('CREATE INDEX IF NOT EXISTS idx_meaningful_states_subject ON meaningful_states(subject_type, subject_id)');
+    db.run('CREATE INDEX IF NOT EXISTS idx_meaningful_states_key ON meaningful_states(state_key)');
+    db.run('CREATE INDEX IF NOT EXISTS idx_meaningful_states_source ON meaningful_states(source_app_code, source_object_id)');
     db.run('CREATE INDEX IF NOT EXISTS idx_content_collection_blocks_collection ON content_collection_blocks(collection_id)');
     db.run('CREATE INDEX IF NOT EXISTS idx_app_bindings_app ON app_bindings(app_code)');
     db.run('CREATE INDEX IF NOT EXISTS idx_app_bindings_scope ON app_bindings(scope_type, scope_id)');
@@ -921,6 +945,10 @@ export async function getDb() {
   try {
     ensureJasmineRainEarphonesStory(db);
   } catch (e) { /* sample story seed should never block startup */ }
+
+  try {
+    ensureDailyStickerExperienceDemoSeed(db);
+  } catch (e) { /* content operation demo seed should never block startup */ }
 
   try {
     ensureAnswerBookSeed(db);

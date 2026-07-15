@@ -511,9 +511,30 @@ registerRoutes(router, [
   adminRoute('post', '/checklists/:id/items', addChecklistItem),
   adminRoute('put', '/checklists/:checklistId/items/:itemId', updateChecklistItem),
   adminRoute('delete', '/checklists/:checklistId/items/:itemId', deleteChecklistItem),
-  tokenRoute('post', '/items', APP_CODE, addPublicCheckItemHandler),
-  tokenRoute('put', '/items/:itemId', APP_CODE, updatePublicCheckItemHandler),
-  tokenRoute('post', '/reset', APP_CODE, resetPublicCheckHandler),
+  tokenRoute('post', '/items', APP_CODE, addPublicCheckItemHandler, {
+    operation: 'app:token_operate',
+    summary: 'Add a checklist item through an active Check token.',
+    body: { key: 'string', label: 'string', hint: 'string?', is_required: 'boolean?' },
+    response: { success: 'boolean', checklist: 'object' },
+    errors: ['TOKEN_REQUIRED', 'APP_TOKEN_NOT_FOUND', 'APP_TOKEN_MISMATCH', 'APP_TOKEN_INACTIVE'],
+    tags: ['check', 'light-app'],
+  }),
+  tokenRoute('put', '/items/:itemId', APP_CODE, updatePublicCheckItemHandler, {
+    operation: 'app:token_operate',
+    summary: 'Toggle a checklist item through an active Check token.',
+    body: { key: 'string', is_checked: 'boolean' },
+    response: { success: 'boolean', checklist: 'object' },
+    errors: ['TOKEN_REQUIRED', 'APP_TOKEN_NOT_FOUND', 'APP_TOKEN_MISMATCH', 'APP_TOKEN_INACTIVE'],
+    tags: ['check', 'light-app'],
+  }),
+  tokenRoute('post', '/reset', APP_CODE, resetPublicCheckHandler, {
+    operation: 'app:token_operate',
+    summary: 'Reset a checklist through an active Check token.',
+    body: { key: 'string' },
+    response: { success: 'boolean', checklist: 'object' },
+    errors: ['TOKEN_REQUIRED', 'APP_TOKEN_NOT_FOUND', 'APP_TOKEN_MISMATCH', 'APP_TOKEN_INACTIVE'],
+    tags: ['check', 'light-app'],
+  }),
 ]);
 
 export default router;

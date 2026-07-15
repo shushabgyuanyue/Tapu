@@ -543,9 +543,30 @@ registerRoutes(router, [
   adminRoute('post', '/trails/:id/places', addTrailPlace),
   adminRoute('put', '/trails/:id/next-destination', updateTrailNextDestination),
   adminRoute('delete', '/trails/:trailId/places/:placeId', deleteTrailPlace),
-  tokenRoute('post', '/places', APP_CODE, addPublicTravelPlaceHandler),
-  tokenRoute('post', '/next-destination', APP_CODE, setPublicTravelNextDestinationHandler),
-  tokenRoute('post', '/return', APP_CODE, confirmPublicTravelReturnHandler),
+  tokenRoute('post', '/places', APP_CODE, addPublicTravelPlaceHandler, {
+    operation: 'app:token_operate',
+    summary: 'Add a travel place through an active Travel Trail token.',
+    body: { key: 'string', name: 'string', note: 'string?', visited_at: 'string?' },
+    response: { success: 'boolean', place: 'object', trail: 'object' },
+    errors: ['TOKEN_REQUIRED', 'APP_TOKEN_NOT_FOUND', 'APP_TOKEN_MISMATCH', 'APP_TOKEN_INACTIVE'],
+    tags: ['travel-trail', 'light-app'],
+  }),
+  tokenRoute('post', '/next-destination', APP_CODE, setPublicTravelNextDestinationHandler, {
+    operation: 'app:token_operate',
+    summary: 'Set next destination through an active Travel Trail token.',
+    body: { key: 'string', next_place: 'string', next_place_note: 'string?' },
+    response: { success: 'boolean', trail: 'object' },
+    errors: ['TOKEN_REQUIRED', 'APP_TOKEN_NOT_FOUND', 'APP_TOKEN_MISMATCH', 'APP_TOKEN_INACTIVE'],
+    tags: ['travel-trail', 'light-app'],
+  }),
+  tokenRoute('post', '/return', APP_CODE, confirmPublicTravelReturnHandler, {
+    operation: 'app:token_operate',
+    summary: 'Confirm return through an active Travel Trail token.',
+    body: { key: 'string', note: 'string?', visited_at: 'string?' },
+    response: { success: 'boolean', place: 'object', trail: 'object' },
+    errors: ['TOKEN_REQUIRED', 'APP_TOKEN_NOT_FOUND', 'APP_TOKEN_MISMATCH', 'APP_TOKEN_INACTIVE'],
+    tags: ['travel-trail', 'light-app'],
+  }),
 ]);
 
 export default router;

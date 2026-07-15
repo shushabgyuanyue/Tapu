@@ -252,6 +252,19 @@
 
 ## 推荐实现形态
 
+当前权限系统只保留一个核心模型：
+
+```text
+接口 -> permission type -> checker function -> handler
+```
+
+代码入口：
+
+- `tapu/server/services/routePermissions.js`：权限执行内核，`PERMISSION_CHECKERS` 是权限类型到校验函数的唯一表。
+- `tapu/server/contracts/routePermissionMap.js`：集中查询当前接口到权限类型的映射。
+- `tapu/server/contracts/criticalPermissionFlows.js`：关键链路所需接口和权限类型清单。
+- `tapu/scripts/check-route-permissions.mjs`：校验接口权限映射、权限类型和关键链路是否完整。
+
 优先使用 route contract 注册：
 
 ```js
@@ -275,6 +288,24 @@ async function setEntityDefaultByTokenHandler(req, res) {
 ```
 
 不要在 handler 中再次手写 owner 判断。重复判断会让系统出现两套权限语言，前端也无法稳定根据错误码做引导。
+
+如果要查看“哪个接口使用哪种校验类型”，不要在每个 route 文件里手动搜索，直接读取 `getRoutePermissionMap()`：
+
+```js
+import { getRoutePermissionMap } from './server/contracts/routePermissionMap.js';
+
+console.table(getRoutePermissionMap().map(route => ({
+  method: route.method,
+  path: route.path,
+  permissionType: route.permissionType,
+})));
+```
+
+新增权限类型时，必须先加入 `PERMISSION_CHECKERS`。新增关键链路时，必须补充 `criticalPermissionFlows.js`，并通过：
+
+```bash
+npm run check:permissions
+```
 
 ## 当前迁移状态
 

@@ -30,6 +30,10 @@ const wishlistCount = ref(0);
 const loading = ref(true);
 
 const readyVideos = computed(() => videos.value.filter(v => v.status === 'ready' && !v.is_private));
+const touchExperienceVideo = computed(() => {
+  const officialDefaultId = group.value?.official_default_video_id;
+  return readyVideos.value.find(video => video.id === officialDefaultId) || readyVideos.value[0] || null;
+});
 const canPurchase = computed(() => group.value?.sale_status === 'purchasable');
 const canPledge = computed(() => group.value?.sale_status === 'crowdfunding');
 const coverImage = computed(() => {
@@ -153,6 +157,11 @@ const goPlay = (id: string) => {
   router.push(`/play/${id}`);
 };
 
+const openTouchExperience = () => {
+  if (!touchExperienceVideo.value?.id) return;
+  goPlay(touchExperienceVideo.value.id);
+};
+
 const fmtDur = (s: number) => {
   if (!s) return '';
   const m = Math.floor(s / 60);
@@ -206,11 +215,35 @@ onMounted(loadData);
               {{ hasPledged ? communityCopy.ipDetail.actions.pledged : communityCopy.ipDetail.actions.pledge }}
             </button>
             <button v-else class="primary" disabled>{{ communityCopy.ipDetail.actions.unavailable }}</button>
+            <button v-if="touchExperienceVideo" class="touch-cta" @click="openTouchExperience">
+              {{ communityCopy.ipDetail.actions.touchExperience }}
+            </button>
             <button class="ghost" @click="router.push('/assets')">{{ communityCopy.ipDetail.actions.bindAssets }}</button>
             <button v-if="wishlistEnabled" class="wish" :class="{ active: inWishlist }" @click="handleWishlist">
               {{ inWishlist ? communityCopy.ipDetail.actions.wished : communityCopy.ipDetail.actions.wish }} · {{ wishlistCount }}
             </button>
           </div>
+        </div>
+      </section>
+
+      <section
+        v-if="touchExperienceVideo"
+        class="touch-panel"
+        role="button"
+        tabindex="0"
+        @click="openTouchExperience"
+        @keydown.enter.prevent="openTouchExperience"
+        @keydown.space.prevent="openTouchExperience"
+      >
+        <div>
+          <span class="panel-kicker">{{ communityCopy.ipDetail.panels.touchKicker }}</span>
+          <h2>{{ communityCopy.ipDetail.panels.touchTitle }}</h2>
+          <p>{{ communityCopy.ipDetail.panels.touchIntro }}</p>
+        </div>
+        <div class="touch-preview">
+          <img v-if="touchExperienceVideo.poster_url" :src="touchExperienceVideo.poster_url" :alt="touchExperienceVideo.title" />
+          <div v-else class="content-placeholder"></div>
+          <strong>{{ touchExperienceVideo.title }}</strong>
         </div>
       </section>
 
@@ -488,7 +521,8 @@ onMounted(loadData);
 
 .primary,
 .ghost,
-.wish {
+.wish,
+.touch-cta {
   min-height: 40px;
   padding: 0 16px;
   border-radius: 15px;
@@ -510,10 +544,16 @@ onMounted(loadData);
 }
 
 .ghost,
-.wish {
+.wish,
+.touch-cta {
   border: 1px solid rgba(255, 255, 255, 0.16);
   color: #fff;
   background: rgba(255, 255, 255, 0.10);
+}
+
+.touch-cta {
+  border-color: rgba(255, 185, 239, 0.36);
+  background: rgba(255, 79, 216, 0.16);
 }
 
 .wish.active {
@@ -526,6 +566,66 @@ onMounted(loadData);
   grid-template-columns: 1.18fr 0.82fr;
   gap: 18px;
   margin-bottom: 18px;
+}
+
+.touch-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(180px, 260px);
+  gap: 18px;
+  align-items: center;
+  margin-bottom: 18px;
+  padding: 22px;
+  border: 1px solid rgba(255, 79, 216, 0.16);
+  border-radius: 30px;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(255, 79, 216, 0.12), transparent 32%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(255, 246, 252, 0.94));
+  box-shadow: 0 22px 54px rgba(98, 42, 113, 0.12);
+  cursor: pointer;
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.touch-panel:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 28px 68px rgba(98, 42, 113, 0.16);
+}
+
+.touch-panel h2 {
+  margin: 8px 0 10px;
+  font-size: 28px;
+  letter-spacing: -0.05em;
+}
+
+.touch-panel p {
+  max-width: 620px;
+  margin: 0;
+  color: #625768;
+  line-height: 1.8;
+}
+
+.touch-preview {
+  overflow: hidden;
+  border: 1px solid #f0e8f2;
+  border-radius: 22px;
+  background: #fff;
+}
+
+.touch-preview img,
+.touch-preview .content-placeholder {
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  display: block;
+  object-fit: cover;
+}
+
+.touch-preview strong {
+  display: block;
+  padding: 11px 12px 13px;
+  overflow: hidden;
+  color: #2b1b32;
+  font-size: 13px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .panel,
@@ -675,7 +775,8 @@ onMounted(loadData);
 
 @media (max-width: 960px) {
   .ip-hero,
-  .detail-grid {
+  .detail-grid,
+  .touch-panel {
     grid-template-columns: 1fr;
   }
 
@@ -696,7 +797,8 @@ onMounted(loadData);
   .hero-visual,
   .hero-copy,
   .panel,
-  .content-section {
+  .content-section,
+  .touch-panel {
     border-radius: 26px;
   }
 

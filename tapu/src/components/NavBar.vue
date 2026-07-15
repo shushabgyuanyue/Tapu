@@ -147,8 +147,8 @@ defineExpose({ openLogin });
   position: sticky;
   top: 0;
   z-index: 100;
-  border-bottom: 1px solid rgba(31, 31, 31, 0.08);
-  background: rgba(255, 255, 255, 0.9);
+  border-bottom: 1px solid var(--wm-line);
+  background: rgba(255, 250, 247, 0.9);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
 }
@@ -163,7 +163,7 @@ defineExpose({ openLogin });
 }
 
 .navbar-brand {
-  color: #1a1a1a;
+  color: var(--wm-ink);
   font-size: 18px;
   font-weight: 900;
   letter-spacing: -0.04em;
@@ -182,11 +182,11 @@ defineExpose({ openLogin });
   align-items: center;
   gap: 5px;
   padding: 6px 12px;
-  border-radius: 10px;
-  color: #666;
+  border-radius: var(--wm-radius-sm);
+  color: var(--wm-muted);
   font-size: 13px;
   text-decoration: none;
-  transition: background 0.12s, color 0.12s;
+  transition: background var(--wm-duration-fast), color var(--wm-duration-fast);
 }
 
 .nav-label {
@@ -195,31 +195,31 @@ defineExpose({ openLogin });
 }
 
 .nav-link:hover {
-  background: #f5f5f5;
-  color: #333;
+  background: var(--wm-surface-soft);
+  color: var(--wm-ink);
 }
 
 .nav-link.router-link-active {
-  background: #f8f5ff;
-  color: #7c4dff;
+  background: var(--wm-accent-soft);
+  color: var(--wm-accent);
 }
 
 .nav-link--creator {
-  border: 1px solid #ede7ff;
-  color: #7c4dff;
+  border: 1px solid var(--wm-line);
+  color: var(--wm-accent);
 }
 
 .nav-link--creator:hover {
-  background: #f8f5ff;
+  background: var(--wm-accent-soft);
 }
 
 .nav-link--official {
-  border: 1px solid #fff0d4;
-  color: #c98200;
+  border: 1px solid var(--wm-line);
+  color: var(--wm-gold);
 }
 
 .nav-link--official:hover {
-  background: #fffaf0;
+  background: var(--wm-warm-soft);
 }
 
 .navbar-auth {
@@ -237,18 +237,18 @@ defineExpose({ openLogin });
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 1.5px solid #e8e8e8;
+  border: 1.5px solid var(--wm-line);
   border-radius: 50%;
-  background: #f9f9f9;
-  color: #666;
+  background: var(--wm-surface-solid);
+  color: var(--wm-muted);
   cursor: pointer;
-  transition: border-color 0.15s, background 0.15s, color 0.15s;
+  transition: border-color var(--wm-duration-base), background var(--wm-duration-base), color var(--wm-duration-base);
 }
 
 .nav-avatar:hover {
-  border-color: #7c4dff;
-  background: #f8f5ff;
-  color: #7c4dff;
+  border-color: var(--wm-accent);
+  background: var(--wm-accent-soft);
+  color: var(--wm-accent);
 }
 
 .nav-dropdown {
@@ -258,16 +258,16 @@ defineExpose({ openLogin });
   z-index: 200;
   min-width: 150px;
   overflow: hidden;
-  border: 1px solid #f0f0f0;
-  border-radius: 14px;
-  background: #fff;
-  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.09);
+  border: 1px solid var(--wm-line);
+  border-radius: var(--wm-radius-md);
+  background: var(--wm-surface-solid);
+  box-shadow: var(--wm-shadow-sm);
 }
 
 .dropdown-user {
   padding: 12px 16px 8px;
-  border-bottom: 1px solid #f5f5f5;
-  color: #333;
+  border-bottom: 1px solid var(--wm-line-soft);
+  color: var(--wm-ink);
   font-size: 13px;
   font-weight: 800;
 }
@@ -278,24 +278,24 @@ defineExpose({ openLogin });
   padding: 10px 16px;
   border: none;
   background: none;
-  color: #555;
+  color: var(--wm-ink-soft);
   cursor: pointer;
   font-size: 13px;
   text-align: left;
   text-decoration: none;
-  transition: background 0.12s;
+  transition: background var(--wm-duration-fast);
 }
 
 .dropdown-item:hover {
-  background: #f8f8f8;
+  background: var(--wm-surface-soft);
 }
 
 .dropdown-item--danger {
-  color: #e53935;
+  color: var(--wm-danger);
 }
 
 .dropdown-item--danger:hover {
-  background: #fff5f5;
+  background: var(--wm-rose-soft);
 }
 
 .dropdown-enter-active {
@@ -315,9 +315,9 @@ defineExpose({ openLogin });
 .nav-login-btn {
   padding: 7px 16px;
   border: none;
-  border-radius: 10px;
-  background: #1a1a1a;
-  color: #fff;
+  border-radius: var(--wm-radius-sm);
+  background: var(--wm-ink);
+  color: var(--wm-inverse);
   cursor: pointer;
   font-size: 13px;
   font-weight: 800;
@@ -335,7 +335,7 @@ defineExpose({ openLogin });
   align-items: center;
   justify-content: center;
   padding: 20px;
-  background: rgba(0, 0, 0, 0.4);
+  background: rgba(32, 27, 34, 0.42);
 }
 
 .modal-enter-active,

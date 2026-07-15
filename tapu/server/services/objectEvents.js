@@ -1,4 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
+import { deriveMeaningfulStatesFromObjectEvent } from './contentOperation.js';
 
 function stringifyMetadata(metadata) {
   if (!metadata || typeof metadata !== 'object') return null;
@@ -11,6 +12,7 @@ function stringifyMetadata(metadata) {
 
 export function recordObjectEvent(db, params = {}) {
   const id = params.id || uuidv4();
+  const metadataJson = stringifyMetadata(params.metadata);
   db.run(
     `INSERT INTO object_events
      (id, object_type, object_id, token_id, token, app_code, event_type, content_id, user_id, user_agent, metadata_json)
@@ -26,8 +28,9 @@ export function recordObjectEvent(db, params = {}) {
       params.contentId || null,
       params.userId || null,
       params.userAgent || null,
-      stringifyMetadata(params.metadata),
+      metadataJson,
     ]
   );
+  deriveMeaningfulStatesFromObjectEvent(db, params);
   return id;
 }

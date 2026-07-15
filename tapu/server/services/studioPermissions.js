@@ -1,68 +1,15 @@
 import { getEntityByToken } from './tokens.js';
 import { assertTokenContentEditable } from './objectPermissions.js';
 import { serverMessages } from '../copy/messages.js';
+import {
+  getOperationPolicy,
+  operationForStudioAction,
+} from '../contracts/operations.js';
 
 const ACTION_ALIASES = {
   use_official_default: 'use_current_content',
   use_current: 'use_current_content',
   upload_video: 'upload_custom_video',
-};
-
-const ACTION_OPERATIONS = {
-  open_app: 'view:open',
-  open_preview: 'view:preview',
-  use_current_content: 'content:token_update',
-  save_moment_by_token: 'content:token_update',
-  upload_custom_video: 'content:account_create',
-  collect_asset: 'asset:claim',
-};
-
-export const STUDIO_PERMISSION_RULES = {
-  'view:public': {
-    login: 'never',
-    token: 'read',
-    contentAsset: 'none',
-  },
-  'view:token_private': {
-    login: 'never',
-    token: 'matching_token',
-    contentAsset: 'none',
-  },
-  'view:owner_private': {
-    login: 'always',
-    token: 'owner',
-    contentAsset: 'account',
-  },
-  'view:admin': {
-    login: 'always',
-    token: 'admin',
-    contentAsset: 'none',
-  },
-  'view:*': {
-    login: 'always',
-    token: 'owner',
-    contentAsset: 'account',
-  },
-  'content:token_update': {
-    login: 'when_bound',
-    token: 'token_or_owner',
-    contentAsset: 'account_if_logged_in',
-  },
-  'content:account_create': {
-    login: 'always',
-    token: 'token_or_owner',
-    contentAsset: 'account',
-  },
-  'asset:*': {
-    login: 'always',
-    token: 'claim_asset',
-    contentAsset: 'none',
-  },
-  '*': {
-    login: 'always',
-    token: 'owner',
-    contentAsset: 'account',
-  },
 };
 
 export function normalizeStudioAction(action) {
@@ -71,30 +18,19 @@ export function normalizeStudioAction(action) {
 }
 
 function operationForAction(action) {
-  return ACTION_OPERATIONS[action] || action;
-}
-
-function ruleForOperation(operation) {
-  if (STUDIO_PERMISSION_RULES[operation]) {
-    return { key: operation, policy: STUDIO_PERMISSION_RULES[operation] };
-  }
-
-  const namespace = operation.includes(':') ? `${operation.split(':')[0]}:*` : '';
-  if (namespace && STUDIO_PERMISSION_RULES[namespace]) {
-    return { key: namespace, policy: STUDIO_PERMISSION_RULES[namespace] };
-  }
-
-  return { key: '*', policy: STUDIO_PERMISSION_RULES['*'] };
+  return operationForStudioAction(action);
 }
 
 export function getStudioActionPermission(action, context = {}) {
   const normalized = normalizeStudioAction(action);
   const operation = operationForAction(normalized);
-  const { key: rule, policy } = ruleForOperation(operation);
+  const operationPolicy = getOperationPolicy(operation);
+  const policy = operationPolicy.studioPolicy;
   return {
     action: normalized,
     operation,
-    rule,
+    rule: operationPolicy.rule,
+    permissionType: operationPolicy.permissionType,
     ...policy,
     requiresAuth: policy.login === 'always' || (policy.login === 'when_bound' && !!context.tokenBound),
   };

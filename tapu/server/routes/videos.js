@@ -15,6 +15,7 @@ import {
   videoListPrivacyScope,
 } from '../services/objectPermissions.js';
 import { serverMessages } from '../copy/messages.js';
+import { recordObjectEvent } from '../services/objectEvents.js';
 
 const router = Router();
 
@@ -274,7 +275,11 @@ async function resolvePlaybackHandler(req, res) {
 
   // 2. Check official default
   const groupResults = db.exec(
-    'SELECT g.*, s.name as series_name FROM groups g LEFT JOIN series s ON g.series_id = s.id WHERE g.id = ?',
+    `SELECT g.*, s.name as series_name, a.code as application_code, a.name as application_name
+     FROM groups g
+     LEFT JOIN series s ON g.series_id = s.id
+     LEFT JOIN applications a ON a.id = s.application_id
+     WHERE g.id = ?`,
     [group_id]
   );
   const group = resultToObjects(groupResults)[0] || null;
@@ -303,6 +308,27 @@ async function resolvePlaybackHandler(req, res) {
     return res.status(404).json({ error: serverMessages.routes.common.noPlayableContent });
   }
 
+  const appCode = group?.application_code || 'emotion-ip';
+  recordObjectEvent(db, {
+    objectType: 'mint-entity',
+    objectId: entity_id,
+    tokenId: entity_id,
+    token: payload.token || key,
+    appCode,
+    eventType: appCode === 'emotion-ip' ? 'emotion_content_tap' : 'tap_open',
+    contentId: defaultVideoId || videos[0]?.id || null,
+    userId: user_id || req.user?.id || null,
+    userAgent: req.headers['user-agent'] || null,
+    metadata: {
+      groupId: group_id,
+      groupName: group?.name || null,
+      objectName: group?.name || null,
+      defaultVideoId,
+      contentCount: videos.length,
+    },
+  });
+  saveDb();
+
   res.json({ videos, group, entity_id, user_id, default_video_id: defaultVideoId });
 }
 
@@ -327,12 +353,31 @@ registerRoutes(router, [
   publicRoute('get', '/', listVideosHandler, [optionalKeyVerify]),
   publicRoute('get', '/:id/siblings', getSiblingVideosHandler, [optionalKeyVerify]),
   publicRoute('get', '/:id', getVideoHandler, [optionalKeyVerify]),
-  publicRoute('post', '/resolve', resolvePlaybackHandler),
-  loginRoute('post', '/upload', uploadVideoHandler, [upload.single('video')]),
+  publicRoute('post', '/resolve', resolvePlaybackHandler, [], {
+    operation: 'view:open',
+    summary: 'Resolve playable content for an entity token.',
+    body: { key: 'string' },
+    response: { videos: 'array', group: 'object', entity_id: 'string', default_video_id: 'string|null' },
+    errors: ['ENTITY_NOT_FOUND', 'CONTENT_NOT_FOUND'],
+    tags: ['touch', 'content'],
+  }),
+  loginRoute('post', '/upload', uploadVideoHandler, [upload.single('video')], {
+    operation: 'content:account_create',
+    summary: 'Upload an account-owned video content asset.',
+    body: { video: 'file', title: 'string', group_id: 'string?', is_private: 'boolean?' },
+    response: { id: 'string', url: 'string', status: 'string' },
+    errors: ['LOGIN_REQUIRED', 'INVALID_FILE', 'TRANSCODE_FAILED'],
+    tags: ['content', 'upload'],
+  }),
   {
     method: 'delete',
     path: '/:id',
     permission: 'content_owner',
+    operation: 'content:owner_manage',
+    summary: 'Delete a manageable video content asset.',
+    response: { success: 'boolean' },
+    errors: ['LOGIN_REQUIRED', 'CONTENT_NOT_FOUND', 'CONTENT_OWNER_REQUIRED'],
+    tags: ['content'],
     handler: deleteVideoHandler,
   },
 ]);

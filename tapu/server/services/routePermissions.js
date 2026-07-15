@@ -38,6 +38,16 @@ function permissionType(permission) {
   return permissionConfig(permission).type || 'public';
 }
 
+function normalizeMethod(method) {
+  return String(method || '').toLowerCase();
+}
+
+function normalizePermissionForRegistry(permission) {
+  const config = permissionConfig(permission);
+  if (Object.keys(config).length === 1 && config.type) return config.type;
+  return config;
+}
+
 function getRequestToken(req) {
   return pickFirst(
     req.body?.key,
@@ -219,32 +229,24 @@ function assertAppTokenActive(db, req, config) {
   return { token, resolvedObject, appToken: raw };
 }
 
-async function assertPermission(req, permission) {
-  const config = permissionConfig(permission);
-  const type = permissionType(config);
-  const db = await getDb();
+export const PERMISSION_CHECKERS = {
+  public: (_req, _config, db) => ({ db }),
 
-  if (type === 'public') return { db };
+  anonymous_fingerprint: (req, _config, db) => ({ db, fingerprint: getRequestFingerprint(req) }),
 
-  if (type === 'anonymous_fingerprint') {
-    return { db, fingerprint: getRequestFingerprint(req) };
-  }
-
-  if (type === 'login_required') {
+  login_required: (req, _config, db) => {
     requireLogin(req);
     return { db };
-  }
+  },
 
-  if (type === 'admin_required') {
+  admin_required: (req, _config, db) => {
     requireAdmin(req);
     return { db };
-  }
+  },
 
-  if (type === 'token_unbound_or_owner') {
-    return { db, ...assertTokenUnboundOrOwner(db, req) };
-  }
+  token_unbound_or_owner: (req, _config, db) => ({ db, ...assertTokenUnboundOrOwner(db, req) }),
 
-  if (type === 'entity_owner') {
+  entity_owner: (req, _config, db) => {
     requireLogin(req);
     const entityId = getRequestEntityId(req);
     if (!entityId) throw knownError(400, 'ENTITY_ID_REQUIRED', serverMessages.permissions.entityIdRequired);
@@ -255,25 +257,17 @@ async function assertPermission(req, permission) {
     if (!entity) throw knownError(404, 'ENTITY_NOT_FOUND', serverMessages.permissions.entityNotFound);
     assertEntityOwner(req.user, entity);
     return { db, entityId, entity };
-  }
+  },
 
-  if (type === 'claimable_asset') {
-    return { db, ...assertClaimableAsset(db, req) };
-  }
+  claimable_asset: (req, _config, db) => ({ db, ...assertClaimableAsset(db, req) }),
 
-  if (type === 'account_object_claimable') {
-    return { db, ...assertAccountObjectClaimable(db, req, config) };
-  }
+  account_object_claimable: (req, config, db) => ({ db, ...assertAccountObjectClaimable(db, req, config) }),
 
-  if (type === 'account_object_owner') {
-    return { db, ...assertAccountObjectOwner(db, req, config) };
-  }
+  account_object_owner: (req, config, db) => ({ db, ...assertAccountObjectOwner(db, req, config) }),
 
-  if (type === 'app_token_active') {
-    return { db, ...assertAppTokenActive(db, req, config) };
-  }
+  app_token_active: (req, config, db) => ({ db, ...assertAppTokenActive(db, req, config) }),
 
-  if (type === 'content_owner') {
+  content_owner: (req, _config, db) => {
     requireLogin(req);
     const contentId = getRequestContentId(req);
     if (!contentId) throw knownError(400, 'CONTENT_ID_REQUIRED', serverMessages.permissions.contentIdRequired);
@@ -284,15 +278,24 @@ async function assertPermission(req, permission) {
     if (!video) throw knownError(404, 'CONTENT_NOT_FOUND', serverMessages.permissions.contentNotFound);
     assertVideoManageable(db, req.user, video);
     return { db, contentId, video };
-  }
+  },
 
-  if (type === 'studio_action') {
+  studio_action: (req, config, db) => {
     const token = getRequestToken(req);
     const action = config.action || pickFirst(req.body?.action, req.query?.action);
     if (!action) throw knownError(500, 'INVALID_PERMISSION_CONFIG', 'Missing studio action');
     const result = assertStudioActionAllowed(db, req, { token, action });
     return { db, token, studioPermission: result.policy, entity: result.entity };
-  }
+  },
+};
+
+async function assertPermission(req, permission) {
+  const config = permissionConfig(permission);
+  const type = permissionType(config);
+  const db = await getDb();
+  const checker = PERMISSION_CHECKERS[type];
+
+  if (checker) return checker(req, config, db);
 
   throw knownError(500, 'UNKNOWN_PERMISSION', serverMessages.permissions.unknownPermission(type));
 }
@@ -316,28 +319,76 @@ export function withPermission(permission) {
   };
 }
 
-export function route(method, path, permission, handler, middleware = []) {
-  return { method, path, permission, handler, middleware };
+function contractMetadata(contract) {
+  return {
+    operation: contract.operation || contract.meta?.operation || null,
+    summary: contract.summary || contract.meta?.summary || '',
+    query: contract.query || contract.meta?.query || null,
+    body: contract.body || contract.meta?.body || null,
+    response: contract.response || contract.meta?.response || null,
+    errors: contract.errors || contract.meta?.errors || [],
+    tags: contract.tags || contract.meta?.tags || [],
+    deprecated: Boolean(contract.deprecated || contract.meta?.deprecated),
+    meta: contract.meta || {},
+  };
 }
 
-export function publicRoute(method, path, handler, middleware = []) {
-  return route(method, path, 'public', handler, middleware);
+export function route(method, path, permission, handler, middleware = [], meta = {}) {
+  return { method, path, permission, handler, middleware, ...meta };
 }
 
-export function loginRoute(method, path, handler, middleware = []) {
-  return route(method, path, 'login_required', handler, middleware);
+export function publicRoute(method, path, handler, middleware = [], meta = {}) {
+  return route(method, path, 'public', handler, middleware, meta);
 }
 
-export function adminRoute(method, path, handler, middleware = []) {
-  return route(method, path, 'admin_required', handler, middleware);
+export function loginRoute(method, path, handler, middleware = [], meta = {}) {
+  return route(method, path, 'login_required', handler, middleware, meta);
+}
+
+export function adminRoute(method, path, handler, middleware = [], meta = {}) {
+  return route(method, path, 'admin_required', handler, middleware, meta);
 }
 
 export function tokenRoute(method, path, appCode, handler, options = {}) {
-  return route(method, path, { type: 'app_token_active', appCode, ...options }, handler, options.middleware || []);
+  const {
+    middleware = [],
+    operation,
+    summary,
+    query,
+    body,
+    response,
+    errors,
+    tags,
+    deprecated,
+    meta,
+    ...permissionOptions
+  } = options;
+  return route(
+    method,
+    path,
+    { type: 'app_token_active', appCode, ...permissionOptions },
+    handler,
+    middleware,
+    { operation, summary, query, body, response, errors, tags, deprecated, ...(meta || {}) }
+  );
+}
+
+const routeContractsByRouter = new WeakMap();
+
+function rememberRouteContract(router, contract) {
+  const current = routeContractsByRouter.get(router) || [];
+  current.push({
+    method: normalizeMethod(contract.method),
+    path: contract.path,
+    permission: normalizePermissionForRegistry(contract.permission || 'public'),
+    permissionType: permissionType(contract.permission || 'public'),
+    ...contractMetadata(contract),
+  });
+  routeContractsByRouter.set(router, current);
 }
 
 export function registerRoute(router, contract) {
-  const method = String(contract.method || '').toLowerCase();
+  const method = normalizeMethod(contract.method);
   if (typeof router[method] !== 'function') {
     throw new Error(`Unsupported route method: ${contract.method}`);
   }
@@ -349,8 +400,17 @@ export function registerRoute(router, contract) {
     ...middleware,
     contract.handler
   );
+  rememberRouteContract(router, contract);
 }
 
 export function registerRoutes(router, contracts) {
   contracts.forEach(contract => registerRoute(router, contract));
+}
+
+export function getRegisteredRouteContracts(router) {
+  return [...(routeContractsByRouter.get(router) || [])];
+}
+
+export function getPermissionTypes() {
+  return Object.keys(PERMISSION_CHECKERS).sort();
 }

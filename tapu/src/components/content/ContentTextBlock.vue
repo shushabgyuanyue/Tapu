@@ -7,7 +7,7 @@ defineProps<{
 </script>
 
 <template>
-  <section class="content-text" :class="[`content-text--${block.emphasis || 'normal'}`]">
+  <section class="content-text" :class="[`content-text--${block.emphasis || 'normal'}`, block.role ? `content-text--${block.role}` : '']">
     <p v-if="block.tag" class="content-tag">{{ block.tag }}</p>
     <h2 v-if="block.kind === 'heading' || block.title">{{ block.title || block.body }}</h2>
     <p v-if="block.kind !== 'heading' && block.body" class="content-body">{{ block.body }}</p>
@@ -64,6 +64,23 @@ h2 {
   color: var(--content-ink, #18231f);
   font-size: 20px;
   font-weight: 900;
+}
+
+.content-text--crossover {
+  padding: 16px;
+  border: 1px solid color-mix(in srgb, var(--content-accent, #2f6f5e), transparent 62%);
+  border-radius: 20px;
+  background:
+    radial-gradient(circle at 100% 0%, color-mix(in srgb, var(--content-accent, #2f6f5e), transparent 72%), transparent 42%),
+    color-mix(in srgb, var(--content-accent, #2f6f5e), transparent 91%);
+}
+
+.content-text--crossover h2 {
+  font-size: clamp(24px, 6vw, 38px);
+}
+
+.content-text--crossover .content-caption {
+  color: var(--content-muted-strong, rgba(25, 35, 31, 0.76));
 }
 
 @media (max-width: 560px) {

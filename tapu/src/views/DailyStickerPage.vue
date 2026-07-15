@@ -55,6 +55,11 @@ const contentBlocks = computed<ContentBlock[]>(() => {
     },
   ].filter(block => block.body);
 });
+const crossoverBlock = computed(() => contentBlocks.value.find(block => block.role === 'crossover'));
+const experienceNotice = computed(() => {
+  const title = crossoverBlock.value?.title;
+  return title ? appCopy.dailySticker.experience.crossoverNotice(title) : '';
+});
 const modalityLabel = computed(() => {
   const modality = entry.value?.primary_modality || (assets.value[0]?.asset_type ?? 'text');
   return appCopy.dailySticker.modalityLabels[modality] || modality;
@@ -157,6 +162,11 @@ watch(() => route.fullPath, () => {
         <p v-if="storyArc?.title" class="arc-line">
           {{ storyArc.title }}<span v-if="entry?.day_index"> · Day {{ entry.day_index }}</span>
         </p>
+
+        <div v-if="experienceNotice" class="experience-notice">
+          <span>{{ appCopy.dailySticker.experience.crossoverKicker }}</span>
+          <p>{{ experienceNotice }}</p>
+        </div>
 
         <div v-if="persona.cover_url || entry?.image_url || imageAssets.length" class="cover-wrap">
           <img :src="imageAssets[0]?.url || entry?.image_url || persona.cover_url" :alt="imageAssets[0]?.alt_text || appCopy.dailySticker.coverAlt" />
@@ -323,6 +333,32 @@ h1 {
 .arc-line {
   margin-top: 16px;
   font-size: 13px;
+}
+
+.experience-notice {
+  display: grid;
+  gap: 6px;
+  margin-top: 16px;
+  padding: 13px 14px;
+  border: 1px solid color-mix(in srgb, var(--sticker-accent), transparent 54%);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 100% 0%, color-mix(in srgb, var(--sticker-accent), transparent 72%), transparent 42%),
+    rgba(255, 255, 255, 0.08);
+}
+
+.experience-notice span {
+  color: var(--sticker-accent);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.experience-notice p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 14px;
+  font-weight: 750;
+  line-height: 1.65;
 }
 
 .object-chip {
