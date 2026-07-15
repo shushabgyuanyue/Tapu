@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue';
+import { contentCopy } from '../copy';
 
 const props = defineProps<{ target: any }>();
 const emit = defineEmits<{ close: []; submit: [file: File] }>();
@@ -22,7 +23,7 @@ const handleClose = () => {
 };
 
 const handleSubmit = () => {
-  alert('二创功能即将上线，敬请期待！');
+  alert(contentCopy.remixModal.alert);
   handleClose();
 };
 </script>
@@ -31,37 +32,37 @@ const handleSubmit = () => {
   <div class="remix-mask" @click.self="handleClose">
     <div class="remix-modal">
       <div class="remix-header">
-        <h3>二创 · 换成你的角色</h3>
+        <h3>{{ contentCopy.remixModal.title }}</h3>
         <button @click="handleClose" class="remix-close">&times;</button>
       </div>
       <div class="remix-body">
         <p class="remix-desc">
-          上传一张你的角色图片，AI 将生成一段以你的角色为主角的视频。
+          {{ contentCopy.remixModal.desc }}
         </p>
         <div class="remix-source" v-if="target">
           <img v-if="target.poster_url" :src="target.poster_url" class="remix-thumb" />
           <div v-else class="remix-thumb remix-thumb-empty"></div>
           <div class="remix-source-info">
-            <span class="remix-source-label">原始视频</span>
+            <span class="remix-source-label">{{ contentCopy.remixModal.sourceLabel }}</span>
             <span class="remix-source-title">{{ target.title }}</span>
           </div>
         </div>
         <div class="remix-upload">
           <label class="remix-upload-area" :class="{ 'has-file': remixFile }">
             <template v-if="!remixFile">
-              <span class="remix-upload-icon">&#x1F415;</span>
-              <span class="remix-upload-text">上传你的角色图片</span>
-              <span class="remix-upload-hint">支持 PNG/JPG，建议正面透明背景</span>
+              <span class="remix-upload-icon">{{ contentCopy.remixModal.uploadIcon }}</span>
+              <span class="remix-upload-text">{{ contentCopy.remixModal.uploadText }}</span>
+              <span class="remix-upload-hint">{{ contentCopy.remixModal.uploadHint }}</span>
             </template>
             <template v-else>
               <img :src="remixPreview" class="remix-preview-img" />
-              <span class="remix-upload-change">点击更换</span>
+              <span class="remix-upload-change">{{ contentCopy.remixModal.change }}</span>
             </template>
             <input type="file" accept="image/*" @change="onFileSelect" hidden />
           </label>
         </div>
-        <button class="remix-submit" :disabled="!remixFile" @click="handleSubmit">生成二创视频</button>
-        <p class="remix-notice">功能即将上线，当前仅预览界面</p>
+        <button class="remix-submit" :disabled="!remixFile" @click="handleSubmit">{{ contentCopy.remixModal.submit }}</button>
+        <p class="remix-notice">{{ contentCopy.remixModal.notice }}</p>
       </div>
     </div>
   </div>

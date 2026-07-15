@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { commonCopy } from '../copy';
+
 defineProps<{
   seriesList: any[];
   groupList: any[];
@@ -19,7 +21,7 @@ const emit = defineEmits<{
         class="sgf-chip sgf-chip--series"
         :class="{ active: activeSeries === '' }"
         @click="emit('update:activeSeries', ''); emit('update:activeGroup', '')"
-      >全部系列</button>
+      >{{ commonCopy.filters.allSeries }}</button>
       <button
         v-for="s in seriesList"
         :key="s.id"
@@ -33,7 +35,7 @@ const emit = defineEmits<{
         class="sgf-chip"
         :class="{ active: activeGroup === '' }"
         @click="emit('update:activeGroup', '')"
-      >全部IP</button>
+      >{{ commonCopy.filters.allIp }}</button>
       <button
         v-for="g in groupList"
         :key="g.id"

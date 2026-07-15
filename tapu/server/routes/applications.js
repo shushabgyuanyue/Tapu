@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { getDb, saveDb } from '../db/index.js';
-import { authRequired } from '../middleware/auth.js';
+import { adminRoute, registerRoutes } from '../services/routePermissions.js';
 
 const router = Router();
 
@@ -15,12 +15,6 @@ function resultToObjects(results) {
   });
 }
 
-function adminOnly(req, res, next) {
-  if (req.user.username !== 'admin') {
-    return res.status(403).json({ error: '仅管理员可操作' });
-  }
-  next();
-}
 
 function normalizeCode(code, name) {
   const source = (code || name || '').trim().toLowerCase();
@@ -35,7 +29,7 @@ function normalizeAppType(value, fallback = 'meaning') {
   return ['meaning', 'behavior', 'state'].includes(appType) ? appType : fallback;
 }
 
-router.get('/', authRequired, adminOnly, async (_req, res) => {
+async function listApplications(_req, res) {
   try {
     const db = await getDb();
     const rows = resultToObjects(db.exec(
@@ -50,9 +44,9 @@ router.get('/', authRequired, adminOnly, async (_req, res) => {
     console.error('List applications error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+}
 
-router.post('/', authRequired, adminOnly, async (req, res) => {
+async function createApplication(req, res) {
   try {
     const { name, code, app_type, interaction_type, description, status } = req.body;
     if (!name || !interaction_type) {
@@ -78,9 +72,9 @@ router.post('/', authRequired, adminOnly, async (req, res) => {
     console.error('Create application error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+}
 
-router.put('/:id', authRequired, adminOnly, async (req, res) => {
+async function updateApplication(req, res) {
   try {
     const { name, code, app_type, interaction_type, description, status } = req.body;
     if (!name || !interaction_type) {
@@ -106,9 +100,9 @@ router.put('/:id', authRequired, adminOnly, async (req, res) => {
     console.error('Update application error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+}
 
-router.delete('/:id', authRequired, adminOnly, async (req, res) => {
+async function deleteApplication(req, res) {
   try {
     const db = await getDb();
     db.run('UPDATE series SET application_id = NULL WHERE application_id = ?', [req.params.id]);
@@ -119,6 +113,13 @@ router.delete('/:id', authRequired, adminOnly, async (req, res) => {
     console.error('Delete application error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+}
+
+registerRoutes(router, [
+  adminRoute('get', '/', listApplications),
+  adminRoute('post', '/', createApplication),
+  adminRoute('put', '/:id', updateApplication),
+  adminRoute('delete', '/:id', deleteApplication),
+]);
 
 export default router;

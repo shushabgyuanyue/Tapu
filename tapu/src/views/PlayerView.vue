@@ -12,6 +12,7 @@ import {
   setEntityDefaultByToken,
   isLoggedIn,
 } from '../api';
+import { contentCopy } from '../copy';
 
 const route = useRoute();
 const router = useRouter();
@@ -38,7 +39,7 @@ const videoRefs = ref<Record<number, HTMLVideoElement>>({});
 // Double-tap state
 const showHeartAnim = ref(false);
 const showDefaultSet = ref(false);
-const defaultToastText = ref('已设为默认');
+const defaultToastText = ref(contentCopy.player.defaultSet);
 let tapTimeout: number | null = null;
 let heartAnimTimeout: number | null = null;
 let defaultToastTimeout: number | null = null;
@@ -384,7 +385,7 @@ const onDoubleTap = async () => {
       let result: any;
       if (resolvedOwnerId.value) {
         if (!isLoggedIn()) {
-          defaultToastText.value = '已绑定实体需登录对应账号修改';
+          defaultToastText.value = contentCopy.player.ownerLoginRequired;
           showDefaultSet.value = true;
           clearTimer(defaultToastTimeout);
           defaultToastTimeout = window.setTimeout(() => {
@@ -403,7 +404,7 @@ const onDoubleTap = async () => {
     }
   } catch (error) {
     console.warn('Set default failed:', error);
-    defaultToastText.value = error instanceof Error ? error.message : '设置默认失败';
+    defaultToastText.value = error instanceof Error ? error.message : contentCopy.player.defaultFailed;
     showDefaultSet.value = true;
     clearTimer(defaultToastTimeout);
     defaultToastTimeout = window.setTimeout(() => {
@@ -418,7 +419,7 @@ const onDoubleTap = async () => {
   }
 
   showHeartAnim.value = true;
-  defaultToastText.value = '已设为默认';
+  defaultToastText.value = contentCopy.player.defaultSet;
   showDefaultSet.value = true;
   clearTimer(heartAnimTimeout);
   clearTimer(defaultToastTimeout);
@@ -451,9 +452,9 @@ const onDoubleTap = async () => {
 
     <!-- Error state -->
     <div v-if="loadFailed" class="error-screen">
-      <p class="error-text">无法加载内容</p>
-      <p class="error-hint">链接可能已失效或内容暂不可用</p>
-      <button class="error-btn" @click="router.push(communityEnabled ? '/community' : '/shop')">{{ communityEnabled ? '去社区看看' : '去商城看看' }}</button>
+      <p class="error-text">{{ contentCopy.player.error.title }}</p>
+      <p class="error-hint">{{ contentCopy.player.error.hint }}</p>
+      <button class="error-btn" @click="router.push(communityEnabled ? '/community' : '/shop')">{{ communityEnabled ? contentCopy.player.error.community : contentCopy.player.error.shop }}</button>
     </div>
 
     <!-- Video feed stack -->
@@ -494,7 +495,7 @@ const onDoubleTap = async () => {
           <line x1="23" y1="9" x2="17" y2="15"/>
           <line x1="17" y1="9" x2="23" y2="15"/>
         </svg>
-        <span>点击开启声音</span>
+        <span>{{ contentCopy.player.sound }}</span>
       </div>
     </transition>
 
@@ -516,11 +517,11 @@ const onDoubleTap = async () => {
     <transition name="fade">
       <div v-if="showAdCard" class="ad-card" @click.stop>
         <div class="ad-inner">
-          <div class="ad-brand">whatmint</div>
-          <h2 class="ad-title">发现更多精彩内容</h2>
-          <p class="ad-desc">社区里有更多创作者的情绪表达</p>
-          <button class="ad-btn" @click="goToCommunity">{{ communityEnabled ? '进入社区' : '进入商城' }}</button>
-          <button class="ad-dismiss" @click="dismissAd">继续浏览</button>
+          <div class="ad-brand">{{ contentCopy.player.ad.brand }}</div>
+          <h2 class="ad-title">{{ contentCopy.player.ad.title }}</h2>
+          <p class="ad-desc">{{ contentCopy.player.ad.desc }}</p>
+          <button class="ad-btn" @click="goToCommunity">{{ communityEnabled ? contentCopy.player.ad.community : contentCopy.player.ad.shop }}</button>
+          <button class="ad-dismiss" @click="dismissAd">{{ contentCopy.player.ad.dismiss }}</button>
         </div>
       </div>
     </transition>

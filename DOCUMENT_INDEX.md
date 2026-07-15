@@ -14,12 +14,13 @@ WhatMint / tapU 是一个通过 NFC 将实体与情绪内容绑定的系统。�
 | 2 | [docs/product-manifesto.md](docs/product-manifesto.md) | 产品宣言、品牌气质和设计语言 |
 | 3 | [docs/product-design-principles.md](docs/product-design-principles.md) | 新轻应用立项前的产品设计规范和判断卡 |
 | 4 | [docs/whatmint-os-abstraction.md](docs/whatmint-os-abstraction.md) | 物体身份、触碰运行时、内容协议和统一事件账本 |
-| 5 | [docs/content-collection-app-binding.md](docs/content-collection-app-binding.md) | 内容集合和应用绑定最小协议 |
-| 6 | [docs/object-event-taxonomy.md](docs/object-event-taxonomy.md) | 跨应用物体事件命名规范 |
-| 7 | [docs/business-flow.md](docs/business-flow.md) | 完整业务流程、权限规则、数据库关系、E2E 结果 |
-| 8 | [DOMAINS.md](DOMAINS.md) | 模块分工和代码入口 |
-| 9 | [develop.md](develop.md) | 阶段状态、验收和后续高收益事项 |
-| 10 | [README.md](README.md) | 本地运行和验证命令 |
+| 5 | [docs/route-permission-principles.md](docs/route-permission-principles.md) | 后端接口权限分配原则和新增接口检查清单 |
+| 6 | [docs/content-collection-app-binding.md](docs/content-collection-app-binding.md) | 内容集合和应用绑定最小协议 |
+| 7 | [docs/object-event-taxonomy.md](docs/object-event-taxonomy.md) | 跨应用物体事件命名规范 |
+| 8 | [docs/business-flow.md](docs/business-flow.md) | 完整业务流程、权限规则、数据库关系、E2E 结果 |
+| 9 | [DOMAINS.md](DOMAINS.md) | 模块分工和代码入口 |
+| 10 | [develop.md](develop.md) | 阶段状态、验收和后续高收益事项 |
+| 11 | [README.md](README.md) | 本地运行和验证命令 |
 
 ## 3. 代码入口索引
 

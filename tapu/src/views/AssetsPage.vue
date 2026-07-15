@@ -16,6 +16,7 @@ import {
 } from '../api';
 import NavBar from '../components/NavBar.vue';
 import InfiniteScrollTrigger from '../components/InfiniteScrollTrigger.vue';
+import { userCopy } from '../copy';
 
 type AssetTab = 'gallery' | 'entities' | 'stickers' | 'purchases';
 
@@ -56,21 +57,21 @@ const purchaseHasMore = computed(() => visiblePurchases.value.length < purchases
 const galleryItems = computed(() => [
   ...entities.value.map(entity => ({
     id: `entity-${entity.id}`,
-    type: '情绪 IP',
-    title: entity.group_name || '未命名 IP',
-    subtitle: entity.series_name || '实体资产',
+    type: userCopy.assets.galleryTypeEntity,
+    title: entity.group_name || userCopy.assets.unnamedIp,
+    subtitle: entity.series_name || userCopy.assets.entityAsset,
     image: entityImage(entity),
     action: () => assetTab.value = 'entities',
-    meta: entityDefaults.value[entity.id]?.video_title || '官方默认内容',
+    meta: entityDefaults.value[entity.id]?.video_title || userCopy.assets.officialDefault,
   })),
   ...stickers.value.map(sticker => ({
     id: `sticker-${sticker.id}`,
-    type: '日常贴纸',
-    title: sticker.world_name || sticker.persona_name || sticker.persona?.name || '日常贴纸',
-    subtitle: sticker.story_arc_title || sticker.story_arc?.title || '连续小世界',
+    type: userCopy.assets.galleryTypeSticker,
+    title: sticker.world_name || sticker.persona_name || sticker.persona?.name || userCopy.assets.stickerTitle,
+    subtitle: sticker.story_arc_title || sticker.story_arc?.title || userCopy.assets.stickerSubtitle,
     image: stickerImage(sticker),
     action: () => openSticker(sticker),
-    meta: sticker.current_entry?.title ? `Day ${sticker.current_day || sticker.current_entry?.day_index || '?'} · ${sticker.current_entry.title}` : '等待内容发布',
+    meta: sticker.current_entry?.title ? `Day ${sticker.current_day || sticker.current_entry?.day_index || '?'} · ${sticker.current_entry.title}` : userCopy.assets.waitingContent,
   })),
 ]);
 
@@ -98,7 +99,7 @@ function stickerImage(sticker: any) {
 }
 
 function displayToken(raw?: string) {
-  return raw ? `${raw.slice(0, 16)}...${raw.slice(-4)}` : '未生成';
+  return raw ? `${raw.slice(0, 16)}...${raw.slice(-4)}` : userCopy.assets.tokenMissing;
 }
 
 onMounted(async () => {
@@ -164,9 +165,9 @@ const applySuggestedDefault = async (entityId?: string) => {
   if (!entityId || !suggestedDefaultVideoId.value) return;
   const result = await setEntityDefault(entityId, suggestedDefaultVideoId.value);
   if (result?.success) {
-    toast?.show('实体已绑定，并写入当前内容为默认内容', 2600, 'success');
+    toast?.show(userCopy.assets.toasts.entityBoundDefaultSet, 2600, 'success');
   } else {
-    toast?.show(result?.error || '实体已绑定，默认内容需要稍后手动设置', 2800, 'error');
+    toast?.show(result?.error || userCopy.assets.toasts.entityBoundDefaultLater, 2800, 'error');
   }
 };
 
@@ -191,14 +192,14 @@ const handleSmartBind = async (rawKey = bindKey.value) => {
   bindError.value = false;
   const key = rawKey.trim();
   if (!key) {
-    bindMsg.value = '请输入实体或贴纸 token';
+    bindMsg.value = userCopy.assets.bind.emptySmart;
     bindError.value = true;
     return;
   }
 
   const entityResult = await bindEntityToken(key);
   if (entityResult.success) {
-    bindMsg.value = '实体资产绑定成功，已经放入你的展馆';
+    bindMsg.value = userCopy.assets.bind.entitySuccessMuseum;
     bindKey.value = '';
     assetTab.value = 'gallery';
     return;
@@ -206,13 +207,13 @@ const handleSmartBind = async (rawKey = bindKey.value) => {
 
   const stickerResult = await bindStickerToken(key);
   if (stickerResult.success) {
-    bindMsg.value = stickerResult.already_bound ? '这个日常贴纸已经在你的展馆里' : '日常贴纸绑定成功，已经放入你的展馆';
+    bindMsg.value = stickerResult.already_bound ? userCopy.assets.bind.stickerAlreadyMuseum : userCopy.assets.bind.stickerSuccessMuseum;
     bindKey.value = '';
     assetTab.value = 'gallery';
     return;
   }
 
-  bindMsg.value = stickerResult.error || entityResult.error || '绑定失败，请确认 token 是否正确';
+  bindMsg.value = stickerResult.error || entityResult.error || userCopy.assets.bind.failed;
   bindError.value = true;
 };
 
@@ -220,17 +221,17 @@ const handleBindEntity = async () => {
   bindMsg.value = '';
   bindError.value = false;
   if (!bindKey.value.trim()) {
-    bindMsg.value = '请输入实体 token';
+    bindMsg.value = userCopy.assets.bind.entityEmpty;
     bindError.value = true;
     return;
   }
   const data = await bindEntityToken(bindKey.value.trim());
   if (data.success) {
-    bindMsg.value = '实体绑定成功';
+    bindMsg.value = userCopy.assets.bind.entitySuccess;
     bindKey.value = '';
     assetTab.value = 'entities';
   } else {
-    bindMsg.value = data.error || '绑定失败，请确认 token 是否正确';
+    bindMsg.value = data.error || userCopy.assets.bind.failed;
     bindError.value = true;
   }
 };
@@ -239,17 +240,17 @@ const handleBindSticker = async () => {
   bindMsg.value = '';
   bindError.value = false;
   if (!bindKey.value.trim()) {
-    bindMsg.value = '请输入日常贴纸 token';
+    bindMsg.value = userCopy.assets.bind.stickerEmpty;
     bindError.value = true;
     return;
   }
   const data = await bindStickerToken(bindKey.value.trim());
   if (data.success) {
-    bindMsg.value = data.already_bound ? '这个贴纸已经在你的展馆里' : '日常贴纸绑定成功';
+    bindMsg.value = data.already_bound ? userCopy.assets.bind.stickerAlready : userCopy.assets.bind.stickerSuccess;
     bindKey.value = '';
     assetTab.value = 'stickers';
   } else {
-    bindMsg.value = data.error || '绑定失败，请确认 token 是否正确';
+    bindMsg.value = data.error || userCopy.assets.bind.failed;
     bindError.value = true;
   }
 };
@@ -258,9 +259,9 @@ const handleUnbind = async (entityId: string) => {
   const data = await unbindEntity(entityId);
   if (data.success) {
     await refreshEntities();
-    toast?.show('已解绑，token 可以重新绑定到其他账号', 2600, 'success');
+    toast?.show(userCopy.assets.toasts.unbound, 2600, 'success');
   } else {
-    toast?.show(data.error || '解绑失败', 2200, 'error');
+    toast?.show(data.error || userCopy.assets.toasts.unbindFailed, 2200, 'error');
   }
 };
 
@@ -268,16 +269,16 @@ const handleUnbindSticker = async (tokenId: string) => {
   const data = await unbindDailyStickerToken(tokenId);
   if (data.success) {
     await refreshStickers();
-    toast?.show('贴纸已从展馆移出，token 可重新绑定', 2600, 'success');
+    toast?.show(userCopy.assets.toasts.stickerRemoved, 2600, 'success');
   } else {
-    toast?.show(data.error || '解除失败', 2200, 'error');
+    toast?.show(data.error || userCopy.assets.toasts.stickerRemoveFailed, 2200, 'error');
   }
 };
 
 const copyToken = async (token?: string) => {
   if (!token) return;
   await navigator.clipboard.writeText(token);
-  toast?.show('token 已复制', 1800, 'success');
+  toast?.show(userCopy.assets.toasts.tokenCopied, 1800, 'success');
 };
 
 const openSticker = (sticker: any) => {
@@ -289,17 +290,17 @@ const openSticker = (sticker: any) => {
 const handleTransfer = async (entityId: string) => {
   const toUsername = transferTargets.value[entityId]?.trim();
   if (!toUsername) {
-    toast?.show('请输入接收方账号', 2200, 'error');
+    toast?.show(userCopy.assets.toasts.transferTargetRequired, 2200, 'error');
     return;
   }
 
   const data = await transferEntity(entityId, toUsername);
   if (data.success) {
-    toast?.show('转赠成功', 2200, 'success');
+    toast?.show(userCopy.assets.toasts.transferSuccess, 2200, 'success');
     transferTargets.value[entityId] = '';
     await refreshEntities();
   } else {
-    toast?.show(data.error || '转赠失败', 2200, 'error');
+    toast?.show(data.error || userCopy.assets.toasts.transferFailed, 2200, 'error');
   }
 };
 
@@ -310,17 +311,17 @@ const startEditDefault = (entityId: string) => {
 
 const saveDefault = async (entityId: string, videoId = editDefaultInput.value) => {
   if (!videoId.trim()) {
-    toast?.show('请输入内容 ID', 2200, 'error');
+    toast?.show(userCopy.assets.toasts.contentIdRequired, 2200, 'error');
     return;
   }
 
   const data = await setEntityDefault(entityId, videoId.trim());
   if (data.success) {
-    toast?.show('默认内容已更新', 2200, 'success');
+    toast?.show(userCopy.assets.toasts.defaultUpdated, 2200, 'success');
     entityDefaults.value[entityId] = await getEntityDefault(entityId);
     editingDefault.value = '';
   } else {
-    toast?.show(data.error || '更新失败', 2200, 'error');
+    toast?.show(data.error || userCopy.assets.toasts.updateFailed, 2200, 'error');
   }
 };
 </script>
@@ -332,68 +333,68 @@ const saveDefault = async (entityId: string, videoId = editDefaultInput.value) =
     <main class="assets-shell">
       <section class="assets-hero">
         <div>
-          <span class="eyebrow">My Museum</span>
-          <h1>我的资产展馆</h1>
-          <p>这里收藏你拥有的实体 IP 和日常贴纸。实体 IP 负责关系与情绪表达，日常贴纸负责把普通物品变成可以随时推开的门。</p>
+          <span class="eyebrow">{{ userCopy.assets.hero.eyebrow }}</span>
+          <h1>{{ userCopy.assets.hero.title }}</h1>
+          <p>{{ userCopy.assets.hero.intro }}</p>
           <div class="hero-actions" v-if="!loginRequired">
-            <button class="hero-bind-btn" @click="focusBindEntrance">绑定新资产</button>
-            <span>收到官方 token 后，从这里把实体放进展馆。</span>
+            <button class="hero-bind-btn" @click="focusBindEntrance">{{ userCopy.assets.hero.bindNew }}</button>
+            <span>{{ userCopy.assets.hero.bindHint }}</span>
           </div>
         </div>
         <div class="hero-stats">
           <strong>{{ entities.length + stickers.length }}</strong>
-          <span>件展品</span>
-          <small>{{ entities.length }} 个 IP 实体 · {{ stickers.length }} 个日常贴纸</small>
+          <span>{{ userCopy.assets.hero.countLabel }}</span>
+          <small>{{ userCopy.assets.hero.countDetail(entities.length, stickers.length) }}</small>
         </div>
       </section>
 
       <section v-if="loginRequired" class="login-guide">
-        <h2>需要先登录或注册</h2>
-        <p>资产绑定、默认内容修改、转赠和贴纸归属都属于账号资产操作。请先登录，然后回到这里继续绑定。</p>
-        <p v-if="bindKey" class="guide-token">当前链接带有 token，登录后可重新打开链接，或复制 token 后在本页手动绑定。</p>
-        <button @click="router.push('/')">回到首页登录</button>
+        <h2>{{ userCopy.assets.loginGuide.title }}</h2>
+        <p>{{ userCopy.assets.loginGuide.body }}</p>
+        <p v-if="bindKey" class="guide-token">{{ userCopy.assets.loginGuide.tokenHint }}</p>
+        <button @click="router.push('/')">{{ userCopy.assets.loginGuide.backHome }}</button>
       </section>
 
-      <div v-else-if="loading" class="assets-loading">正在布置展馆...</div>
+      <div v-else-if="loading" class="assets-loading">{{ userCopy.assets.loading }}</div>
 
       <template v-else>
         <section ref="bindCardRef" class="bind-card">
           <div>
-            <span class="eyebrow dark">Bind Token</span>
-            <h2>把新实体放进展馆</h2>
-            <p>输入官方发放的 128 位 token。可以智能识别实体 IP 或日常贴纸；如果你很确定类型，也可以使用单独按钮。</p>
+            <span class="eyebrow dark">{{ userCopy.assets.bindCard.eyebrow }}</span>
+            <h2>{{ userCopy.assets.bindCard.title }}</h2>
+            <p>{{ userCopy.assets.bindCard.intro }}</p>
           </div>
           <div class="bind-box">
-            <input ref="bindInputRef" v-model="bindKey" placeholder="输入实体或日常贴纸 token" class="bind-input" @keyup.enter="handleSmartBind()" />
-            <button class="bind-btn" @click="handleSmartBind()">智能绑定</button>
+            <input ref="bindInputRef" v-model="bindKey" :placeholder="userCopy.assets.bindCard.placeholder" class="bind-input" @keyup.enter="handleSmartBind()" />
+            <button class="bind-btn" @click="handleSmartBind()">{{ userCopy.assets.bindCard.smartBind }}</button>
           </div>
           <div class="bind-sub-actions">
-            <button @click="handleBindEntity">仅绑定实体 IP</button>
-            <button @click="handleBindSticker">仅绑定日常贴纸</button>
+            <button @click="handleBindEntity">{{ userCopy.assets.bindCard.entityOnly }}</button>
+            <button @click="handleBindSticker">{{ userCopy.assets.bindCard.stickerOnly }}</button>
           </div>
           <p v-if="bindMsg" :class="['bind-msg', { error: bindError }]">{{ bindMsg }}</p>
         </section>
 
         <div v-if="suggestedDefaultVideoId" class="default-hint">
           <div>
-            <strong>已带入一个内容 ID</strong>
+            <strong>{{ userCopy.assets.defaultHint.title }}</strong>
             <span>{{ formatContentId(suggestedDefaultVideoId) }}</span>
           </div>
-          <p>绑定实体后，可以在实体展品卡里一键把它设为默认播放内容。</p>
+          <p>{{ userCopy.assets.defaultHint.body }}</p>
         </div>
 
         <nav class="assets-tabs">
-          <button :class="{ active: assetTab === 'gallery' }" @click="assetTab = 'gallery'">我的展馆</button>
-          <button :class="{ active: assetTab === 'entities' }" @click="assetTab = 'entities'">实体 IP</button>
-          <button :class="{ active: assetTab === 'stickers' }" @click="assetTab = 'stickers'">日常贴纸</button>
-          <button :class="{ active: assetTab === 'purchases' }" @click="assetTab = 'purchases'">购买记录</button>
+          <button :class="{ active: assetTab === 'gallery' }" @click="assetTab = 'gallery'">{{ userCopy.assets.tabs.gallery }}</button>
+          <button :class="{ active: assetTab === 'entities' }" @click="assetTab = 'entities'">{{ userCopy.assets.tabs.entities }}</button>
+          <button :class="{ active: assetTab === 'stickers' }" @click="assetTab = 'stickers'">{{ userCopy.assets.tabs.stickers }}</button>
+          <button :class="{ active: assetTab === 'purchases' }" @click="assetTab = 'purchases'">{{ userCopy.assets.tabs.purchases }}</button>
         </nav>
 
         <section v-if="assetTab === 'gallery'" class="gallery-section">
           <div v-if="galleryItems.length === 0" class="assets-empty assets-empty--action">
-            <strong>展馆还空着</strong>
-            <span>绑定一个实体 IP 或日常贴纸 token 后，它会出现在这里。</span>
-            <button @click="focusBindEntrance">去绑定 token</button>
+            <strong>{{ userCopy.assets.emptyGallery.title }}</strong>
+            <span>{{ userCopy.assets.emptyGallery.body }}</span>
+            <button @click="focusBindEntrance">{{ userCopy.assets.emptyGallery.action }}</button>
           </div>
           <article v-for="item in galleryItems" :key="item.id" class="gallery-card" @click="item.action">
             <div class="gallery-art">
@@ -409,7 +410,7 @@ const saveDefault = async (entityId: string, videoId = editDefaultInput.value) =
         </section>
 
         <section v-if="assetTab === 'entities'" class="assets-section">
-          <div v-if="entities.length === 0" class="assets-empty">暂无已绑定实体 IP</div>
+          <div v-if="entities.length === 0" class="assets-empty">{{ userCopy.assets.entities.empty }}</div>
 
           <article v-for="entity in visibleEntities" :key="entity.id" class="asset-card">
             <div class="asset-cover">
@@ -419,11 +420,11 @@ const saveDefault = async (entityId: string, videoId = editDefaultInput.value) =
             <div class="asset-info">
               <div class="asset-card-top">
                 <div>
-                  <span class="asset-type">实体 IP</span>
-                  <h3>{{ entity.group_name || '未命名 IP' }}</h3>
+                  <span class="asset-type">{{ userCopy.assets.entities.type }}</span>
+                  <h3>{{ entity.group_name || userCopy.assets.unnamedIp }}</h3>
                   <p v-if="entity.series_name">{{ entity.series_name }}</p>
                 </div>
-                <button class="ghost-danger" @click="handleUnbind(entity.id)">解绑</button>
+                <button class="ghost-danger" @click="handleUnbind(entity.id)">{{ userCopy.assets.entities.unbind }}</button>
               </div>
 
               <div class="asset-row">
@@ -434,25 +435,25 @@ const saveDefault = async (entityId: string, videoId = editDefaultInput.value) =
               </div>
 
               <div class="asset-row asset-row--default">
-                <span class="row-label">默认内容</span>
+                <span class="row-label">{{ userCopy.assets.entities.defaultContent }}</span>
                 <template v-if="editingDefault === entity.id">
-                  <input v-model="editDefaultInput" placeholder="输入内容 ID" class="default-input" />
-                  <button class="small-primary" @click="saveDefault(entity.id)">保存</button>
-                  <button class="small-ghost" @click="editingDefault = ''">取消</button>
+                  <input v-model="editDefaultInput" :placeholder="userCopy.assets.entities.contentIdPlaceholder" class="default-input" />
+                  <button class="small-primary" @click="saveDefault(entity.id)">{{ userCopy.assets.entities.save }}</button>
+                  <button class="small-ghost" @click="editingDefault = ''">{{ userCopy.assets.entities.cancel }}</button>
                 </template>
                 <template v-else>
                   <span class="default-value" v-if="entityDefaults[entity.id]?.video_title">{{ entityDefaults[entity.id].video_title }}</span>
                   <span class="default-value muted" v-else-if="entityDefaults[entity.id]?.video_id">ID: {{ formatContentId(entityDefaults[entity.id].video_id || '').slice(0, 12) }}...</span>
-                  <span class="default-value muted" v-else>官方默认</span>
-                  <button v-if="suggestedDefaultVideoId" class="small-primary" @click="saveDefault(entity.id, suggestedDefaultVideoId)">设为带入内容</button>
-                  <button class="small-ghost" @click="startEditDefault(entity.id)">修改</button>
+                  <span class="default-value muted" v-else>{{ userCopy.assets.officialDefault }}</span>
+                  <button v-if="suggestedDefaultVideoId" class="small-primary" @click="saveDefault(entity.id, suggestedDefaultVideoId)">{{ userCopy.assets.entities.setSuggested }}</button>
+                  <button class="small-ghost" @click="startEditDefault(entity.id)">{{ userCopy.assets.entities.edit }}</button>
                 </template>
               </div>
 
               <div class="asset-row transfer-row">
-                <span class="row-label">一键转赠</span>
-                <input v-model="transferTargets[entity.id]" placeholder="对方账号" class="default-input" />
-                <button class="small-primary" @click="handleTransfer(entity.id)">转赠</button>
+                <span class="row-label">{{ userCopy.assets.entities.transfer }}</span>
+                <input v-model="transferTargets[entity.id]" :placeholder="userCopy.assets.entities.transferPlaceholder" class="default-input" />
+                <button class="small-primary" @click="handleTransfer(entity.id)">{{ userCopy.assets.entities.transferAction }}</button>
               </div>
             </div>
           </article>
@@ -466,24 +467,24 @@ const saveDefault = async (entityId: string, videoId = editDefaultInput.value) =
         </section>
 
         <section v-if="assetTab === 'stickers'" class="assets-section sticker-grid">
-          <div v-if="stickers.length === 0" class="assets-empty">暂无已绑定日常贴纸</div>
+          <div v-if="stickers.length === 0" class="assets-empty">{{ userCopy.assets.stickers.empty }}</div>
 
           <article v-for="sticker in visibleStickers" :key="sticker.id" class="sticker-card">
             <div class="sticker-art">
               <img :src="stickerImage(sticker)" :alt="sticker.world_name || sticker.persona_name" />
             </div>
             <div class="sticker-body">
-              <span class="asset-type">日常贴纸</span>
+              <span class="asset-type">{{ userCopy.assets.stickers.type }}</span>
               <h3>{{ sticker.world_name || sticker.persona_name || sticker.persona?.name }}</h3>
-              <p>{{ sticker.story_arc_title || sticker.story_arc?.title || '连续小世界' }}</p>
+              <p>{{ sticker.story_arc_title || sticker.story_arc?.title || userCopy.assets.stickerSubtitle }}</p>
               <div class="sticker-current" v-if="sticker.current_entry">
                 <strong>Day {{ sticker.current_day || sticker.current_entry.day_index || '?' }} · {{ sticker.current_entry.title }}</strong>
-                <small>{{ sticker.current_entry.mood || '今日内容' }}</small>
+                <small>{{ sticker.current_entry.mood || userCopy.assets.stickers.todayContent }}</small>
               </div>
               <div class="sticker-actions">
-                <button class="small-primary" @click="openSticker(sticker)">碰一下预览</button>
-                <button class="small-ghost" @click="copyToken(sticker.token)">复制 token</button>
-                <button class="small-ghost danger" @click="handleUnbindSticker(sticker.id)">移出展馆</button>
+                <button class="small-primary" @click="openSticker(sticker)">{{ userCopy.assets.stickers.preview }}</button>
+                <button class="small-ghost" @click="copyToken(sticker.token)">{{ userCopy.assets.stickers.copyToken }}</button>
+                <button class="small-ghost danger" @click="handleUnbindSticker(sticker.id)">{{ userCopy.assets.stickers.remove }}</button>
               </div>
             </div>
           </article>
@@ -498,20 +499,20 @@ const saveDefault = async (entityId: string, videoId = editDefaultInput.value) =
 
         <section v-if="assetTab === 'purchases'" class="assets-section">
           <div class="purchase-note">
-            <h2>购买记录</h2>
-            <p>购买会迁移到外部平台完成。这里仅保留历史平台内记录和资产关系。</p>
+            <h2>{{ userCopy.assets.purchases.title }}</h2>
+            <p>{{ userCopy.assets.purchases.intro }}</p>
           </div>
 
-          <div v-if="purchases.length === 0" class="assets-empty">暂无购买记录</div>
+          <div v-if="purchases.length === 0" class="assets-empty">{{ userCopy.assets.purchases.empty }}</div>
 
           <article v-for="purchase in visiblePurchases" :key="purchase.id" class="purchase-card">
             <div>
-              <h3>{{ purchase.group_name || 'IP' }}</h3>
+              <h3>{{ purchase.group_name || userCopy.assets.purchases.fallbackIp }}</h3>
               <p v-if="purchase.series_name">{{ purchase.series_name }}</p>
-              <p v-if="purchase.external_order_no">订单号：{{ purchase.external_order_no }}</p>
+              <p v-if="purchase.external_order_no">{{ userCopy.assets.purchases.orderNo(purchase.external_order_no) }}</p>
             </div>
             <span>{{ purchase.created_at?.slice(0, 10) }}</span>
-            <strong>{{ purchase.status === 'shipped' ? '已发货' : purchase.status === 'completed' ? '已完成' : '待发货' }}</strong>
+            <strong>{{ purchase.status === 'shipped' ? userCopy.assets.purchases.shipped : purchase.status === 'completed' ? userCopy.assets.purchases.completed : userCopy.assets.purchases.pending }}</strong>
           </article>
 
           <InfiniteScrollTrigger

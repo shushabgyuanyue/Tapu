@@ -23,6 +23,7 @@ import momentsRouter from './routes/moments.js';
 import worksRouter from './routes/works.js';
 import travelTrailsRouter from './routes/travelTrails.js';
 import checklistsRouter from './routes/checklists.js';
+import mintStudioRouter from './routes/mintStudio.js';
 import { getUploadsDir } from './services/storage.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -95,6 +96,7 @@ app.use('/api/moments', momentsRouter);
 app.use('/api/works', worksRouter);
 app.use('/api/travel-trails', travelTrailsRouter);
 app.use('/api/checks', checklistsRouter);
+app.use('/api/mint-studio', mintStudioRouter);
 
 // Serve frontend static files (production build)
 const distPath = path.join(__dirname, '..', 'dist');

@@ -2,6 +2,7 @@
 import { computed } from 'vue';
 import { canRenderVideoUrl } from './capabilities';
 import type { ContentBlock, ContentRenderContext } from './types';
+import { contentCopy } from '../../copy';
 
 const props = defineProps<{
   block: ContentBlock;
@@ -25,8 +26,8 @@ const canRender = computed(() => canRenderVideoUrl(props.block.url || ''));
       webkit-playsinline
     ></video>
     <div v-else class="fallback">
-      <strong>{{ block.title || '当前浏览器暂不支持这个视频格式' }}</strong>
-      <a v-if="block.url" :href="block.url" target="_blank" rel="noreferrer">打开视频</a>
+      <strong>{{ block.title || contentCopy.blocks.unsupportedVideo }}</strong>
+      <a v-if="block.url" :href="block.url" target="_blank" rel="noreferrer">{{ contentCopy.blocks.openVideo }}</a>
     </div>
     <p v-if="block.caption">{{ block.caption }}</p>
   </section>

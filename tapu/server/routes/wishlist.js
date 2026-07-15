@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { getDb, saveDb } from '../db/index.js';
+import { registerRoutes, route } from '../services/routePermissions.js';
 
 const router = Router();
 
@@ -15,9 +16,8 @@ function normalizeVideoId(rawId) {
 }
 
 // Get user's wishlist
-router.get('/', async (req, res) => {
-  const db = await getDb();
-  const fingerprint = req.headers['x-fingerprint'] || req.ip || 'anonymous';
+async function listWishlistHandler(req, res) {
+  const { db, fingerprint } = req.permission;
 
   const results = db.exec(
     `SELECT w.id, w.group_id, w.default_video_id, w.created_at,
@@ -61,13 +61,12 @@ router.get('/', async (req, res) => {
   }
 
   res.json(items);
-});
+}
 
 // Check if a group is in wishlist
-router.get('/:groupId/status', async (req, res) => {
+async function getWishlistStatusHandler(req, res) {
   const { groupId } = req.params;
-  const db = await getDb();
-  const fingerprint = req.headers['x-fingerprint'] || req.ip || 'anonymous';
+  const { db, fingerprint } = req.permission;
 
   const results = db.exec(
     'SELECT id FROM wishlist WHERE group_id = ? AND fingerprint = ?',
@@ -78,13 +77,12 @@ router.get('/:groupId/status', async (req, res) => {
   const countR = db.exec('SELECT COUNT(*) FROM wishlist WHERE group_id = ?', [groupId]);
   const count = countR?.[0]?.values?.[0]?.[0] || 0;
   res.json({ inWishlist, count });
-});
+}
 
 // Add group to wishlist
-router.post('/:groupId', async (req, res) => {
+async function addWishlistHandler(req, res) {
   const { groupId } = req.params;
-  const db = await getDb();
-  const fingerprint = req.headers['x-fingerprint'] || req.ip || 'anonymous';
+  const { db, fingerprint } = req.permission;
   const defaultVideoId = normalizeVideoId(req.body?.default_video_id) || null;
 
   try {
@@ -112,13 +110,12 @@ router.post('/:groupId', async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: 'Failed to add to wishlist' });
   }
-});
+}
 
 // Remove group from wishlist
-router.delete('/:groupId', async (req, res) => {
+async function removeWishlistHandler(req, res) {
   const { groupId } = req.params;
-  const db = await getDb();
-  const fingerprint = req.headers['x-fingerprint'] || req.ip || 'anonymous';
+  const { db, fingerprint } = req.permission;
 
   db.run(
     'DELETE FROM wishlist WHERE group_id = ? AND fingerprint = ?',
@@ -128,14 +125,13 @@ router.delete('/:groupId', async (req, res) => {
   const countR = db.exec('SELECT COUNT(*) FROM wishlist WHERE group_id = ?', [groupId]);
   const count = countR?.[0]?.values?.[0]?.[0] || 0;
   res.json({ success: true, inWishlist: false, count });
-});
+}
 
 // Set/update default video for a wishlist item
-router.put('/:groupId/default', async (req, res) => {
+async function setWishlistDefaultHandler(req, res) {
   const { groupId } = req.params;
   const videoId = normalizeVideoId(req.body?.videoId);
-  const db = await getDb();
-  const fingerprint = req.headers['x-fingerprint'] || req.ip || 'anonymous';
+  const { db, fingerprint } = req.permission;
 
   if (!videoId) {
     return res.status(400).json({ error: 'videoId is required' });
@@ -147,6 +143,14 @@ router.put('/:groupId/default', async (req, res) => {
   );
   saveDb();
   res.json({ success: true });
-});
+}
+
+registerRoutes(router, [
+  route('get', '/', 'anonymous_fingerprint', listWishlistHandler),
+  route('get', '/:groupId/status', 'anonymous_fingerprint', getWishlistStatusHandler),
+  route('post', '/:groupId', 'anonymous_fingerprint', addWishlistHandler),
+  route('delete', '/:groupId', 'anonymous_fingerprint', removeWishlistHandler),
+  route('put', '/:groupId/default', 'anonymous_fingerprint', setWishlistDefaultHandler),
+]);
 
 export default router;

@@ -2,6 +2,7 @@
 import { inject, ref } from 'vue';
 import { createUnbindAppeal } from '../api';
 import NavBar from '../components/NavBar.vue';
+import { userCopy } from '../copy';
 
 const toast = inject<{ show: (text: string, duration?: number, type?: string) => void }>('toast');
 
@@ -17,7 +18,7 @@ const submit = async () => {
   resultError.value = false;
 
   if (!orderNo.value.trim()) {
-    resultMsg.value = '请输入外部订单号';
+    resultMsg.value = userCopy.appeal.messages.orderRequired;
     resultError.value = true;
     return;
   }
@@ -36,8 +37,8 @@ const submit = async () => {
     return;
   }
 
-  resultMsg.value = '申诉已提交，官方会人工核验并处理解绑';
-  toast?.show('申诉已提交', 2200, 'success');
+  resultMsg.value = userCopy.appeal.messages.submitted;
+  toast?.show(userCopy.appeal.messages.toastSubmitted, 2200, 'success');
   orderNo.value = '';
   token.value = '';
   reason.value = '';
@@ -50,26 +51,28 @@ const submit = async () => {
 
     <main class="appeal-shell">
       <header class="appeal-head">
-        <span>Appeal</span>
-        <h1>订单号申诉解绑</h1>
-        <p>如果 token 在运输中泄露并被抢先绑定，可在一个月内提交外部订单号，官方人工核验后处理解绑。</p>
+        <span>{{ userCopy.appeal.eyebrow }}</span>
+        <h1>{{ userCopy.appeal.title }}</h1>
+        <p>{{ userCopy.appeal.intro }}</p>
       </header>
 
       <section class="appeal-card">
         <label>
-          <span>外部订单号</span>
-          <input v-model="orderNo" placeholder="例如 WM20260713ABCD1234" />
+          <span>{{ userCopy.appeal.fields.orderNo }}</span>
+          <input v-model="orderNo" :placeholder="userCopy.appeal.fields.orderNoPlaceholder" />
         </label>
         <label>
-          <span>token（可选）</span>
-          <input v-model="token" placeholder="如果你手上有 token，可以一起提交" />
+          <span>{{ userCopy.appeal.fields.token }}</span>
+          <input v-model="token" :placeholder="userCopy.appeal.fields.tokenPlaceholder" />
         </label>
         <label>
-          <span>说明（可选）</span>
-          <textarea v-model="reason" placeholder="简单说明问题，例如 token 疑似运输途中泄露"></textarea>
+          <span>{{ userCopy.appeal.fields.reason }}</span>
+          <textarea v-model="reason" :placeholder="userCopy.appeal.fields.reasonPlaceholder"></textarea>
         </label>
 
-        <button :disabled="submitting" @click="submit">{{ submitting ? '提交中...' : '提交申诉' }}</button>
+        <button :disabled="submitting" @click="submit">
+          {{ submitting ? userCopy.appeal.actions.submitting : userCopy.appeal.actions.submit }}
+        </button>
         <p v-if="resultMsg" :class="['msg', { error: resultError }]">{{ resultMsg }}</p>
       </section>
     </main>

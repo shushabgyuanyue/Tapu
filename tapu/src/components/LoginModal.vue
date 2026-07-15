@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { login, register } from '../api';
+import { userCopy } from '../copy';
 
 const emit = defineEmits<{
   success: [user: { username: string }];
@@ -25,7 +26,7 @@ const agreeTerms = ref(false);
 const handleLogin = async () => {
   error.value = '';
   if (!loginUsername.value || !loginPassword.value) {
-    error.value = '请填写用户名和密码';
+    error.value = userCopy.login.errors.loginRequiredFields;
     return;
   }
   loading.value = true;
@@ -34,22 +35,22 @@ const handleLogin = async () => {
   if (data.success) {
     emit('success', data.user);
   } else {
-    error.value = data.error || '登录失败';
+    error.value = data.error || userCopy.login.errors.loginFailed;
   }
 };
 
 const handleRegister = async () => {
   error.value = '';
   if (!regUsername.value || !regPassword.value) {
-    error.value = '请填写所有字段';
+    error.value = userCopy.login.errors.registerRequiredFields;
     return;
   }
   if (regPassword.value !== regConfirm.value) {
-    error.value = '两次密码不一致';
+    error.value = userCopy.login.errors.passwordMismatch;
     return;
   }
   if (regPassword.value.length < 4) {
-    error.value = '密码至少4位';
+    error.value = userCopy.login.errors.passwordTooShort;
     return;
   }
   loading.value = true;
@@ -62,7 +63,7 @@ const handleRegister = async () => {
       emit('success', loginData.user);
     }
   } else {
-    error.value = data.error || '注册失败';
+    error.value = data.error || userCopy.login.errors.registerFailed;
   }
 };
 </script>
@@ -70,7 +71,7 @@ const handleRegister = async () => {
 <template>
   <div class="login-modal">
     <div class="lm-header">
-      <h3>whatmint</h3>
+      <h3>{{ userCopy.login.title }}</h3>
       <button class="lm-close" @click="emit('close')">&times;</button>
     </div>
 
@@ -78,34 +79,39 @@ const handleRegister = async () => {
       <button
         :class="{ active: activeTab === 'login' }"
         @click="activeTab = 'login'; error = ''"
-      >账户登录</button>
+      >{{ userCopy.login.tabs.login }}</button>
       <button
         :class="{ active: activeTab === 'register' }"
         @click="activeTab = 'register'; error = ''"
-      >注册</button>
+      >{{ userCopy.login.tabs.register }}</button>
     </div>
 
     <div class="lm-body">
       <!-- Account login -->
       <form v-if="activeTab === 'login'" @submit.prevent="handleLogin" class="lm-form">
-        <input v-model="loginUsername" placeholder="用户名" autocomplete="username" />
-        <input v-model="loginPassword" type="password" placeholder="密码" autocomplete="current-password" />
+        <input v-model="loginUsername" :placeholder="userCopy.login.fields.username" autocomplete="username" />
+        <input v-model="loginPassword" type="password" :placeholder="userCopy.login.fields.password" autocomplete="current-password" />
         <button type="submit" class="lm-submit" :disabled="loading">
-          {{ loading ? '登录中...' : '登录' }}
+          {{ loading ? userCopy.login.actions.loginLoading : userCopy.login.actions.login }}
         </button>
       </form>
 
       <!-- Register -->
       <form v-if="activeTab === 'register'" @submit.prevent="handleRegister" class="lm-form">
-        <input v-model="regUsername" placeholder="用户名" autocomplete="username" />
-        <input v-model="regPassword" type="password" placeholder="密码" autocomplete="new-password" />
-        <input v-model="regConfirm" type="password" placeholder="确认密码" autocomplete="new-password" />
+        <input v-model="regUsername" :placeholder="userCopy.login.fields.username" autocomplete="username" />
+        <input v-model="regPassword" type="password" :placeholder="userCopy.login.fields.password" autocomplete="new-password" />
+        <input v-model="regConfirm" type="password" :placeholder="userCopy.login.fields.confirmPassword" autocomplete="new-password" />
         <label class="lm-agree">
           <input type="checkbox" v-model="agreeTerms" />
-          <span>我已阅读并同意 <a href="/disclaimer" target="_blank">免责声明</a> 和 <a href="/privacy" target="_blank">隐私政策</a></span>
+          <span>
+            {{ userCopy.login.agreement.prefix }}
+            <a href="/disclaimer" target="_blank">{{ userCopy.login.agreement.disclaimer }}</a>
+            {{ userCopy.login.agreement.and }}
+            <a href="/privacy" target="_blank">{{ userCopy.login.agreement.privacy }}</a>
+          </span>
         </label>
         <button type="submit" class="lm-submit" :disabled="loading || !agreeTerms">
-          {{ loading ? '注册中...' : '注册' }}
+          {{ loading ? userCopy.login.actions.registerLoading : userCopy.login.actions.register }}
         </button>
       </form>
 

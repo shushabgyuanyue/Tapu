@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { ContentBlock } from './types';
+import { contentCopy } from '../../copy';
 
 defineProps<{
   block: ContentBlock;
@@ -8,7 +9,7 @@ defineProps<{
 
 <template>
   <a class="content-link" :href="block.href || block.url" target="_blank" rel="noreferrer">
-    <span>{{ block.label || block.title || '打开链接' }}</span>
+    <span>{{ block.label || block.title || contentCopy.blocks.linkLabel }}</span>
     <small v-if="block.caption">{{ block.caption }}</small>
   </a>
 </template>

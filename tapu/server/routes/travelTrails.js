@@ -1,23 +1,18 @@
 import { Router } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { getDb, saveDb } from '../db/index.js';
-import { authRequired } from '../middleware/auth.js';
 import { cleanString, parseJson } from '../services/contentCollections.js';
 import { recordObjectEvent } from '../services/objectEvents.js';
 import { resolveObjectByToken } from '../services/objectRegistry.js';
+import { adminRoute, registerRoutes, tokenRoute } from '../services/routePermissions.js';
 import { buildTapResponse } from '../services/tapRuntime.js';
 import { createUniqueToken, normalizeEntityToken, resultToObjects } from '../services/tokens.js';
 import { createWork, getWork, updateWork } from '../services/works.js';
+import { serverMessages } from '../copy/messages.js';
 
 const router = Router();
 const APP_CODE = 'travel-trail';
 
-function adminOnly(req, res, next) {
-  if (req.user.username !== 'admin') {
-    return res.status(403).json({ error: '仅管理员可操作' });
-  }
-  next();
-}
 
 function normalizeStatus(value, fallback = 'active') {
   const status = cleanString(value || fallback);
@@ -133,7 +128,7 @@ function updateTrailWork(db, trail, options = {}) {
       lastPlace: options.lastPlace || null,
       nextPlace: options.nextPlace ?? trail.next_place ?? null,
       journeyState: options.journeyState ?? trail.journey_state ?? 'planning',
-      lifeQuestion: '我的人生走过了哪些地方？',
+      lifeQuestion: serverMessages.routes.travelTrail.lifeQuestion,
     },
   });
 }
@@ -184,16 +179,16 @@ router.get('/resolve', async (req, res) => {
     const resolvedObject = resolveObjectByToken(db, req.query.key);
     const tokenRow = resolvedObject?.raw;
     if (!tokenRow || resolvedObject.app.code !== APP_CODE) {
-      return res.status(400).json({ error: '缺少或无效的旅行轨迹 token' });
+      return res.status(400).json({ error: serverMessages.routes.travelTrail.invalidToken });
     }
     if (tokenRow.status !== 'active') {
-      return res.status(404).json({ error: '这条旅行轨迹暂时还没有开放' });
+      return res.status(404).json({ error: serverMessages.routes.travelTrail.inactive });
     }
 
     const trail = getTrail(db, tokenRow.id);
     const work = tokenRow.work_id ? getWork(db, tokenRow.work_id) : null;
     if (!isWithinWorkWindow(work)) {
-      return res.status(403).json({ error: '这条旅行轨迹还没有到可以打开的时候' });
+      return res.status(403).json({ error: serverMessages.routes.travelTrail.notInWindow });
     }
 
     recordObjectEvent(db, {
@@ -226,8 +221,8 @@ router.get('/resolve', async (req, res) => {
       },
       actions: [
         trail.next_place
-          ? { code: 'confirm_return', label: '我回来了，把这一站加入轨迹' }
-          : { code: 'plan_next_stop', label: '写下下一站' },
+          ? { code: 'confirm_return', label: serverMessages.routes.travelTrail.confirmReturn }
+          : { code: 'plan_next_stop', label: serverMessages.routes.travelTrail.planNextStop },
       ],
       permissions: {
         anonymousTap: true,
@@ -246,7 +241,7 @@ router.get('/resolve', async (req, res) => {
       trail,
       places: trail.places,
       ritual: {
-        lifeQuestion: '我的人生走过了哪些地方？',
+        lifeQuestion: serverMessages.routes.travelTrail.lifeQuestion,
         nextPlace: trail.next_place || null,
         nextPlaceNote: trail.next_place_note || null,
         journeyState: trail.journey_state || 'planning',
@@ -259,7 +254,7 @@ router.get('/resolve', async (req, res) => {
   }
 });
 
-router.get('/trails', authRequired, adminOnly, async (_req, res) => {
+async function listTrails(_req, res) {
   try {
     const db = await getDb();
     const rows = resultToObjects(db.exec(
@@ -279,9 +274,9 @@ router.get('/trails', authRequired, adminOnly, async (_req, res) => {
     console.error('List travel trails error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+}
 
-router.post('/trails', authRequired, adminOnly, async (req, res) => {
+async function createTrail(req, res) {
   try {
     const title = cleanString(req.body.title);
     if (!title) return res.status(400).json({ error: '请填写旅行轨迹标题' });
@@ -312,7 +307,7 @@ router.post('/trails', authRequired, adminOnly, async (req, res) => {
         firstPlace: firstPlaceName || null,
         nextPlace: nextPlace || null,
         journeyState,
-        lifeQuestion: '我的人生走过了哪些地方？',
+        lifeQuestion: serverMessages.routes.travelTrail.lifeQuestion,
       },
     });
 
@@ -353,16 +348,16 @@ router.post('/trails', authRequired, adminOnly, async (req, res) => {
     console.error('Create travel trail error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+}
 
-router.post('/trails/:id/places', authRequired, adminOnly, async (req, res) => {
+async function addTrailPlace(req, res) {
   try {
     const db = await getDb();
     const trail = getTrail(db, req.params.id);
-    if (!trail) return res.status(404).json({ error: '旅行轨迹不存在' });
+    if (!trail) return res.status(404).json({ error: serverMessages.routes.travelTrail.missingTrail });
 
     const place = insertPlace(db, trail.id, req.body);
-    if (!place) return res.status(400).json({ error: '请填写新的地点' });
+    if (!place) return res.status(400).json({ error: serverMessages.routes.travelTrail.missingPlace });
     const nextTrail = getTrail(db, trail.id);
     updateTrailWork(db, nextTrail, {
       versionNote: 'travel-place-added',
@@ -375,13 +370,13 @@ router.post('/trails/:id/places', authRequired, adminOnly, async (req, res) => {
     console.error('Add travel place error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+}
 
-router.put('/trails/:id/next-destination', authRequired, adminOnly, async (req, res) => {
+async function updateTrailNextDestination(req, res) {
   try {
     const db = await getDb();
     const trail = getTrail(db, req.params.id);
-    if (!trail) return res.status(404).json({ error: '旅行轨迹不存在' });
+    if (!trail) return res.status(404).json({ error: serverMessages.routes.travelTrail.missingTrail });
 
     const nextTrail = setNextDestination(db, trail.id, req.body);
     updateTrailWork(db, nextTrail, {
@@ -397,26 +392,18 @@ router.put('/trails/:id/next-destination', authRequired, adminOnly, async (req, 
     console.error('Update travel next destination error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+}
 
-router.post('/places', async (req, res) => {
+async function addPublicTravelPlaceHandler(req, res) {
   try {
-    const db = await getDb();
-    const resolvedObject = resolveObjectByToken(db, req.body.key);
-    const tokenRow = resolvedObject?.raw;
-    if (!tokenRow || resolvedObject.app.code !== APP_CODE) {
-      return res.status(400).json({ error: '缺少或无效的旅行轨迹 token' });
-    }
-    if (tokenRow.status !== 'active') {
-      return res.status(404).json({ error: '这条旅行轨迹暂时还不能加入新地点' });
-    }
+    const { db, resolvedObject, appToken: tokenRow } = req.permission;
     const work = tokenRow.work_id ? getWork(db, tokenRow.work_id) : null;
     if (!isWithinWorkWindow(work)) {
-      return res.status(403).json({ error: '这条旅行轨迹还没有到可以打开的时候' });
+      return res.status(403).json({ error: serverMessages.routes.travelTrail.notInWindow });
     }
 
     const place = insertPlace(db, tokenRow.id, req.body);
-    if (!place) return res.status(400).json({ error: '请输入新的地点' });
+    if (!place) return res.status(400).json({ error: serverMessages.routes.travelTrail.missingPlaceInput });
     const trail = getTrail(db, tokenRow.id);
     updateTrailWork(db, trail, {
       versionNote: 'travel-place-added-public',
@@ -443,25 +430,17 @@ router.post('/places', async (req, res) => {
     console.error('Add public travel place error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+}
 
-router.post('/next-destination', async (req, res) => {
+async function setPublicTravelNextDestinationHandler(req, res) {
   try {
     const nextPlace = cleanString(req.body.next_place || req.body.name || req.body.place);
-    if (!nextPlace) return res.status(400).json({ error: '请写下下一站' });
+    if (!nextPlace) return res.status(400).json({ error: serverMessages.routes.travelTrail.missingNextStop });
 
-    const db = await getDb();
-    const resolvedObject = resolveObjectByToken(db, req.body.key);
-    const tokenRow = resolvedObject?.raw;
-    if (!tokenRow || resolvedObject.app.code !== APP_CODE) {
-      return res.status(400).json({ error: '缺少或无效的旅行轨迹 token' });
-    }
-    if (tokenRow.status !== 'active') {
-      return res.status(404).json({ error: '这条旅行轨迹暂时还不能设置下一站' });
-    }
+    const { db, resolvedObject, appToken: tokenRow } = req.permission;
     const work = tokenRow.work_id ? getWork(db, tokenRow.work_id) : null;
     if (!isWithinWorkWindow(work)) {
-      return res.status(403).json({ error: '这条旅行轨迹还没有到可以打开的时候' });
+      return res.status(403).json({ error: serverMessages.routes.travelTrail.notInWindow });
     }
 
     const trail = setNextDestination(db, tokenRow.id, {
@@ -496,26 +475,18 @@ router.post('/next-destination', async (req, res) => {
     console.error('Set public travel next destination error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+}
 
-router.post('/return', async (req, res) => {
+async function confirmPublicTravelReturnHandler(req, res) {
   try {
-    const db = await getDb();
-    const resolvedObject = resolveObjectByToken(db, req.body.key);
-    const tokenRow = resolvedObject?.raw;
-    if (!tokenRow || resolvedObject.app.code !== APP_CODE) {
-      return res.status(400).json({ error: '缺少或无效的旅行轨迹 token' });
-    }
-    if (tokenRow.status !== 'active') {
-      return res.status(404).json({ error: '这条旅行轨迹暂时还不能确认归来' });
-    }
+    const { db, resolvedObject, appToken: tokenRow } = req.permission;
     const work = tokenRow.work_id ? getWork(db, tokenRow.work_id) : null;
     if (!isWithinWorkWindow(work)) {
-      return res.status(403).json({ error: '这条旅行轨迹还没有到可以打开的时候' });
+      return res.status(403).json({ error: serverMessages.routes.travelTrail.notInWindow });
     }
 
     const returned = confirmReturn(db, tokenRow.id, req.body);
-    if (!returned) return res.status(400).json({ error: '还没有可以确认归来的下一站' });
+    if (!returned) return res.status(400).json({ error: serverMessages.routes.travelTrail.noReturnPending });
 
     updateTrailWork(db, returned.trail, {
       versionNote: 'travel-return-confirmed',
@@ -544,13 +515,13 @@ router.post('/return', async (req, res) => {
     console.error('Confirm travel return error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+}
 
-router.delete('/trails/:trailId/places/:placeId', authRequired, adminOnly, async (req, res) => {
+async function deleteTrailPlace(req, res) {
   try {
     const db = await getDb();
     const trail = getTrail(db, req.params.trailId);
-    if (!trail) return res.status(404).json({ error: '旅行轨迹不存在' });
+    if (!trail) return res.status(404).json({ error: serverMessages.routes.travelTrail.missingTrail });
     db.run('DELETE FROM travel_trail_places WHERE id = ? AND trail_id = ?', [req.params.placeId, req.params.trailId]);
     const nextTrail = getTrail(db, trail.id);
     updateTrailWork(db, nextTrail, {
@@ -564,6 +535,17 @@ router.delete('/trails/:trailId/places/:placeId', authRequired, adminOnly, async
     console.error('Delete travel place error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+}
+
+registerRoutes(router, [
+  adminRoute('get', '/trails', listTrails),
+  adminRoute('post', '/trails', createTrail),
+  adminRoute('post', '/trails/:id/places', addTrailPlace),
+  adminRoute('put', '/trails/:id/next-destination', updateTrailNextDestination),
+  adminRoute('delete', '/trails/:trailId/places/:placeId', deleteTrailPlace),
+  tokenRoute('post', '/places', APP_CODE, addPublicTravelPlaceHandler),
+  tokenRoute('post', '/next-destination', APP_CODE, setPublicTravelNextDestinationHandler),
+  tokenRoute('post', '/return', APP_CODE, confirmPublicTravelReturnHandler),
+]);
 
 export default router;

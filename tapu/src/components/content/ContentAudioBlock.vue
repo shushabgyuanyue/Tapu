@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { ContentBlock } from './types';
+import { contentCopy } from '../../copy';
 
 defineProps<{
   block: ContentBlock;
@@ -9,7 +10,7 @@ defineProps<{
 <template>
   <section class="content-audio">
     <div>
-      <strong>{{ block.title || '音频' }}</strong>
+      <strong>{{ block.title || contentCopy.blocks.audioTitle }}</strong>
       <span v-if="block.caption">{{ block.caption }}</span>
     </div>
     <audio :src="block.url" controls preload="metadata"></audio>

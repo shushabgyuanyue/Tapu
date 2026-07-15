@@ -1,23 +1,18 @@
 import { Router } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { getDb, saveDb } from '../db/index.js';
-import { authRequired } from '../middleware/auth.js';
 import { cleanString } from '../services/contentCollections.js';
 import { recordObjectEvent } from '../services/objectEvents.js';
 import { resolveObjectByToken } from '../services/objectRegistry.js';
+import { adminRoute, registerRoutes, tokenRoute } from '../services/routePermissions.js';
 import { buildTapResponse } from '../services/tapRuntime.js';
 import { createUniqueToken, normalizeEntityToken, resultToObjects } from '../services/tokens.js';
 import { createWork, getWork, updateWork } from '../services/works.js';
+import { serverMessages } from '../copy/messages.js';
 
 const router = Router();
 const APP_CODE = 'check';
 
-function adminOnly(req, res, next) {
-  if (req.user.username !== 'admin') {
-    return res.status(403).json({ error: '仅管理员可操作' });
-  }
-  next();
-}
 
 function normalizeStatus(value, fallback = 'active') {
   const status = cleanString(value || fallback);
@@ -122,7 +117,7 @@ function updateChecklistWork(db, checklist, options = {}) {
       scenario: checklist.scenario || null,
       itemCount: options.itemCount ?? checklist.item_count ?? checklist.items?.length ?? null,
       checkedCount: options.checkedCount ?? checklist.checked_count ?? null,
-      behaviorQuestion: '这个物件出门前需要确认什么？',
+      behaviorQuestion: serverMessages.routes.check.behaviorQuestion,
     },
   });
 }
@@ -131,10 +126,10 @@ function assertPublicChecklist(db, rawKey) {
   const resolvedObject = resolveObjectByToken(db, rawKey);
   const tokenRow = resolvedObject?.raw;
   if (!tokenRow || resolvedObject.app.code !== APP_CODE) {
-    return { error: '缺少或无效的 Check token' };
+    return { error: serverMessages.routes.check.invalidToken };
   }
   if (tokenRow.status !== 'active') {
-    return { error: '这份 Check 暂时还不能打开', status: 404 };
+    return { error: serverMessages.routes.check.inactive, status: 404 };
   }
   return { resolvedObject, tokenRow };
 }
@@ -176,9 +171,9 @@ router.get('/resolve', async (req, res) => {
         blocks: [],
       },
       actions: [
-        { code: 'toggle_item', label: '完成检查' },
-        { code: 'add_item', label: '加一个项目' },
-        { code: 'reset_check', label: '重新检查' },
+        { code: 'toggle_item', label: serverMessages.routes.check.completeItem },
+        { code: 'add_item', label: serverMessages.routes.check.addItem },
+        { code: 'reset_check', label: serverMessages.routes.check.reset },
       ],
       permissions: {
         anonymousTap: true,
@@ -203,7 +198,7 @@ router.get('/resolve', async (req, res) => {
   }
 });
 
-router.get('/templates', authRequired, adminOnly, async (_req, res) => {
+async function listTemplates(_req, res) {
   try {
     const db = await getDb();
     const rows = resultToObjects(db.exec(
@@ -221,9 +216,9 @@ router.get('/templates', authRequired, adminOnly, async (_req, res) => {
     console.error('List check templates error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+}
 
-router.get('/checklists', authRequired, adminOnly, async (_req, res) => {
+async function listChecklists(_req, res) {
   try {
     const db = await getDb();
     const rows = resultToObjects(db.exec(
@@ -246,9 +241,9 @@ router.get('/checklists', authRequired, adminOnly, async (_req, res) => {
     console.error('List checks error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+}
 
-router.post('/checklists', authRequired, adminOnly, async (req, res) => {
+async function createChecklist(req, res) {
   try {
     const title = cleanString(req.body.title);
     if (!title) return res.status(400).json({ error: '请填写 Check 名称' });
@@ -280,7 +275,7 @@ router.post('/checklists', authRequired, adminOnly, async (req, res) => {
         objectLabel: cleanString(req.body.object_label) || null,
         scenario,
         templateId,
-        behaviorQuestion: '这个物件出门前需要确认什么？',
+        behaviorQuestion: serverMessages.routes.check.behaviorQuestion,
       },
     });
 
@@ -321,15 +316,15 @@ router.post('/checklists', authRequired, adminOnly, async (req, res) => {
     console.error('Create check error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+}
 
-router.post('/checklists/:id/items', authRequired, adminOnly, async (req, res) => {
+async function addChecklistItem(req, res) {
   try {
     const db = await getDb();
     const checklist = getChecklist(db, req.params.id);
-    if (!checklist) return res.status(404).json({ error: 'Check 不存在' });
+    if (!checklist) return res.status(404).json({ error: serverMessages.routes.check.missingChecklist });
     const item = insertChecklistItem(db, checklist.id, req.body);
-    if (!item) return res.status(400).json({ error: '请填写检查项目' });
+    if (!item) return res.status(400).json({ error: serverMessages.routes.check.missingItemLabel });
     const nextChecklist = getChecklist(db, checklist.id);
     updateChecklistWork(db, nextChecklist, {
       versionNote: 'check-item-added',
@@ -342,15 +337,15 @@ router.post('/checklists/:id/items', authRequired, adminOnly, async (req, res) =
     console.error('Add check item error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+}
 
-router.put('/checklists/:checklistId/items/:itemId', authRequired, adminOnly, async (req, res) => {
+async function updateChecklistItem(req, res) {
   try {
     const db = await getDb();
     const checklist = getChecklist(db, req.params.checklistId);
-    if (!checklist) return res.status(404).json({ error: 'Check 不存在' });
+    if (!checklist) return res.status(404).json({ error: serverMessages.routes.check.missingChecklist });
     const label = cleanString(req.body.label);
-    if (!label) return res.status(400).json({ error: '请填写检查项目' });
+    if (!label) return res.status(400).json({ error: serverMessages.routes.check.missingItemLabel });
     db.run(
       `UPDATE checklist_items
        SET label = ?, hint = ?, is_required = ?, sort_order = ?
@@ -376,13 +371,13 @@ router.put('/checklists/:checklistId/items/:itemId', authRequired, adminOnly, as
     console.error('Update check item error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+}
 
-router.delete('/checklists/:checklistId/items/:itemId', authRequired, adminOnly, async (req, res) => {
+async function deleteChecklistItem(req, res) {
   try {
     const db = await getDb();
     const checklist = getChecklist(db, req.params.checklistId);
-    if (!checklist) return res.status(404).json({ error: 'Check 不存在' });
+    if (!checklist) return res.status(404).json({ error: serverMessages.routes.check.missingChecklist });
     db.run('DELETE FROM checklist_items WHERE id = ? AND checklist_id = ?', [req.params.itemId, req.params.checklistId]);
     const nextChecklist = getChecklist(db, checklist.id);
     updateChecklistWork(db, nextChecklist, {
@@ -396,15 +391,14 @@ router.delete('/checklists/:checklistId/items/:itemId', authRequired, adminOnly,
     console.error('Delete check item error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+}
 
-router.post('/items', async (req, res) => {
+async function addPublicCheckItemHandler(req, res) {
   try {
-    const db = await getDb();
-    const resolved = assertPublicChecklist(db, req.body.key);
-    if (resolved.error) return res.status(resolved.status || 400).json({ error: resolved.error });
+    const { db, resolvedObject, appToken: tokenRow } = req.permission;
+    const resolved = { resolvedObject, tokenRow };
     const item = insertChecklistItem(db, resolved.tokenRow.id, req.body);
-    if (!item) return res.status(400).json({ error: '请填写检查项目' });
+    if (!item) return res.status(400).json({ error: serverMessages.routes.check.missingItemLabel });
     const checklist = getChecklist(db, resolved.tokenRow.id);
     updateChecklistWork(db, checklist, {
       versionNote: 'check-item-added-public',
@@ -428,13 +422,12 @@ router.post('/items', async (req, res) => {
     console.error('Add public check item error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+}
 
-router.put('/items/:itemId', async (req, res) => {
+async function updatePublicCheckItemHandler(req, res) {
   try {
-    const db = await getDb();
-    const resolved = assertPublicChecklist(db, req.body.key);
-    if (resolved.error) return res.status(resolved.status || 400).json({ error: resolved.error });
+    const { db, resolvedObject, appToken: tokenRow } = req.permission;
+    const resolved = { resolvedObject, tokenRow };
     const checked = Boolean(req.body.is_checked);
     db.run(
       `UPDATE checklist_items
@@ -474,13 +467,12 @@ router.put('/items/:itemId', async (req, res) => {
     console.error('Toggle check item error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+}
 
-router.post('/reset', async (req, res) => {
+async function resetPublicCheckHandler(req, res) {
   try {
-    const db = await getDb();
-    const resolved = assertPublicChecklist(db, req.body.key);
-    if (resolved.error) return res.status(resolved.status || 400).json({ error: resolved.error });
+    const { db, resolvedObject, appToken: tokenRow } = req.permission;
+    const resolved = { resolvedObject, tokenRow };
     db.run(
       `UPDATE checklist_items
        SET is_checked = 0, checked_at = NULL
@@ -510,6 +502,18 @@ router.post('/reset', async (req, res) => {
     console.error('Reset check error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+}
+
+registerRoutes(router, [
+  adminRoute('get', '/templates', listTemplates),
+  adminRoute('get', '/checklists', listChecklists),
+  adminRoute('post', '/checklists', createChecklist),
+  adminRoute('post', '/checklists/:id/items', addChecklistItem),
+  adminRoute('put', '/checklists/:checklistId/items/:itemId', updateChecklistItem),
+  adminRoute('delete', '/checklists/:checklistId/items/:itemId', deleteChecklistItem),
+  tokenRoute('post', '/items', APP_CODE, addPublicCheckItemHandler),
+  tokenRoute('put', '/items/:itemId', APP_CODE, updatePublicCheckItemHandler),
+  tokenRoute('post', '/reset', APP_CODE, resetPublicCheckHandler),
+]);
 
 export default router;

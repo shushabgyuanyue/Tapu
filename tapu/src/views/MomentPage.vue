@@ -4,6 +4,7 @@ import { useRoute } from 'vue-router';
 import { resolveMoment } from '../api';
 import ContentRenderer from '../components/content/ContentRenderer.vue';
 import type { ContentBlock } from '../components/content/types';
+import { appCopy } from '../copy';
 
 const route = useRoute();
 const loading = ref(true);
@@ -16,7 +17,7 @@ const work = computed(() => data.value?.work || {});
 const tapContent = computed(() => data.value?.content || null);
 const collection = computed(() => data.value?.collection || {});
 const themeColor = computed(() => tapContent.value?.themeColor || moment.value.theme_color || collection.value.theme_color || '#9a6a2f');
-const title = computed(() => tapContent.value?.title || moment.value.title || collection.value.name || '纪念瞬间');
+const title = computed(() => tapContent.value?.title || moment.value.title || collection.value.name || appCopy.moment.fallbackTitle);
 const subtitle = computed(() => tapContent.value?.subtitle || moment.value.subtitle || collection.value.description || '');
 const blocks = computed<ContentBlock[]>(() => Array.isArray(tapContent.value?.blocks) ? tapContent.value.blocks : []);
 const coverBlock = computed(() => blocks.value.find(block => block.kind === 'image' && block.url));
@@ -27,11 +28,14 @@ const renderedBlocks = computed(() => {
 const eventMeta = computed(() => {
   const parts = [];
   if (moment.value.event_date) {
-    parts.push(new Date(`${moment.value.event_date}T00:00:00`).toLocaleDateString('zh-CN', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    }));
+    const eventDate = new Date(`${moment.value.event_date}T00:00:00`);
+    parts.push(Number.isNaN(eventDate.getTime())
+      ? moment.value.event_date
+      : eventDate.toLocaleDateString('zh-CN', {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+        }));
   }
   if (moment.value.place) parts.push(moment.value.place);
   return parts.join(' · ');
@@ -41,7 +45,7 @@ const load = async () => {
   loading.value = true;
   error.value = '';
   if (!token.value) {
-    error.value = '缺少纪念瞬间链接，请确认 NFC 写入地址是否完整。';
+    error.value = appCopy.moment.missingToken;
     loading.value = false;
     return;
   }
@@ -63,17 +67,17 @@ watch(() => route.fullPath, load);
   <main class="moment-page" :style="{ '--moment-accent': themeColor }">
     <div class="grain"></div>
     <section class="moment-shell">
-      <p class="app-mark">WhatMint Moment</p>
+      <p class="app-mark">{{ appCopy.moment.mark }}</p>
 
       <div v-if="loading" class="state-card">
         <span class="loading-mark"></span>
-        <h1>正在取出这一刻</h1>
-        <p>现实里的物正在打开它保存的时间。</p>
+        <h1>{{ appCopy.moment.loading.title }}</h1>
+        <p>{{ appCopy.moment.loading.body }}</p>
       </div>
 
       <div v-else-if="error" class="state-card">
         <span class="error-mark">?</span>
-        <h1>这个瞬间暂时没有打开</h1>
+        <h1>{{ appCopy.moment.error.title }}</h1>
         <p>{{ error }}</p>
       </div>
 
@@ -95,10 +99,10 @@ watch(() => route.fullPath, load);
         />
 
         <footer class="moment-footer">
-          <span>{{ data?.object?.label || '一件被保存过的物' }}</span>
-          <span v-if="work.intent_label">意图：{{ work.intent_label }}</span>
-          <span v-if="work.recipient_name">送给：{{ work.recipient_name }}</span>
-          <span>碰一下，回到那一刻</span>
+          <span>{{ data?.object?.label || appCopy.moment.footer.defaultObject }}</span>
+          <span v-if="work.intent_label">{{ appCopy.moment.footer.intent(work.intent_label) }}</span>
+          <span v-if="work.recipient_name">{{ appCopy.moment.footer.recipient(work.recipient_name) }}</span>
+          <span>{{ appCopy.moment.footer.touchHint }}</span>
         </footer>
       </article>
     </section>

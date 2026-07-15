@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { getDb } from '../db/index.js';
-import { authRequired } from '../middleware/auth.js';
+import { loginRoute, registerRoutes } from '../services/routePermissions.js';
+import { serverMessages } from '../copy/messages.js';
 
 const router = Router();
 
@@ -26,17 +27,17 @@ function resultToObjects(results) {
 }
 
 // Purchase happens on external platforms. Keep this endpoint as a guarded legacy path.
-router.post('/by-group', authRequired, async (req, res) => {
+async function createLegacyPurchaseHandler(req, res) {
   res.status(410).json({
-    error: '购买将在外部平台完成。完成购买后，请使用实物 token 在账户资产页绑定。',
+    error: serverMessages.routes.purchases.externalOnly,
     external_purchase: true,
   });
-});
+}
 
 // List user's orders (purchase records)
-router.get('/', authRequired, async (req, res) => {
+async function listPurchasesHandler(req, res) {
   try {
-    const db = await getDb();
+    const { db } = req.permission;
     const results = db.exec(
       `SELECT o.id, o.group_id, o.status, o.created_at, o.external_order_no, o.order_source,
               g.name as group_name, s.name as series_name
@@ -53,6 +54,11 @@ router.get('/', authRequired, async (req, res) => {
     console.error('List orders error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+}
+
+registerRoutes(router, [
+  loginRoute('post', '/by-group', createLegacyPurchaseHandler),
+  loginRoute('get', '/', listPurchasesHandler),
+]);
 
 export default router;

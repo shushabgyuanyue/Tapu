@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue';
+import { commonCopy } from '../copy';
 
 const emit = defineEmits<{
   change: [from: string, to: string];
@@ -28,9 +29,9 @@ const clear = () => {
 
 <template>
   <div class="drp">
-    <button @click="setPreset(7)" class="chip">近7天</button>
-    <button @click="setPreset(30)" class="chip">近30天</button>
-    <button @click="clear" class="chip chip-dim">全部</button>
+    <button @click="setPreset(7)" class="chip">{{ commonCopy.dateRange.recent7 }}</button>
+    <button @click="setPreset(30)" class="chip">{{ commonCopy.dateRange.recent30 }}</button>
+    <button @click="clear" class="chip chip-dim">{{ commonCopy.dateRange.all }}</button>
     <input type="date" v-model="fromDate" class="date-inp" @change="apply" />
     <span class="sep">-</span>
     <input type="date" v-model="toDate" class="date-inp" @change="apply" />

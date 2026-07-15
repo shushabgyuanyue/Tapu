@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { getDb, saveDb } from '../db/index.js';
-import { authRequired } from '../middleware/auth.js';
+import { adminRoute, registerRoutes } from '../services/routePermissions.js';
 
 const router = Router();
 
@@ -26,16 +26,9 @@ router.get('/:key', async (req, res) => {
 });
 
 // Set config value (admin only)
-router.put('/:key', authRequired, async (req, res) => {
-  const db = await getDb();
+async function setConfigHandler(req, res) {
+  const { db } = req.permission;
   const { value } = req.body;
-
-  // Check if user is admin
-  const userResults = db.exec('SELECT username FROM users WHERE id = ?', [req.user.id]);
-  const users = resultToObjects(userResults);
-  if (!users.length || users[0].username !== 'admin') {
-    return res.status(403).json({ error: '仅管理员可修改配置' });
-  }
 
   // Upsert
   const existing = db.exec('SELECT key FROM site_config WHERE key = ?', [req.params.key]);
@@ -46,6 +39,10 @@ router.put('/:key', authRequired, async (req, res) => {
   }
   saveDb();
   res.json({ success: true });
-});
+}
+
+registerRoutes(router, [
+  adminRoute('put', '/:key', setConfigHandler),
+]);
 
 export default router;

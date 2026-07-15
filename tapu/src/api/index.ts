@@ -44,6 +44,16 @@ const fpHeaders = () => ({
   'x-fingerprint': getFingerprint(),
 });
 
+function utf8ToBase64(value: string): string {
+  const bytes = new TextEncoder().encode(value);
+  let binary = '';
+  const chunkSize = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    binary += String.fromCharCode(...bytes.slice(i, i + chunkSize));
+  }
+  return btoa(binary);
+}
+
 async function request(path: string, options: RequestOptions = {}) {
   const { auth, fingerprint, jsonBody, headers, ...init } = options;
   const mergedHeaders = new Headers(headers || undefined);
@@ -65,7 +75,17 @@ async function request(path: string, options: RequestOptions = {}) {
   });
 
   const text = await res.text();
-  const data = text ? JSON.parse(text) : {};
+  let data: any = {};
+  if (text) {
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = {
+        error: res.ok ? 'Response is not valid JSON' : `Request failed with status ${res.status}`,
+        status: res.status,
+      };
+    }
+  }
 
   if (!res.ok && !('error' in data)) {
     return { ...data, error: `Request failed with status ${res.status}`, status: res.status };
@@ -272,17 +292,14 @@ export async function uploadVideo(
   file: File,
   title: string,
   groupId?: string,
-  isPrivate?: boolean,
-  opts?: { entityId?: string; entityKey?: string; setAsDefault?: boolean }
+  isPrivate?: boolean
 ) {
   const form = new FormData();
   form.append('video', file);
   form.append('title', title);
+  form.append('title_b64', utf8ToBase64(title));
   if (groupId) form.append('group_id', groupId);
   if (isPrivate) form.append('is_private', '1');
-  if (opts?.entityId) form.append('entity_id', opts.entityId);
-  if (opts?.entityKey) form.append('entity_key', opts.entityKey);
-  if (opts?.setAsDefault) form.append('set_as_default', '1');
   const token = getToken();
   const headers: Record<string, string> = {};
   if (token) headers['Authorization'] = `Bearer ${token}`;
@@ -516,6 +533,137 @@ export async function fetchWorks(params?: { appCode?: string; intent?: string; s
 
 export async function fetchWork(id: string) {
   return request(`/works/${id}`, { auth: true });
+}
+
+// ===== Mint Studio =====
+export type MintStudioRecipe = {
+  token: {
+    token: string;
+    compact: string;
+    status: string;
+    bound?: boolean;
+  };
+  object: {
+    type: string;
+    id: string;
+    label?: string;
+    displayName: string;
+    themeColor?: string;
+    image?: string | null;
+  };
+  app: {
+    code: string;
+    name: string;
+    appType: 'meaning' | 'behavior' | 'state';
+    interactionType?: string;
+  };
+  recipe: {
+    studioTitle: string;
+    voice: string;
+    introMessages: string[];
+    creationModes: Array<{
+      code: string;
+      label: string;
+      tone?: string;
+      requiresAuth?: boolean;
+      disabled?: boolean;
+      accept?: string;
+    }>;
+    preview?: {
+      kind: string;
+      title?: string;
+      videoId?: string;
+      posterUrl?: string | null;
+      url?: string | null;
+      route?: string;
+    };
+    requirements?: Record<string, unknown>;
+    completionCopy?: string;
+    studioFlow?: {
+      kind: 'guided';
+      submitAction?: string;
+      steps: Array<{
+        id: string;
+        type: 'text' | 'choice';
+        answerKey?: string;
+        prompt: string;
+        placeholder?: string;
+        required?: boolean;
+        optional?: boolean;
+        options?: Array<{
+          id: string;
+          label: string;
+          description?: string;
+          action: string;
+          requiresAuth?: boolean;
+        }>;
+      }>;
+    } | null;
+    permissions?: {
+      actions?: Record<string, {
+        action: string;
+        operation?: string;
+        rule?: string;
+        login: 'never' | 'optional' | 'when_bound' | 'always' | string;
+        token?: string;
+        contentAsset?: string;
+        requiresAuth?: boolean;
+      }>;
+    };
+  };
+  bindings?: {
+    entityId?: string | null;
+    groupId?: string | null;
+    officialDefaultVideoId?: string | null;
+    tokenId?: string | null;
+  };
+  nextRoutes?: Record<string, string>;
+  error?: string;
+  code?: string;
+  hint?: string;
+};
+
+export type MintStudioLibraryItem = {
+  id: string;
+  source: 'work' | 'video' | 'asset' | 'collection' | string;
+  title: string;
+  subtitle?: string;
+  appCode?: string;
+  appName: string;
+  token?: string;
+  tokenCompact?: string;
+  previewRoute?: string;
+  thumb?: string;
+  status?: string;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export async function resolveMintStudio(key: string): Promise<MintStudioRecipe> {
+  const query = new URLSearchParams({ key });
+  return request(`/mint-studio/resolve?${query.toString()}`);
+}
+
+export async function fetchMintStudioLibrary(): Promise<{ items: MintStudioLibraryItem[]; diagnostics?: any }> {
+  return request('/mint-studio/library', { auth: true });
+}
+
+export async function updateMomentByToken(params: {
+  key: string;
+  title: string;
+  subtitle?: string;
+  object_label?: string;
+  event_date?: string;
+  place?: string;
+  cover_url?: string;
+  theme_color?: string;
+  blocks?: ContentCollectionBlockInput[];
+}) {
+  return request('/mint-studio/moment-by-token', {
+    method: 'PUT',
+    auth: isLoggedIn(),
+    jsonBody: params,
+  });
 }
 
 // ===== Travel Trail Application =====
@@ -1338,6 +1486,7 @@ export async function transferEntity(entityId: string, toUsername: string) {
 export async function setEntityDefaultByToken(key: string, videoId: string) {
   return request('/auth/entity-default-by-token', {
     method: 'PUT',
+    auth: isLoggedIn(),
     jsonBody: { key, video_id: videoId },
   });
 }

@@ -6,9 +6,15 @@ import { getDb, saveDb } from '../db/index.js';
 import { getUploadsDir, deleteFile } from '../services/storage.js';
 import { transcodeVideo } from '../services/transcode.js';
 import { deleteFromR2, getR2KeyFromUrl } from '../services/r2.js';
-import { authOptional, authRequired, verifyEntityKey } from '../middleware/auth.js';
+import { verifyEntityKey } from '../middleware/auth.js';
 import { resultToObjects } from '../services/tokens.js';
-import { recordOwnershipEvent } from '../services/ownership.js';
+import { loginRoute, publicRoute, registerRoutes } from '../services/routePermissions.js';
+import {
+  assertVideoViewable,
+  canViewPrivateEntityContent,
+  videoListPrivacyScope,
+} from '../services/objectPermissions.js';
+import { serverMessages } from '../copy/messages.js';
 
 const router = Router();
 
@@ -16,12 +22,13 @@ const router = Router();
 const ALLOWED_MIMETYPES = ['video/mp4', 'video/quicktime', 'video/webm', 'video/x-m4v'];
 const upload = multer({
   dest: path.join(getUploadsDir(), 'temp'),
+  defParamCharset: 'utf8',
   limits: { fileSize: 20 * 1024 * 1024 }, // 20MB max
   fileFilter: (req, file, cb) => {
     if (ALLOWED_MIMETYPES.includes(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(new Error('不支持的视频格式，仅允许 mp4/mov/webm/m4v'));
+      cb(new Error(serverMessages.routes.common.unsupportedVideo));
     }
   },
 });
@@ -51,103 +58,39 @@ async function optionalKeyVerify(req, res, next) {
   next();
 }
 
-function canViewEntityPrivate(req, entityId) {
-  return !!entityId && !!req.user?.id && (req.user.username === 'admin' || req.user.id === req.verifiedEntityOwnerId);
-}
-
 function isTruthy(value) {
   return value === true || value === 'true' || value === '1';
 }
 
-function httpError(status, message) {
-  const error = new Error(message);
-  error.status = status;
-  return error;
-}
-
-function resolveEntityKey(req, db) {
-  const key = req.body.entity_key || req.body.key || req.headers['x-entity-key'] || req.query.key;
-  if (!key) return null;
-  const payload = verifyEntityKey(key, db);
-  if (!payload) throw httpError(400, '无效的实体 token');
-  return payload;
-}
-
-function resolveUploadEntity(req, db) {
-  const payload = resolveEntityKey(req, db);
-  const requestedEntityId = payload?.entity_id || req.body.entity_id || null;
-  const requestedGroupId = req.body.group_id || null;
-
-  if (!requestedEntityId) {
-    return { entity: null, entityId: null, groupId: requestedGroupId };
+function decodeBase64Utf8(value) {
+  if (!value || typeof value !== 'string') return '';
+  try {
+    return Buffer.from(value, 'base64').toString('utf8').trim();
+  } catch {
+    return '';
   }
-
-  const rows = resultToObjects(db.exec(
-    'SELECT id, group_id, user_id, token, entity_key, external_order_no FROM entities WHERE id = ?',
-    [requestedEntityId]
-  ));
-  if (rows.length === 0) throw httpError(400, '实体不存在');
-
-  const entity = rows[0];
-  if (requestedGroupId && entity.group_id && requestedGroupId !== entity.group_id) {
-    throw httpError(400, '实体 token 与选择的 IP 不匹配');
-  }
-
-  if (req.user.username !== 'admin') {
-    if (entity.user_id && entity.user_id !== req.user.id) {
-      throw httpError(403, '无权为该实体管理内容');
-    }
-    if (!entity.user_id && !payload) {
-      throw httpError(403, '未绑定实体需要提供 token 才能上传或绑定内容');
-    }
-  }
-
-  return {
-    entity,
-    entityId: entity.id,
-    groupId: entity.group_id || requestedGroupId,
-  };
 }
 
 // Upload video (requires auth)
-router.post('/upload', authRequired, upload.single('video'), async (req, res) => {
+async function uploadVideoHandler(req, res) {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No video file provided' });
     }
 
-    const db = await getDb();
+    const { db } = req.permission;
     const id = uuidv4();
-    const title = req.body.title || req.file.originalname;
+    const decodedTitle = decodeBase64Utf8(req.body.title_b64);
+    const title = decodedTitle || req.body.title || req.file.originalname;
     const isPrivate = isTruthy(req.body.is_private) ? 1 : 0;
-    const setAsDefault = isTruthy(req.body.set_as_default);
-    const uploadEntity = resolveUploadEntity(req, db);
-    const groupId = uploadEntity.groupId || null;
-    const entityId = uploadEntity.entityId || null;
-
-    if (isPrivate && !entityId) {
-      return res.status(400).json({ error: '私有内容必须绑定到某个实体' });
-    }
+    const groupId = req.body.group_id || null;
 
     db.run(
       `INSERT INTO videos
         (id, title, group_id, original_filename, file_path, status, is_private, entity_id, owner_user_id)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [id, title, groupId, req.file.originalname, '', 'processing', isPrivate, entityId, req.user.id]
+      [id, title, groupId, req.file.originalname, '', 'processing', isPrivate, null, req.user.id]
     );
-
-    if (entityId && setAsDefault) {
-      db.run('DELETE FROM user_defaults WHERE entity_id = ?', [entityId]);
-      db.run('INSERT INTO user_defaults (entity_id, video_id, group_id) VALUES (?, ?, ?)', [entityId, id, groupId]);
-      recordOwnershipEvent(db, {
-        entityId,
-        token: uploadEntity.entity?.token || uploadEntity.entity?.entity_key,
-        eventType: 'content_default_set',
-        actorUserId: req.user.id,
-        orderId: uploadEntity.entity?.external_order_no || null,
-        note: '上传内容并设为实体默认内容',
-      });
-    }
 
     saveDb();
 
@@ -156,18 +99,17 @@ router.post('/upload', authRequired, upload.single('video'), async (req, res) =>
       console.error(`Transcode failed for ${id}:`, err.message);
     });
 
-    res.json({ id, status: 'processing', entity_id: entityId, default_set: !!(entityId && setAsDefault) });
+    res.json({ id, status: 'processing', entity_id: null, default_set: false });
   } catch (err) {
     console.error('Upload error:', err);
     res.status(err.status || 500).json({ error: err.status ? err.message : 'Upload failed' });
   }
-});
+}
 
 // List videos
-router.get('/', authOptional, optionalKeyVerify, async (req, res) => {
+async function listVideosHandler(req, res) {
   const db = await getDb();
   const { group_id, series_id, sort, q, page, limit: limitStr, all, is_private } = req.query;
-  const currentEntityId = req.verifiedEntityId || null;
   const searchQuery = typeof q === 'string' ? q.trim() : '';
 
   const pageNum = Math.max(1, parseInt(page) || 1);
@@ -178,15 +120,9 @@ router.get('/', authOptional, optionalKeyVerify, async (req, res) => {
   const conditions = [];
   const params = [];
   if (!canSeeAllPrivate) {
-    if (currentEntityId && canViewEntityPrivate(req, currentEntityId)) {
-      conditions.push('(v.is_private = 0 OR v.entity_id = ?)');
-      params.push(currentEntityId);
-    } else if (req.user?.id) {
-      conditions.push(`(v.is_private = 0 OR v.entity_id IN (SELECT id FROM entities WHERE user_id = ?))`);
-      params.push(req.user.id);
-    } else {
-      conditions.push('v.is_private = 0');
-    }
+    const scope = videoListPrivacyScope(req, 'v');
+    conditions.push(scope.sql);
+    params.push(...scope.params);
   }
 
   let where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
@@ -241,10 +177,10 @@ router.get('/', authOptional, optionalKeyVerify, async (req, res) => {
   const total = countResults.length > 0 ? countResults[0].values[0][0] : 0;
 
   res.json({ videos, page: pageNum, limit, total, hasMore: offset + videos.length < total });
-});
+}
 
 // Get single video
-router.get('/:id', authOptional, optionalKeyVerify, async (req, res) => {
+async function getVideoHandler(req, res) {
   const db = await getDb();
   const normalizedId = normalizeVideoId(req.params.id);
   const results = db.exec('SELECT * FROM videos WHERE id = ?', [normalizedId]);
@@ -256,19 +192,21 @@ router.get('/:id', authOptional, optionalKeyVerify, async (req, res) => {
 
   const video = videos[0];
 
-  // Private videos require verified key with matching entity_id
-  if (video.is_private === 1) {
-    const ownsPrivate = req.user?.username === 'admin' || (video.entity_id && req.user?.id && resultToObjects(db.exec('SELECT id FROM entities WHERE id = ? AND user_id = ?', [video.entity_id, req.user.id])).length > 0);
-    if (!ownsPrivate) {
-      return res.status(403).json({ error: '私有内容需要登录绑定账号后才能查看' });
-    }
+  try {
+    assertVideoViewable(video, req);
+  } catch (error) {
+    return res.status(error.status || 403).json({
+      error: error.message,
+      code: error.code,
+      operation: error.operation,
+    });
   }
 
   res.json(video);
-});
+}
 
 // Get sibling videos in the same group (for swipe feed)
-router.get('/:id/siblings', authOptional, optionalKeyVerify, async (req, res) => {
+async function getSiblingVideosHandler(req, res) {
   const db = await getDb();
   const results = db.exec('SELECT group_id FROM videos WHERE id = ?', [req.params.id]);
   const current = resultToObjects(results);
@@ -281,44 +219,24 @@ router.get('/:id/siblings', authOptional, optionalKeyVerify, async (req, res) =>
     return res.json([]);
   }
 
-  // Only show private videos if key is verified and entity matches
-  const verifiedEntityId = req.verifiedEntityId || null;
-  const includeTokenPrivate = verifiedEntityId && canViewEntityPrivate(req, verifiedEntityId);
-  const privacyCondition = includeTokenPrivate
-    ? '(is_private = 0 OR entity_id = ?)'
-    : req.user?.id
-      ? '(is_private = 0 OR entity_id IN (SELECT id FROM entities WHERE user_id = ?))'
-      : 'is_private = 0';
-  const siblingParams = includeTokenPrivate
-    ? [groupId, 'ready', req.params.id, verifiedEntityId]
-    : req.user?.id
-      ? [groupId, 'ready', req.params.id, req.user.id]
-      : [groupId, 'ready', req.params.id];
+  const scope = videoListPrivacyScope(req);
+  const privacyCondition = scope.sql;
+  const siblingParams = [groupId, 'ready', req.params.id, ...scope.params];
 
   const siblings = db.exec(
     `SELECT id, title, file_path, poster_url, duration FROM videos WHERE group_id = ? AND status = ? AND id != ? AND ${privacyCondition} ORDER BY created_at DESC`,
     siblingParams
   );
   res.json(resultToObjects(siblings));
-});
+}
 
-// Delete video (requires auth)
-router.delete('/:id', authRequired, async (req, res) => {
-  const db = await getDb();
+// Delete video (requires content ownership)
+async function deleteVideoHandler(req, res) {
+  const { db } = req.permission;
   const results = db.exec('SELECT file_path, poster_url, entity_id, owner_user_id FROM videos WHERE id = ?', [req.params.id]);
   const videos = resultToObjects(results);
 
   if (videos.length > 0) {
-    const video = videos[0];
-    if (req.user.username !== 'admin' && video.owner_user_id !== req.user.id) {
-      const owners = video.entity_id
-        ? resultToObjects(db.exec('SELECT id FROM entities WHERE id = ? AND user_id = ?', [video.entity_id, req.user.id]))
-        : [];
-      if (owners.length === 0) {
-        return res.status(403).json({ error: '无权删除该内容' });
-      }
-    }
-
     const { file_path: filePath, poster_url: posterUrl } = videos[0];
     await removeStoredAsset(filePath);
     await removeStoredAsset(posterUrl);
@@ -327,20 +245,25 @@ router.delete('/:id', authRequired, async (req, res) => {
   db.run('DELETE FROM videos WHERE id = ?', [req.params.id]);
   saveDb();
   res.json({ success: true });
-});
+}
 
 // Resolve playback by entity key
 // Default video priority: user_defaults > official_default > latest in group
-router.post('/resolve', authOptional, async (req, res) => {
+async function resolvePlaybackHandler(req, res) {
   const { key } = req.body;
   if (!key) return res.status(400).json({ error: 'key is required' });
 
   const db = await getDb();
   const payload = verifyEntityKey(key, db);
-  if (!payload) return res.status(400).json({ error: '无效的 key' });
+  if (!payload) return res.status(400).json({ error: serverMessages.routes.common.invalidKey });
 
   const { user_id, group_id, entity_id } = payload;
-  const canViewPrivate = !!user_id && !!req.user?.id && (req.user.username === 'admin' || req.user.id === user_id);
+  const tokenViewReq = {
+    ...req,
+    verifiedEntityId: entity_id,
+    verifiedEntityOwnerId: user_id || null,
+  };
+  const canViewPrivate = canViewPrivateEntityContent(tokenViewReq, entity_id, user_id || null);
 
   // 1. Check user custom default
   const userDefaultResults = db.exec(
@@ -377,11 +300,11 @@ router.post('/resolve', authOptional, async (req, res) => {
 
   const videos = resultToObjects(results);
   if (videos.length === 0) {
-    return res.status(404).json({ error: '暂无可播放内容' });
+    return res.status(404).json({ error: serverMessages.routes.common.noPlayableContent });
   }
 
   res.json({ videos, group, entity_id, user_id, default_video_id: defaultVideoId });
-});
+}
 
 // Helper: convert sql.js result to array of objects
 async function removeStoredAsset(assetPath) {
@@ -399,5 +322,19 @@ async function removeStoredAsset(assetPath) {
     deleteFile(localFilePath);
   }
 }
+
+registerRoutes(router, [
+  publicRoute('get', '/', listVideosHandler, [optionalKeyVerify]),
+  publicRoute('get', '/:id/siblings', getSiblingVideosHandler, [optionalKeyVerify]),
+  publicRoute('get', '/:id', getVideoHandler, [optionalKeyVerify]),
+  publicRoute('post', '/resolve', resolvePlaybackHandler),
+  loginRoute('post', '/upload', uploadVideoHandler, [upload.single('video')]),
+  {
+    method: 'delete',
+    path: '/:id',
+    permission: 'content_owner',
+    handler: deleteVideoHandler,
+  },
+]);
 
 export default router;

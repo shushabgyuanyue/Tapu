@@ -4,6 +4,7 @@ import { useRoute } from 'vue-router';
 import { resolveDailySticker } from '../api';
 import ContentRenderer from '../components/content/ContentRenderer.vue';
 import type { ContentBlock } from '../components/content/types';
+import { appCopy } from '../copy';
 
 const route = useRoute();
 const loading = ref(true);
@@ -20,8 +21,8 @@ const tapContent = computed(() => data.value?.content || null);
 const assets = computed(() => Array.isArray(entry.value?.assets) ? entry.value.assets : []);
 const imageAssets = computed(() => assets.value.filter((asset: any) => ['image', 'illustration'].includes(asset.asset_type)));
 const themeColor = computed(() => tapContent.value?.themeColor || world.value.theme_color || persona.value.theme_color || '#ff4fd8');
-const objectTitle = computed(() => tapContent.value?.title || world.value.name || persona.value.name || '一枚日常贴纸');
-const objectTagline = computed(() => tapContent.value?.subtitle || world.value.premise || persona.value.tagline || '碰一下，回到这个物品的小世界。');
+const objectTitle = computed(() => tapContent.value?.title || world.value.name || persona.value.name || appCopy.dailySticker.fallbackTitle);
+const objectTagline = computed(() => tapContent.value?.subtitle || world.value.premise || persona.value.tagline || appCopy.dailySticker.fallbackTagline);
 const contentBlocks = computed<ContentBlock[]>(() => {
   if (Array.isArray(tapContent.value?.blocks) && tapContent.value.blocks.length > 0) {
     return tapContent.value.blocks;
@@ -56,19 +57,11 @@ const contentBlocks = computed<ContentBlock[]>(() => {
 });
 const modalityLabel = computed(() => {
   const modality = entry.value?.primary_modality || (assets.value[0]?.asset_type ?? 'text');
-  const labels: Record<string, string> = {
-    text: '文字',
-    audio: '语音',
-    animation: '动画',
-    video: '动画',
-    image: '图像',
-    mixed: '混合',
-  };
-  return labels[modality] || modality;
+  return appCopy.dailySticker.modalityLabels[modality] || modality;
 });
 const dateText = computed(() => {
   const date = entry.value?.entry_date || data.value?.requested_date;
-  if (!date) return '今日';
+  if (!date) return appCopy.dailySticker.today;
   return new Date(`${date}T00:00:00`).toLocaleDateString('zh-CN', {
     month: 'long',
     day: 'numeric',
@@ -103,7 +96,7 @@ const load = async (options: { silent?: boolean } = {}) => {
   if (!options.silent) loading.value = true;
   error.value = '';
   if (!token.value) {
-    error.value = '缺少贴纸链接，请确认 NFC 写入地址是否完整。';
+    error.value = appCopy.dailySticker.missingToken;
     if (!options.silent) loading.value = false;
     return;
   }
@@ -137,17 +130,17 @@ watch(() => route.fullPath, () => {
     <div class="orb orb-b"></div>
 
     <section class="sticker-shell">
-      <p class="brand">WhatMint Daily Sticker</p>
+      <p class="brand">{{ appCopy.dailySticker.mark }}</p>
 
       <div v-if="loading" class="state-card">
         <span class="pulse"></span>
-        <h1>正在推开这扇门</h1>
-        <p>这个小世界在整理今天想让你看见的片段。</p>
+        <h1>{{ appCopy.dailySticker.loading.title }}</h1>
+        <p>{{ appCopy.dailySticker.loading.body }}</p>
       </div>
 
       <div v-else-if="error" class="state-card">
         <span class="sad">?</span>
-        <h1>这枚贴纸暂时没说上话</h1>
+        <h1>{{ appCopy.dailySticker.error.title }}</h1>
         <p>{{ error }}</p>
       </div>
 
@@ -158,7 +151,7 @@ watch(() => route.fullPath, () => {
             <h1>{{ objectTitle }}</h1>
             <p>{{ objectTagline }}</p>
           </div>
-          <div class="object-chip">{{ persona.object_type || '物品人格' }}</div>
+          <div class="object-chip">{{ persona.object_type || appCopy.dailySticker.objectPersonality }}</div>
         </div>
 
         <p v-if="storyArc?.title" class="arc-line">
@@ -166,7 +159,7 @@ watch(() => route.fullPath, () => {
         </p>
 
         <div v-if="persona.cover_url || entry?.image_url || imageAssets.length" class="cover-wrap">
-          <img :src="imageAssets[0]?.url || entry?.image_url || persona.cover_url" :alt="imageAssets[0]?.alt_text || '贴纸内容配图'" />
+          <img :src="imageAssets[0]?.url || entry?.image_url || persona.cover_url" :alt="imageAssets[0]?.alt_text || appCopy.dailySticker.coverAlt" />
         </div>
 
         <div v-if="entry" class="story-card" :class="`motion-${entry.motion_preset || 'float'}`">
@@ -178,14 +171,12 @@ watch(() => route.fullPath, () => {
         </div>
 
         <div v-else class="story-card">
-          <p class="voice">这个物品还在等第一段故事。</p>
-          <p class="body">官方内容配置后，同一小世界的贴纸会按节奏看到连续内容。</p>
+          <p class="voice">{{ appCopy.dailySticker.emptyStory.voice }}</p>
+          <p class="body">{{ appCopy.dailySticker.emptyStory.body }}</p>
         </div>
 
         <footer>
-          <span>不需要 App</span>
-          <span>不需要登录</span>
-          <span>慢慢讲完一个小世界</span>
+          <span v-for="item in appCopy.dailySticker.footer" :key="item">{{ item }}</span>
         </footer>
       </article>
     </section>

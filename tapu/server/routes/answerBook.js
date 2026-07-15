@@ -1,20 +1,15 @@
 import { Router } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { getDb, saveDb } from '../db/index.js';
-import { authRequired } from '../middleware/auth.js';
+import { adminRoute, registerRoutes } from '../services/routePermissions.js';
 import { createUniqueToken, normalizeEntityToken, resultToObjects } from '../services/tokens.js';
 import { recordObjectEvent } from '../services/objectEvents.js';
 import { resolveObjectByToken } from '../services/objectRegistry.js';
 import { buildContentBlocksForAnswerCard, buildTapResponse } from '../services/tapRuntime.js';
+import { serverMessages } from '../copy/messages.js';
 
 const router = Router();
 
-function adminOnly(req, res, next) {
-  if (req.user.username !== 'admin') {
-    return res.status(403).json({ error: '仅管理员可操作' });
-  }
-  next();
-}
 
 function cleanString(value) {
   return typeof value === 'string' ? value.trim() : '';
@@ -70,13 +65,13 @@ router.get('/resolve', async (req, res) => {
     const db = await getDb();
     const resolvedObject = resolveObjectByToken(db, req.query.key);
     const tokenRow = resolvedObject?.raw;
-    if (!tokenRow) return res.status(400).json({ error: '缺少或无效的答案之书 token' });
+    if (!tokenRow) return res.status(400).json({ error: serverMessages.routes.answerBook.invalidToken });
     if (tokenRow.status !== 'active' || tokenRow.deck_status !== 'active') {
-      return res.status(404).json({ error: '这本答案之书暂时没有回应' });
+      return res.status(404).json({ error: serverMessages.routes.answerBook.inactive });
     }
 
     const card = chooseCard(db, tokenRow.deck_id, cleanString(req.query.exclude));
-    if (!card) return res.status(404).json({ error: '这个牌组还没有可用答案' });
+    if (!card) return res.status(404).json({ error: serverMessages.routes.answerBook.emptyDeck });
 
     recordDraw(db, tokenRow, card, req);
     recordObjectEvent(db, {
@@ -107,8 +102,8 @@ router.get('/resolve', async (req, res) => {
         blocks: buildContentBlocksForAnswerCard(card),
       },
       actions: [
-        { code: 'draw_again', label: '再问一次' },
-        { code: 'copy_answer', label: '复制答案' },
+        { code: 'draw_again', label: serverMessages.routes.answerBook.drawAgain },
+        { code: 'copy_answer', label: serverMessages.routes.answerBook.copyAnswer },
       ],
       permissions: {
         anonymousTap: true,
@@ -139,7 +134,7 @@ router.get('/resolve', async (req, res) => {
   }
 });
 
-router.get('/decks', authRequired, adminOnly, async (_req, res) => {
+async function listDecks(_req, res) {
   try {
     const db = await getDb();
     const rows = resultToObjects(db.exec(
@@ -157,9 +152,9 @@ router.get('/decks', authRequired, adminOnly, async (_req, res) => {
     console.error('List answer book decks error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+}
 
-router.post('/decks', authRequired, adminOnly, async (req, res) => {
+async function createDeck(req, res) {
   try {
     const name = cleanString(req.body.name);
     if (!name) return res.status(400).json({ error: '请填写牌组名称' });
@@ -186,9 +181,9 @@ router.post('/decks', authRequired, adminOnly, async (req, res) => {
     console.error('Create answer book deck error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+}
 
-router.put('/decks/:id', authRequired, adminOnly, async (req, res) => {
+async function updateDeck(req, res) {
   try {
     const name = cleanString(req.body.name);
     if (!name) return res.status(400).json({ error: '请填写牌组名称' });
@@ -214,9 +209,9 @@ router.put('/decks/:id', authRequired, adminOnly, async (req, res) => {
     console.error('Update answer book deck error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+}
 
-router.get('/cards', authRequired, adminOnly, async (req, res) => {
+async function listCards(req, res) {
   try {
     const db = await getDb();
     const deckId = cleanString(req.query.deck_id);
@@ -236,9 +231,9 @@ router.get('/cards', authRequired, adminOnly, async (req, res) => {
     console.error('List answer book cards error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+}
 
-router.post('/cards', authRequired, adminOnly, async (req, res) => {
+async function createCard(req, res) {
   try {
     const deckId = cleanString(req.body.deck_id);
     const answer = cleanString(req.body.answer);
@@ -269,9 +264,9 @@ router.post('/cards', authRequired, adminOnly, async (req, res) => {
     console.error('Create answer book card error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+}
 
-router.put('/cards/:id', authRequired, adminOnly, async (req, res) => {
+async function updateCard(req, res) {
   try {
     const deckId = cleanString(req.body.deck_id);
     const answer = cleanString(req.body.answer);
@@ -299,9 +294,9 @@ router.put('/cards/:id', authRequired, adminOnly, async (req, res) => {
     console.error('Update answer book card error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+}
 
-router.delete('/cards/:id', authRequired, adminOnly, async (req, res) => {
+async function deleteCard(req, res) {
   try {
     const db = await getDb();
     db.run('DELETE FROM answer_book_cards WHERE id = ?', [req.params.id]);
@@ -311,9 +306,9 @@ router.delete('/cards/:id', authRequired, adminOnly, async (req, res) => {
     console.error('Delete answer book card error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+}
 
-router.get('/tokens', authRequired, adminOnly, async (req, res) => {
+async function listTokens(req, res) {
   try {
     const db = await getDb();
     const page = parsePositiveInt(req.query.page, 1);
@@ -344,9 +339,9 @@ router.get('/tokens', authRequired, adminOnly, async (req, res) => {
     console.error('List answer book tokens error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+}
 
-router.post('/tokens', authRequired, adminOnly, async (req, res) => {
+async function createTokens(req, res) {
   try {
     const deckId = cleanString(req.body.deck_id);
     if (!deckId) return res.status(400).json({ error: '请选择牌组' });
@@ -381,9 +376,9 @@ router.post('/tokens', authRequired, adminOnly, async (req, res) => {
     console.error('Create answer book token error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+}
 
-router.delete('/tokens/:id', authRequired, adminOnly, async (req, res) => {
+async function deleteToken(req, res) {
   try {
     const db = await getDb();
     db.run('DELETE FROM answer_book_tokens WHERE id = ?', [req.params.id]);
@@ -393,6 +388,19 @@ router.delete('/tokens/:id', authRequired, adminOnly, async (req, res) => {
     console.error('Delete answer book token error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+}
+
+registerRoutes(router, [
+  adminRoute('get', '/decks', listDecks),
+  adminRoute('post', '/decks', createDeck),
+  adminRoute('put', '/decks/:id', updateDeck),
+  adminRoute('get', '/cards', listCards),
+  adminRoute('post', '/cards', createCard),
+  adminRoute('put', '/cards/:id', updateCard),
+  adminRoute('delete', '/cards/:id', deleteCard),
+  adminRoute('get', '/tokens', listTokens),
+  adminRoute('post', '/tokens', createTokens),
+  adminRoute('delete', '/tokens/:id', deleteToken),
+]);
 
 export default router;

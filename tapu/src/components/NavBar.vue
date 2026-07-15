@@ -2,6 +2,7 @@
 import { onMounted, onUnmounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { clearToken, getConfig, getProfile, isLoggedIn } from '../api';
+import { commonCopy } from '../copy';
 import LoginModal from './LoginModal.vue';
 
 const router = useRouter();
@@ -82,31 +83,31 @@ defineExpose({ openLogin });
 <template>
   <header class="navbar">
     <div class="navbar-inner">
-      <router-link to="/" class="navbar-brand">whatmint</router-link>
+      <router-link to="/" class="navbar-brand">{{ commonCopy.brand }}</router-link>
 
       <nav class="navbar-links">
-        <router-link to="/shop" class="nav-link" title="商城">
+        <router-link to="/shop" class="nav-link" :title="commonCopy.nav.shop">
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
-          <span class="nav-label">商城</span>
+          <span class="nav-label">{{ commonCopy.nav.shop }}</span>
         </router-link>
 
-        <router-link v-if="communityEnabled" to="/community" class="nav-link" title="社区">
+        <router-link v-if="communityEnabled" to="/community" class="nav-link" :title="commonCopy.nav.community">
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21l1.9-5.7a8.5 8.5 0 1 1 3.8 3.8z"/></svg>
-          <span class="nav-label">社区</span>
+          <span class="nav-label">{{ commonCopy.nav.community }}</span>
         </router-link>
 
-        <router-link v-if="wishlistEnabled" to="/wishlist" class="nav-link" title="心愿单">
+        <router-link v-if="wishlistEnabled" to="/wishlist" class="nav-link" :title="commonCopy.nav.wishlist">
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>
-          <span class="nav-label">心愿单</span>
+          <span class="nav-label">{{ commonCopy.nav.wishlist }}</span>
         </router-link>
 
-        <router-link to="/admin" class="nav-link nav-link--creator" title="创作者">
-          <span class="nav-label">创作者</span>
+        <router-link to="/mint" class="nav-link nav-link--creator" title="Mint Studio">
+          <span class="nav-label">Mint Studio</span>
         </router-link>
 
-        <router-link v-if="username === 'admin'" to="/official" class="nav-link nav-link--official" title="官方管理">
+        <router-link v-if="username === 'admin'" to="/official" class="nav-link nav-link--official" :title="commonCopy.nav.officialTitle">
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
-          <span class="nav-label">官方</span>
+          <span class="nav-label">{{ commonCopy.nav.official }}</span>
         </router-link>
       </nav>
 
@@ -119,15 +120,15 @@ defineExpose({ openLogin });
           <Transition name="dropdown">
             <div v-if="showDropdown" class="nav-dropdown">
               <div class="dropdown-user">{{ username }}</div>
-              <router-link to="/assets" class="dropdown-item" @click="showDropdown = false">我的资产</router-link>
-              <router-link to="/appeals" class="dropdown-item" @click="showDropdown = false">解绑申诉</router-link>
-              <router-link to="/account" class="dropdown-item" @click="showDropdown = false">账户设置</router-link>
-              <button class="dropdown-item dropdown-item--danger" @click="logout">退出登录</button>
+              <router-link to="/assets" class="dropdown-item" @click="showDropdown = false">{{ commonCopy.nav.assets }}</router-link>
+              <router-link to="/appeals" class="dropdown-item" @click="showDropdown = false">{{ commonCopy.nav.appeals }}</router-link>
+              <router-link to="/account" class="dropdown-item" @click="showDropdown = false">{{ commonCopy.nav.account }}</router-link>
+              <button class="dropdown-item dropdown-item--danger" @click="logout">{{ commonCopy.nav.logout }}</button>
             </div>
           </Transition>
         </div>
 
-        <button v-else class="nav-login-btn" @click="openLogin">登录</button>
+        <button v-else class="nav-login-btn" @click="openLogin">{{ commonCopy.nav.login }}</button>
       </div>
     </div>
   </header>

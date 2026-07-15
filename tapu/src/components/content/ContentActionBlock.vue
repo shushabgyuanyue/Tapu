@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { ContentBlock } from './types';
+import { contentCopy } from '../../copy';
 
 defineProps<{
   block: ContentBlock;
@@ -8,7 +9,7 @@ defineProps<{
 
 <template>
   <section class="content-action">
-    <span>{{ block.title || '小动作' }}</span>
+    <span>{{ block.title || contentCopy.blocks.actionTitle }}</span>
     <strong>{{ block.action || block.body }}</strong>
   </section>
 </template>

@@ -90,3 +90,21 @@ entrypoint: tapu/src/main.ts
 - post-mortem:
   - 私有内容与“碰一下直接播放”存在产品口径张力：当前规则是公开内容可匿名播放，私有内容必须登录持有人账号。后续若希望实体 token 本身授权播放私有内容，需要重新评估隐私风险和分享边界。
   - `AssetsPage.vue`、`DailyStickerManage.vue`、`IPDetailPage.vue` 仍超过 500 行；本轮只做低风险高收益修复，下一轮可优先拆组件。
+
+## 2026-07-16 Codex Increment 4
+
+- domain: frontend, backend, mint-studio, permissions, copy-i18n
+- ref: 0c7a205
+- branch_context: tapu-master direct closeout; no separate evo branch was active when this loop was handed off.
+- todo:
+  - [x] 将非官方管理端前端用户可见文案按产品域抽到 `tapu/src/copy/*`，覆盖首页、商城、社区、内容消费、轻应用、创作中心、用户中心和法律页。
+  - [x] 将后端用户可见权限/接口错误与 Mint Studio 引导模板抽到 `tapu/server/copy/*`，降低后续国际化和话术调优成本。
+  - [x] 保留资源文件名、业务识别关键词、后台管理校验和 seed 内容，不把非展示内容误抽成 UI 文案。
+  - [x] 承接前序未提交冲刺内容，确保权限 OS、Mint Studio、轻应用和内容资产链路随本轮一起闭环。
+- evidence:
+  - `npm run build`
+  - `node --check` for changed server copy, middleware, services and route files.
+  - `rg -n "[\\p{Han}]" tapu/src/views tapu/src/components -g '!**/admin/**' -g '!**/official/**' -g '!**/copy/**'` only leaves resource names, business matching keywords, skip words and admin pagination.
+- post-mortem:
+  - 本轮接手时已有多轮未提交改动，且当前分支已经在 `tapu-master`；本次选择完整收口提交，避免只提交 copy 抽取造成前后端状态割裂。
+  - 后续应尽量恢复 `evo/<task>` 分支 + `.ledger` TODO 先行，减少主线直接积累大批未提交改动的风险。

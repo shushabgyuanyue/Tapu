@@ -6,6 +6,7 @@ import NavBar from '../components/NavBar.vue';
 import VideoCard from '../components/VideoCard.vue';
 import RemixModal from '../components/RemixModal.vue';
 import InfiniteScrollTrigger from '../components/InfiniteScrollTrigger.vue';
+import { communityCopy } from '../copy';
 
 const router = useRouter();
 const toast = inject<{ show: (text: string) => void }>('toast');
@@ -151,12 +152,12 @@ const goPlay = (id: string) => { router.push(`/play/${id}`); };
 const handleLike = async (e: Event, videoId: string) => {
   e.stopPropagation();
   if (!isLoggedIn()) {
-    toast?.show('请先登录再点赞');
+    toast?.show(communityCopy.feed.toasts.likeLogin);
     return;
   }
   const result = await interact(videoId, 'like');
   if (result?.requires_login) {
-    toast?.show(result.error || '请先登录再点赞');
+    toast?.show(result.error || communityCopy.feed.toasts.likeLogin);
     return;
   }
   if (result?.liked) likedIds.value.add(videoId);
@@ -167,12 +168,12 @@ const handleLike = async (e: Event, videoId: string) => {
 const handleFavorite = async (e: Event, videoId: string) => {
   e.stopPropagation();
   if (!isLoggedIn()) {
-    toast?.show('请先登录再喜欢');
+    toast?.show(communityCopy.feed.toasts.favoriteLogin);
     return;
   }
   const result = await interact(videoId, 'favorite');
   if (result?.requires_login) {
-    toast?.show(result.error || '请先登录再喜欢');
+    toast?.show(result.error || communityCopy.feed.toasts.favoriteLogin);
     return;
   }
   if (result?.favorited) favoritedIds.value.add(videoId);
@@ -202,8 +203,8 @@ const handleWishlist = async (e: Event, groupId: string, videoId?: string) => {
   wishlistCounts.value[groupId] = result?.count || 0;
   const group = groups.value.find(g => g.id === groupId);
   toast?.show(result?.added === false
-    ? `「${group?.name || 'IP'}」已在心愿单，当前 ${result?.count || 0} 人已加入`
-    : `已将「${group?.name || 'IP'}」加入心愿单，当前 ${result?.count || 0} 人已加入`);
+    ? communityCopy.feed.toasts.wishlistExists(group?.name || communityCopy.feed.fallbackIp, result?.count || 0)
+    : communityCopy.feed.toasts.wishlistAdded(group?.name || communityCopy.feed.fallbackIp, result?.count || 0));
 };
 
 const loadWishlistStatus = async () => {
@@ -240,34 +241,34 @@ onMounted(async () => {
       <div class="pull-spinner" :class="{ refreshing: isRefreshing }">
         <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.219-8.56"/><polyline points="21 3 21 9 15 9"/></svg>
       </div>
-      <span v-if="pullDistance > 50">释放刷新</span>
-      <span v-else>下拉刷新</span>
+      <span v-if="pullDistance > 50">{{ communityCopy.feed.pull.release }}</span>
+      <span v-else>{{ communityCopy.feed.pull.pull }}</span>
     </div>
 
     <!-- Search + Sort bar -->
     <div class="c-toolbar">
       <div class="c-search">
         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
-        <input v-model="searchQuery" @input="onSearchInput" placeholder="搜索内容..." class="c-search-input" />
+        <input v-model="searchQuery" @input="onSearchInput" :placeholder="communityCopy.feed.searchPlaceholder" class="c-search-input" />
       </div>
       <div class="c-sort-tabs">
-        <button :class="{ active: activeSort === 'latest' }" @click="switchSort('latest')">最新</button>
-        <button :class="{ active: activeSort === 'hot' }" @click="switchSort('hot')">热门</button>
+        <button :class="{ active: activeSort === 'latest' }" @click="switchSort('latest')">{{ communityCopy.feed.sort.latest }}</button>
+        <button :class="{ active: activeSort === 'hot' }" @click="switchSort('hot')">{{ communityCopy.feed.sort.hot }}</button>
       </div>
     </div>
 
     <!-- Series filter -->
     <div class="c-filters">
-      <button class="filter-chip filter-chip--series" :class="{ active: activeSeries === '' }" @click="switchSeries('')">全部系列</button>
+      <button class="filter-chip filter-chip--series" :class="{ active: activeSeries === '' }" @click="switchSeries('')">{{ communityCopy.feed.filters.allSeries }}</button>
       <button v-for="s in seriesList" :key="s.id" class="filter-chip filter-chip--series" :class="{ active: activeSeries === s.id }" @click="switchSeries(s.id)">{{ s.name }}</button>
     </div>
 
     <!-- IP filter -->
     <div class="c-filters c-filters--ip" v-if="groups.length > 0">
-      <button class="filter-chip" :class="{ active: activeGroup === '' }" @click="switchGroup('')">全部IP</button>
+      <button class="filter-chip" :class="{ active: activeGroup === '' }" @click="switchGroup('')">{{ communityCopy.feed.filters.allIp }}</button>
       <span v-for="g in groups" :key="g.id" class="filter-chip-wrap">
         <button class="filter-chip" :class="{ active: activeGroup === g.id }" @click="switchGroup(g.id)">{{ g.name }}</button>
-        <router-link :to="`/community/ip/${g.id}`" class="chip-detail-link" title="查看详情">→</router-link>
+        <router-link :to="`/community/ip/${g.id}`" class="chip-detail-link" :title="communityCopy.feed.filters.detailTitle">→</router-link>
       </span>
     </div>
 
@@ -284,20 +285,20 @@ onMounted(async () => {
       v-if="!loading && readyVideos.length > 0"
       :loading="loadingMore"
       :has-more="hasMore"
-      finished-text="没有更多了"
+      :finished-text="communityCopy.feed.infiniteFinished"
       @load-more="loadMore"
     />
 
     <!-- Empty -->
     <div class="c-empty" v-if="!loading && readyVideos.length === 0">
       <template v-if="activeSeries || activeGroup">
-        <p class="empty-icon">🎬</p>
-        <p>还未发售，期待一下</p>
+        <p class="empty-icon">{{ communityCopy.feed.empty.filteredIcon }}</p>
+        <p>{{ communityCopy.feed.empty.filtered }}</p>
       </template>
       <template v-else>
-        <p class="empty-icon">🐶</p>
-        <p>还没有内容，小狗们正在路上...</p>
-        <router-link to="/admin" class="empty-cta">去上传第一个作品</router-link>
+        <p class="empty-icon">{{ communityCopy.feed.empty.allIcon }}</p>
+        <p>{{ communityCopy.feed.empty.all }}</p>
+        <router-link to="/admin" class="empty-cta">{{ communityCopy.feed.empty.action }}</router-link>
       </template>
     </div>
 
@@ -312,8 +313,8 @@ onMounted(async () => {
     </Teleport>
 
     <footer class="c-footer">
-      <span class="c-footer-brand">whatmint</span>
-      <span>碰一下，感受到了吗</span>
+      <span class="c-footer-brand">{{ communityCopy.feed.footer.brand }}</span>
+      <span>{{ communityCopy.feed.footer.line }}</span>
     </footer>
   </div>
 </template>

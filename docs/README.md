@@ -10,6 +10,7 @@
 - [content-container-architecture.md](content-container-architecture.md)：内容容器架构和后续兼容攻坚边界。
 - [content-collection-app-binding.md](content-collection-app-binding.md)：内容集合和应用绑定的最小协议。
 - [whatmint-os-abstraction.md](whatmint-os-abstraction.md)：物体身份、触碰运行时、内容协议和统一事件账本的 OS 抽象雏形。
+- [route-permission-principles.md](route-permission-principles.md)：后端接口权限分配原则、权限类型和新增接口检查清单。
 - [object-event-taxonomy.md](object-event-taxonomy.md)：跨应用物体事件的命名规范和当前事件映射。
 - [../SPEC.md](../SPEC.md)：产品北极星。
 - [../DOMAINS.md](../DOMAINS.md)：模块分工和代码入口。
@@ -24,6 +25,7 @@
 - `content-container-architecture.md`：统一内容容器的架构边界。
 - `content-collection-app-binding.md`：内容创作中心与轻应用运行时之间的绑定协议。
 - `whatmint-os-abstraction.md`：轻应用共性抽象和平台能力沉淀边界。
+- `route-permission-principles.md`：新增后端接口时如何选择 `public`、`login_required`、`admin_required`、`token_unbound_or_owner`、`entity_owner` 等权限类型。
 - `object-event-taxonomy.md`：`object_events` 的事件命名、metadata 建议和不做事项。
 - `discussions/`：产品 / ADR 讨论沉淀。
 - `archo-evo/review/`：项目域复盘运行产物。

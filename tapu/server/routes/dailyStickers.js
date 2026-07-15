@@ -1,22 +1,18 @@
 import { Router } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { getDb, saveDb } from '../db/index.js';
-import { authRequired } from '../middleware/auth.js';
 import { createUniqueToken, normalizeEntityToken, resultToObjects } from '../services/tokens.js';
+import { serverMessages } from '../copy/messages.js';
 import { recordObjectEvent } from '../services/objectEvents.js';
 import { resolveObjectByToken } from '../services/objectRegistry.js';
 import { buildContentBlocksForDailyStickerEntry, buildTapResponse } from '../services/tapRuntime.js';
+import { adminRoute, loginRoute, registerRoutes } from '../services/routePermissions.js';
 
 const router = Router();
+
 const DEFAULT_DAILY_STICKER_RELEASE_CRON = '*/1 * * * *';
 const DEFAULT_DAILY_STICKER_RELEASE_TIMEZONE = 'Asia/Shanghai';
 
-function adminOnly(req, res, next) {
-  if (req.user.username !== 'admin') {
-    return res.status(403).json({ error: '仅管理员可操作' });
-  }
-  next();
-}
 
 function parsePositiveInt(value, fallback) {
   const num = Number.parseInt(value, 10);
@@ -332,18 +328,6 @@ function getEntryForToken(db, tokenRow, releaseContext, queryDay, storyArc) {
   return getEntryForDate(db, tokenRow.persona_id, entryDate);
 }
 
-function getDailyStickerTokenByValue(db, rawToken) {
-  const token = normalizeEntityToken(rawToken);
-  if (!token) return null;
-  return resultToObjects(db.exec(
-    `SELECT t.*, p.name as persona_name, p.status as persona_status
-     FROM daily_sticker_tokens t
-     JOIN daily_sticker_personas p ON p.id = t.persona_id
-     WHERE t.token = ? LIMIT 1`,
-    [token]
-  ))[0] || null;
-}
-
 function recordDailyStickerOwnershipEvent(db, params) {
   db.run(
     `INSERT INTO daily_sticker_ownership_events
@@ -418,12 +402,12 @@ router.get('/resolve', async (req, res) => {
     const db = await getDb();
     const resolvedObject = resolveObjectByToken(db, req.query.key);
     if (!resolvedObject || resolvedObject.app.code !== 'daily-sticker') {
-      return res.status(400).json({ error: '缺少贴纸 token' });
+      return res.status(400).json({ error: serverMessages.routes.dailySticker.tokenRequired });
     }
     const tokenRow = resolvedObject.raw;
 
     if (!tokenRow || tokenRow.status !== 'active' || tokenRow.persona_status !== 'active') {
-      return res.status(404).json({ error: '贴纸不存在或未启用' });
+      return res.status(404).json({ error: serverMessages.routes.dailySticker.inactive });
     }
 
     const persona = getPersona(db, tokenRow.persona_id);
@@ -470,13 +454,13 @@ router.get('/resolve', async (req, res) => {
       object: resolvedObject.object,
       app: resolvedObject.app,
       content: {
-        title: world?.name || persona?.name || tokenRow.label || '日常贴纸',
+        title: world?.name || persona?.name || tokenRow.label || serverMessages.routes.dailySticker.fallbackTitle,
         subtitle: world?.premise || persona?.tagline || null,
         themeColor: world?.theme_color || persona?.theme_color || '#ff4fd8',
         blocks: buildContentBlocksForDailyStickerEntry({ entry, assets, persona }),
       },
       actions: [
-        { code: 'refresh_story', label: '看看现在' },
+        { code: 'refresh_story', label: serverMessages.routes.dailySticker.refresh },
       ],
       permissions: {
         anonymousTap: true,
@@ -509,7 +493,7 @@ router.get('/resolve', async (req, res) => {
   }
 });
 
-router.get('/my-assets', authRequired, async (req, res) => {
+async function listMyStickerAssets(req, res) {
   try {
     const db = await getDb();
     const rows = resultToObjects(db.exec(
@@ -529,18 +513,17 @@ router.get('/my-assets', authRequired, async (req, res) => {
     console.error('List my daily sticker assets error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+}
 
-router.post('/bind-token', authRequired, async (req, res) => {
+async function bindDailyStickerTokenHandler(req, res) {
   try {
-    const db = await getDb();
-    const tokenRow = getDailyStickerTokenByValue(db, req.body?.key || req.body?.token);
-    if (!tokenRow) return res.status(400).json({ error: '无效的日常贴纸 token' });
-    if (tokenRow.status !== 'active' || tokenRow.persona_status !== 'active') {
-      return res.status(400).json({ error: '该贴纸暂不可绑定' });
-    }
-    if (tokenRow.user_id && tokenRow.user_id !== req.user.id) {
-      return res.status(409).json({ error: '该贴纸已经绑定到其他账号' });
+    const { db, accountObject: tokenRow } = req.permission;
+    const persona = resultToObjects(db.exec(
+      'SELECT status FROM daily_sticker_personas WHERE id = ? LIMIT 1',
+      [tokenRow.persona_id]
+    ))[0] || null;
+    if (tokenRow.status !== 'active' || persona?.status !== 'active') {
+      return res.status(400).json({ error: serverMessages.routes.dailySticker.notBindable });
     }
 
     db.run(
@@ -555,7 +538,7 @@ router.post('/bind-token', authRequired, async (req, res) => {
         toUserId: req.user.id,
         actorUserId: req.user.id,
         orderId: tokenRow.external_order_no || null,
-        note: '用户绑定日常贴纸资产',
+        note: serverMessages.routes.dailySticker.bindNote,
       });
     }
     saveDb();
@@ -564,16 +547,11 @@ router.post('/bind-token', authRequired, async (req, res) => {
     console.error('Bind daily sticker token error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+}
 
-router.post('/unbind-token', authRequired, async (req, res) => {
+async function unbindDailyStickerTokenHandler(req, res) {
   try {
-    const db = await getDb();
-    const tokenId = cleanString(req.body?.token_id);
-    if (!tokenId) return res.status(400).json({ error: 'token_id is required' });
-    const tokenRow = resultToObjects(db.exec('SELECT * FROM daily_sticker_tokens WHERE id = ? LIMIT 1', [tokenId]))[0] || null;
-    if (!tokenRow) return res.status(404).json({ error: '贴纸资产不存在' });
-    if (tokenRow.user_id !== req.user.id) return res.status(403).json({ error: '无权操作该贴纸资产' });
+    const { db, accountObjectId: tokenId, accountObject: tokenRow } = req.permission;
 
     db.run('UPDATE daily_sticker_tokens SET user_id = NULL, unbound_at = CURRENT_TIMESTAMP WHERE id = ?', [tokenId]);
     recordDailyStickerOwnershipEvent(db, {
@@ -583,7 +561,7 @@ router.post('/unbind-token', authRequired, async (req, res) => {
       fromUserId: req.user.id,
       actorUserId: req.user.id,
       orderId: tokenRow.external_order_no || null,
-      note: '用户解除日常贴纸归属',
+      note: serverMessages.routes.dailySticker.unbindNote,
     });
     saveDb();
     res.json({ success: true });
@@ -591,9 +569,9 @@ router.post('/unbind-token', authRequired, async (req, res) => {
     console.error('Unbind daily sticker token error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+}
 
-router.get('/templates', authRequired, adminOnly, async (_req, res) => {
+async function listTemplates(_req, res) {
   try {
     const db = await getDb();
     res.json(resultToObjects(db.exec('SELECT * FROM daily_sticker_templates ORDER BY code ASC')));
@@ -601,9 +579,9 @@ router.get('/templates', authRequired, adminOnly, async (_req, res) => {
     console.error('List daily sticker templates error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+}
 
-router.get('/visual-styles', authRequired, adminOnly, async (_req, res) => {
+async function listVisualStyles(_req, res) {
   try {
     const db = await getDb();
     res.json(resultToObjects(db.exec('SELECT * FROM daily_sticker_visual_styles ORDER BY style_layer ASC, code ASC')));
@@ -611,9 +589,9 @@ router.get('/visual-styles', authRequired, adminOnly, async (_req, res) => {
     console.error('List daily sticker visual styles error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+}
 
-router.get('/settings', authRequired, adminOnly, async (_req, res) => {
+async function getSettings(_req, res) {
   try {
     const db = await getDb();
     const release_cron = getConfigValue(db, 'daily_sticker_release_cron', DEFAULT_DAILY_STICKER_RELEASE_CRON);
@@ -627,9 +605,9 @@ router.get('/settings', authRequired, adminOnly, async (_req, res) => {
     console.error('Get daily sticker settings error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+}
 
-router.put('/settings', authRequired, adminOnly, async (req, res) => {
+async function updateSettings(req, res) {
   try {
     const releaseCron = cleanString(req.body.release_cron) || DEFAULT_DAILY_STICKER_RELEASE_CRON;
     const releaseTimezone = cleanString(req.body.release_timezone) || DEFAULT_DAILY_STICKER_RELEASE_TIMEZONE;
@@ -646,9 +624,9 @@ router.put('/settings', authRequired, adminOnly, async (req, res) => {
     console.error('Update daily sticker settings error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+}
 
-router.get('/worlds', authRequired, adminOnly, async (req, res) => {
+async function listWorlds(req, res) {
   try {
     const db = await getDb();
     const conditions = [];
@@ -672,9 +650,9 @@ router.get('/worlds', authRequired, adminOnly, async (req, res) => {
     console.error('List daily sticker worlds error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+}
 
-router.post('/worlds', authRequired, adminOnly, async (req, res) => {
+async function createWorld(req, res) {
   try {
     const personaId = cleanString(req.body.persona_id);
     const name = cleanString(req.body.name);
@@ -710,9 +688,9 @@ router.post('/worlds', authRequired, adminOnly, async (req, res) => {
     console.error('Create daily sticker world error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+}
 
-router.put('/worlds/:id', authRequired, adminOnly, async (req, res) => {
+async function updateWorld(req, res) {
   try {
     const db = await getDb();
     db.run(
@@ -744,9 +722,9 @@ router.put('/worlds/:id', authRequired, adminOnly, async (req, res) => {
     console.error('Update daily sticker world error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+}
 
-router.get('/story-arcs', authRequired, adminOnly, async (req, res) => {
+async function listStoryArcs(req, res) {
   try {
     const db = await getDb();
     const conditions = [];
@@ -770,9 +748,9 @@ router.get('/story-arcs', authRequired, adminOnly, async (req, res) => {
     console.error('List daily sticker story arcs error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+}
 
-router.post('/story-arcs', authRequired, adminOnly, async (req, res) => {
+async function createStoryArc(req, res) {
   try {
     const worldId = cleanString(req.body.world_id);
     const title = cleanString(req.body.title);
@@ -807,9 +785,9 @@ router.post('/story-arcs', authRequired, adminOnly, async (req, res) => {
     console.error('Create daily sticker story arc error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+}
 
-router.put('/story-arcs/:id', authRequired, adminOnly, async (req, res) => {
+async function updateStoryArc(req, res) {
   try {
     const releaseCron = cleanString(req.body.release_cron) || DEFAULT_DAILY_STICKER_RELEASE_CRON;
     if (!parseReleaseCron(releaseCron).valid) return res.status(400).json({ error: '支持分钟级 cron（如 */1 * * * *）或日级 cron（如 0 8 * * *）' });
@@ -840,9 +818,9 @@ router.put('/story-arcs/:id', authRequired, adminOnly, async (req, res) => {
     console.error('Update daily sticker story arc error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+}
 
-router.get('/personas', authRequired, adminOnly, async (_req, res) => {
+async function listPersonas(_req, res) {
   try {
     const db = await getDb();
     const rows = resultToObjects(db.exec(
@@ -860,9 +838,9 @@ router.get('/personas', authRequired, adminOnly, async (_req, res) => {
     console.error('List daily sticker personas error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+}
 
-router.post('/personas', authRequired, adminOnly, async (req, res) => {
+async function createPersona(req, res) {
   try {
     const name = cleanString(req.body.name);
     if (!name) return res.status(400).json({ error: '请填写人格名称' });
@@ -895,9 +873,9 @@ router.post('/personas', authRequired, adminOnly, async (req, res) => {
     console.error('Create daily sticker persona error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+}
 
-router.put('/personas/:id', authRequired, adminOnly, async (req, res) => {
+async function updatePersona(req, res) {
   try {
     const name = cleanString(req.body.name);
     if (!name) return res.status(400).json({ error: '请填写人格名称' });
@@ -930,9 +908,9 @@ router.put('/personas/:id', authRequired, adminOnly, async (req, res) => {
     console.error('Update daily sticker persona error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+}
 
-router.delete('/personas/:id', authRequired, adminOnly, async (req, res) => {
+async function deletePersona(req, res) {
   try {
     const db = await getDb();
     db.run('DELETE FROM daily_sticker_personas WHERE id = ?', [req.params.id]);
@@ -942,9 +920,9 @@ router.delete('/personas/:id', authRequired, adminOnly, async (req, res) => {
     console.error('Delete daily sticker persona error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+}
 
-router.get('/entries', authRequired, adminOnly, async (req, res) => {
+async function listEntries(req, res) {
   try {
     const db = await getDb();
     const conditions = [];
@@ -972,9 +950,9 @@ router.get('/entries', authRequired, adminOnly, async (req, res) => {
     console.error('List daily sticker entries error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+}
 
-router.post('/entries', authRequired, adminOnly, async (req, res) => {
+async function createEntry(req, res) {
   try {
     const personaId = cleanString(req.body.persona_id);
     const body = cleanString(req.body.body);
@@ -1006,9 +984,9 @@ router.post('/entries', authRequired, adminOnly, async (req, res) => {
     console.error('Create daily sticker entry error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+}
 
-router.put('/entries/:id', authRequired, adminOnly, async (req, res) => {
+async function updateEntry(req, res) {
   try {
     const personaId = cleanString(req.body.persona_id);
     const body = cleanString(req.body.body);
@@ -1036,9 +1014,9 @@ router.put('/entries/:id', authRequired, adminOnly, async (req, res) => {
     console.error('Update daily sticker entry error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+}
 
-router.delete('/entries/:id', authRequired, adminOnly, async (req, res) => {
+async function deleteEntry(req, res) {
   try {
     const db = await getDb();
     db.run('DELETE FROM daily_sticker_entries WHERE id = ?', [req.params.id]);
@@ -1048,9 +1026,9 @@ router.delete('/entries/:id', authRequired, adminOnly, async (req, res) => {
     console.error('Delete daily sticker entry error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+}
 
-router.get('/tokens', authRequired, adminOnly, async (req, res) => {
+async function listTokens(req, res) {
   try {
     const db = await getDb();
     const page = parsePositiveInt(req.query.page, 1);
@@ -1091,9 +1069,9 @@ router.get('/tokens', authRequired, adminOnly, async (req, res) => {
     console.error('List daily sticker tokens error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+}
 
-router.post('/tokens', authRequired, adminOnly, async (req, res) => {
+async function createTokens(req, res) {
   try {
     const personaId = cleanString(req.body.persona_id);
     if (!personaId) return res.status(400).json({ error: '请选择贴纸人格' });
@@ -1137,9 +1115,9 @@ router.post('/tokens', authRequired, adminOnly, async (req, res) => {
     console.error('Create daily sticker token error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+}
 
-router.put('/tokens/:id', authRequired, adminOnly, async (req, res) => {
+async function updateToken(req, res) {
   try {
     const db = await getDb();
     db.run(
@@ -1165,9 +1143,9 @@ router.put('/tokens/:id', authRequired, adminOnly, async (req, res) => {
     console.error('Update daily sticker token error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+}
 
-router.delete('/tokens/:id', authRequired, adminOnly, async (req, res) => {
+async function deleteToken(req, res) {
   try {
     const db = await getDb();
     db.run('DELETE FROM daily_sticker_tokens WHERE id = ?', [req.params.id]);
@@ -1177,6 +1155,56 @@ router.delete('/tokens/:id', authRequired, adminOnly, async (req, res) => {
     console.error('Delete daily sticker token error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+}
+
+registerRoutes(router, [
+  loginRoute('get', '/my-assets', listMyStickerAssets),
+  adminRoute('get', '/templates', listTemplates),
+  adminRoute('get', '/visual-styles', listVisualStyles),
+  adminRoute('get', '/settings', getSettings),
+  adminRoute('put', '/settings', updateSettings),
+  adminRoute('get', '/worlds', listWorlds),
+  adminRoute('post', '/worlds', createWorld),
+  adminRoute('put', '/worlds/:id', updateWorld),
+  adminRoute('get', '/story-arcs', listStoryArcs),
+  adminRoute('post', '/story-arcs', createStoryArc),
+  adminRoute('put', '/story-arcs/:id', updateStoryArc),
+  adminRoute('get', '/personas', listPersonas),
+  adminRoute('post', '/personas', createPersona),
+  adminRoute('put', '/personas/:id', updatePersona),
+  adminRoute('delete', '/personas/:id', deletePersona),
+  adminRoute('get', '/entries', listEntries),
+  adminRoute('post', '/entries', createEntry),
+  adminRoute('put', '/entries/:id', updateEntry),
+  adminRoute('delete', '/entries/:id', deleteEntry),
+  adminRoute('get', '/tokens', listTokens),
+  adminRoute('post', '/tokens', createTokens),
+  adminRoute('put', '/tokens/:id', updateToken),
+  adminRoute('delete', '/tokens/:id', deleteToken),
+  {
+    method: 'post',
+    path: '/bind-token',
+    permission: {
+      type: 'account_object_claimable',
+      table: 'daily_sticker_tokens',
+      tokenColumn: 'token',
+      userColumn: 'user_id',
+      label: serverMessages.routes.dailySticker.objectLabel,
+    },
+    handler: bindDailyStickerTokenHandler,
+  },
+  {
+    method: 'post',
+    path: '/unbind-token',
+    permission: {
+      type: 'account_object_owner',
+      table: 'daily_sticker_tokens',
+      idColumn: 'id',
+      userColumn: 'user_id',
+      label: serverMessages.routes.dailySticker.assetLabel,
+    },
+    handler: unbindDailyStickerTokenHandler,
+  },
+]);
 
 export default router;

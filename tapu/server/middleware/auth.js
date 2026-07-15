@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import { getDb } from '../db/index.js';
 import { generateToken128, getEntityByToken } from '../services/tokens.js';
+import { serverMessages } from '../copy/messages.js';
 
 const SECRET_KEY = '12345678901234567890123456789012';
 const ALGORITHM = 'aes-256-cbc';
@@ -9,14 +10,14 @@ const ALGORITHM = 'aes-256-cbc';
 export async function authRequired(req, res, next) {
   const token = req.headers.authorization?.replace('Bearer ', '');
   if (!token) {
-    return res.status(401).json({ error: '需要登录母账户' });
+    return res.status(401).json({ error: serverMessages.auth.parentLoginRequired });
   }
 
   const db = await getDb();
   let user = findUserBySession(db, token) || findUserByLegacyToken(db, token);
 
   if (!user) {
-    return res.status(401).json({ error: '无效的登录凭证' });
+    return res.status(401).json({ error: serverMessages.auth.invalidCredentials });
   }
 
   req.user = user;

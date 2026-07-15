@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { shopCopy } from '../../copy';
+
 defineProps<{
   seriesList: any[];
   groups: any[];
@@ -15,7 +17,7 @@ defineEmits<{
 <template>
   <section class="filter-panel" v-if="seriesList.length || groups.length">
     <div class="filter-row" v-if="seriesList.length > 0">
-      <button class="filter-chip" :class="{ active: activeSeries === '' }" @click="$emit('switchSeries', '')">全部系列</button>
+      <button class="filter-chip" :class="{ active: activeSeries === '' }" @click="$emit('switchSeries', '')">{{ shopCopy.filters.allSeries }}</button>
       <button
         v-for="series in seriesList"
         :key="series.id"
@@ -28,7 +30,7 @@ defineEmits<{
     </div>
 
     <div class="filter-row filter-row--soft" v-if="groups.length > 0">
-      <button class="filter-chip soft" :class="{ active: activeGroup === '' }" @click="$emit('switchGroup', '')">全部 IP</button>
+      <button class="filter-chip soft" :class="{ active: activeGroup === '' }" @click="$emit('switchGroup', '')">{{ shopCopy.filters.allIp }}</button>
       <button
         v-for="group in groups"
         :key="group.id"

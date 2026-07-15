@@ -3,6 +3,7 @@ import { inject, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { changePassword, getProfile, isLoggedIn } from '../api';
 import NavBar from '../components/NavBar.vue';
+import { userCopy } from '../copy';
 
 const router = useRouter();
 const toast = inject<{ show: (text: string, duration?: number, type?: string) => void }>('toast');
@@ -17,7 +18,7 @@ const pwdError = ref(false);
 
 onMounted(async () => {
   if (!isLoggedIn()) {
-    toast?.show('请先登录或注册后再进入账户设置', 2500, 'error');
+    toast?.show(userCopy.account.loginRequiredToast, 2500, 'error');
     router.push('/');
     return;
   }
@@ -32,26 +33,26 @@ const handleChangePassword = async () => {
   pwdError.value = false;
 
   if (!oldPwd.value || !newPwd.value || !confirmPwd.value) {
-    pwdMsg.value = '请填写所有密码字段';
+    pwdMsg.value = userCopy.account.password.required;
     pwdError.value = true;
     return;
   }
 
   if (newPwd.value !== confirmPwd.value) {
-    pwdMsg.value = '两次输入的新密码不一致';
+    pwdMsg.value = userCopy.account.password.mismatch;
     pwdError.value = true;
     return;
   }
 
   const data = await changePassword(oldPwd.value, newPwd.value);
   if (data.success) {
-    pwdMsg.value = '密码修改成功';
+    pwdMsg.value = userCopy.account.password.success;
     pwdError.value = false;
     oldPwd.value = '';
     newPwd.value = '';
     confirmPwd.value = '';
   } else {
-    pwdMsg.value = data.error || '修改失败，请稍后再试';
+    pwdMsg.value = data.error || userCopy.account.password.failed;
     pwdError.value = true;
   }
 };
@@ -63,43 +64,43 @@ const handleChangePassword = async () => {
 
     <main class="account-shell">
       <div class="account-heading">
-        <span class="eyebrow">Account</span>
-        <h1>账户设置</h1>
-        <p>这里只保留账号资料与安全设置；实体资产已经拆到独立的“我的资产”模块。</p>
+        <span class="eyebrow">{{ userCopy.account.eyebrow }}</span>
+        <h1>{{ userCopy.account.title }}</h1>
+        <p>{{ userCopy.account.intro }}</p>
       </div>
 
-      <div class="account-loading" v-if="loading">加载中...</div>
+      <div class="account-loading" v-if="loading">{{ userCopy.account.loading }}</div>
 
       <template v-else-if="profile">
         <section class="profile-card">
           <div class="profile-avatar">{{ profile.username?.slice(0, 1)?.toUpperCase() }}</div>
           <div>
             <h2>{{ profile.username }}</h2>
-            <p>{{ profile.is_creator ? '创作者账号' : '普通账号' }}</p>
+            <p>{{ profile.is_creator ? userCopy.account.creatorAccount : userCopy.account.normalAccount }}</p>
           </div>
         </section>
 
         <section class="settings-card">
           <div class="card-head">
-            <h2>修改密码</h2>
-            <p>为了保护私有内容和资产管理权限，建议定期更新密码。</p>
+            <h2>{{ userCopy.account.password.title }}</h2>
+            <p>{{ userCopy.account.password.intro }}</p>
           </div>
 
           <form class="password-form" @submit.prevent="handleChangePassword">
             <label>
-              <span>当前密码</span>
+              <span>{{ userCopy.account.password.current }}</span>
               <input v-model="oldPwd" type="password" autocomplete="current-password" />
             </label>
             <label>
-              <span>新密码</span>
+              <span>{{ userCopy.account.password.next }}</span>
               <input v-model="newPwd" type="password" autocomplete="new-password" />
             </label>
             <label>
-              <span>确认新密码</span>
+              <span>{{ userCopy.account.password.confirm }}</span>
               <input v-model="confirmPwd" type="password" autocomplete="new-password" />
             </label>
 
-            <button type="submit" class="submit-btn">保存新密码</button>
+            <button type="submit" class="submit-btn">{{ userCopy.account.password.save }}</button>
             <p v-if="pwdMsg" :class="['form-msg', { error: pwdError }]">{{ pwdMsg }}</p>
           </form>
         </section>

@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { getDb, saveDb } from '../db/index.js';
-import { authRequired } from '../middleware/auth.js';
+import { adminRoute, registerRoutes } from '../services/routePermissions.js';
 import { recordObjectEvent } from '../services/objectEvents.js';
 import { resolveObjectByToken } from '../services/objectRegistry.js';
 import { buildTapResponse } from '../services/tapRuntime.js';
@@ -14,16 +14,11 @@ import {
   stringifyJson,
 } from '../services/contentCollections.js';
 import { createWork, getWork, updateWork } from '../services/works.js';
+import { serverMessages } from '../copy/messages.js';
 
 const router = Router();
 const APP_CODE = 'moment';
 
-function adminOnly(req, res, next) {
-  if (req.user.username !== 'admin') {
-    return res.status(403).json({ error: '仅管理员可操作' });
-  }
-  next();
-}
 
 function normalizeStatus(value, fallback = 'active') {
   const status = cleanString(value || fallback);
@@ -55,7 +50,7 @@ function createUniqueSlug(db, rawSlug, fallback) {
 }
 
 function createMomentCollection(db, reqBody, momentId) {
-  const title = cleanString(reqBody.title) || '未命名纪念瞬间';
+  const title = cleanString(reqBody.title) || serverMessages.routes.moment.untitled;
   const collectionId = uuidv4();
   const slug = createUniqueSlug(db, reqBody.slug, title);
   const description = cleanString(reqBody.description || reqBody.subtitle) || null;
@@ -148,17 +143,17 @@ router.get('/resolve', async (req, res) => {
     const resolvedObject = resolveObjectByToken(db, req.query.key);
     const tokenRow = resolvedObject?.raw;
     if (!tokenRow || resolvedObject.app.code !== APP_CODE) {
-      return res.status(400).json({ error: '缺少或无效的纪念瞬间 token' });
+      return res.status(400).json({ error: serverMessages.routes.moment.invalidToken });
     }
     if (tokenRow.status !== 'active' || tokenRow.collection_status !== 'published') {
-      return res.status(404).json({ error: '这个纪念瞬间暂时还没有开放' });
+      return res.status(404).json({ error: serverMessages.routes.moment.inactive });
     }
 
     const collection = getContentCollection(db, tokenRow.collection_id);
-    if (!collection) return res.status(404).json({ error: '纪念内容不存在' });
+    if (!collection) return res.status(404).json({ error: serverMessages.routes.moment.contentMissing });
     const work = tokenRow.work_id ? getWork(db, tokenRow.work_id) : null;
     if (!isWithinWorkWindow(work)) {
-      return res.status(403).json({ error: '这个纪念瞬间还没有到可以打开的时候' });
+      return res.status(403).json({ error: serverMessages.routes.moment.notInWindow });
     }
 
     recordObjectEvent(db, {
@@ -190,7 +185,7 @@ router.get('/resolve', async (req, res) => {
         blocks: collection.blocks || [],
       },
       actions: [
-        { code: 'revisit', label: '再看一遍' },
+        { code: 'revisit', label: serverMessages.routes.moment.revisit },
       ],
       permissions: {
         anonymousTap: true,
@@ -225,7 +220,7 @@ router.get('/resolve', async (req, res) => {
   }
 });
 
-router.get('/tokens', authRequired, adminOnly, async (_req, res) => {
+async function listMomentTokens(_req, res) {
   try {
     const db = await getDb();
     const rows = resultToObjects(db.exec(
@@ -246,9 +241,9 @@ router.get('/tokens', authRequired, adminOnly, async (_req, res) => {
     console.error('List moments error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+}
 
-router.post('/tokens', authRequired, adminOnly, async (req, res) => {
+async function createMomentToken(req, res) {
   try {
     const title = cleanString(req.body.title);
     if (!title) return res.status(400).json({ error: '请填写纪念瞬间标题' });
@@ -299,9 +294,9 @@ router.post('/tokens', authRequired, adminOnly, async (req, res) => {
     console.error('Create moment error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+}
 
-router.put('/tokens/:id', authRequired, adminOnly, async (req, res) => {
+async function updateMomentToken(req, res) {
   try {
     const title = cleanString(req.body.title);
     if (!title) return res.status(400).json({ error: '请填写纪念瞬间标题' });
@@ -361,9 +356,9 @@ router.put('/tokens/:id', authRequired, adminOnly, async (req, res) => {
     console.error('Update moment error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+}
 
-router.delete('/tokens/:id', authRequired, adminOnly, async (req, res) => {
+async function deleteMomentToken(req, res) {
   try {
     const db = await getDb();
     const existing = resultToObjects(db.exec('SELECT * FROM moment_tokens WHERE id = ? LIMIT 1', [req.params.id]))[0] || null;
@@ -383,6 +378,13 @@ router.delete('/tokens/:id', authRequired, adminOnly, async (req, res) => {
     console.error('Delete moment error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+}
+
+registerRoutes(router, [
+  adminRoute('get', '/tokens', listMomentTokens),
+  adminRoute('post', '/tokens', createMomentToken),
+  adminRoute('put', '/tokens/:id', updateMomentToken),
+  adminRoute('delete', '/tokens/:id', deleteMomentToken),
+]);
 
 export default router;

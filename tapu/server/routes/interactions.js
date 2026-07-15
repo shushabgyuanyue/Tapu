@@ -1,11 +1,12 @@
 import { Router } from 'express';
 import { getDb, saveDb } from '../db/index.js';
-import { authOptional } from '../middleware/auth.js';
+import { publicRoute, registerRoutes } from '../services/routePermissions.js';
+import { serverMessages } from '../copy/messages.js';
 
 const router = Router();
 
 // Record interaction (like, favorite, share)
-router.post('/:videoId', authOptional, async (req, res) => {
+async function recordInteraction(req, res) {
   const { videoId } = req.params;
   const { type } = req.body;
 
@@ -18,7 +19,7 @@ router.post('/:videoId', authOptional, async (req, res) => {
 
   if (type === 'like' || type === 'favorite') {
     if (!req.user?.id) {
-      return res.status(401).json({ error: '点赞和喜欢需要先登录', requires_login: true });
+      return res.status(401).json({ error: serverMessages.routes.interactions.loginRequired, requires_login: true });
     }
 
     const existing = db.exec(
@@ -52,7 +53,7 @@ router.post('/:videoId', authOptional, async (req, res) => {
 
   const counts = getCounts(db, videoId, req.user?.id);
   res.json(counts);
-});
+}
 
 // Set default (double-tap)
 router.post('/:videoId/default', async (req, res) => {
@@ -69,15 +70,15 @@ router.post('/:videoId/default', async (req, res) => {
 });
 
 // Get interaction counts for a video
-router.get('/:videoId', authOptional, async (req, res) => {
+async function getInteractionCounts(req, res) {
   const { videoId } = req.params;
   const db = await getDb();
   const counts = getCounts(db, videoId, req.user?.id);
   res.json(counts);
-});
+}
 
 // Get interaction counts for multiple videos (batch)
-router.post('/batch', authOptional, async (req, res) => {
+async function getBatchInteractionCounts(req, res) {
   const { ids } = req.body;
   if (!Array.isArray(ids)) {
     return res.status(400).json({ error: 'ids must be array' });
@@ -89,7 +90,7 @@ router.post('/batch', authOptional, async (req, res) => {
     result[id] = getCounts(db, id, req.user?.id);
   }
   res.json(result);
-});
+}
 
 // Get most popular video in a group (most defaults)
 router.get('/popular/:groupId', async (req, res) => {
@@ -138,5 +139,11 @@ function getCounts(db, videoId, userId) {
     favorited: !!(favoritedR?.[0]?.values?.[0]?.[0] || 0),
   };
 }
+
+registerRoutes(router, [
+  publicRoute('post', '/batch', getBatchInteractionCounts),
+  publicRoute('post', '/:videoId', recordInteraction),
+  publicRoute('get', '/:videoId', getInteractionCounts),
+]);
 
 export default router;

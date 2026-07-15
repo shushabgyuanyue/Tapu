@@ -14,6 +14,7 @@ import NavBar from '../components/NavBar.vue';
 import InfiniteScrollTrigger from '../components/InfiniteScrollTrigger.vue';
 import ShopFilterBar from '../components/shop/ShopFilterBar.vue';
 import ShopProductCard from '../components/shop/ShopProductCard.vue';
+import { shopCopy } from '../copy';
 
 const route = useRoute();
 const router = useRouter();
@@ -42,7 +43,7 @@ const hasMore = computed(() => visibleGroups.value.length < filteredGroups.value
 
 const formatPrice = (price?: number) => {
   const value = Number(price || 0);
-  return value > 0 ? `¥${value.toFixed(0)}` : '外部发售';
+  return value > 0 ? `¥${value.toFixed(0)}` : shopCopy.product.externalSale;
 };
 
 const productImage = (group: any) => {
@@ -60,15 +61,15 @@ const tagsFor = (group: any) => {
     .split(/[，,\s]+/)
     .map(tag => tag.trim())
     .filter(Boolean);
-  return rawTags.length ? rawTags.slice(0, 4) : ['情绪入口', 'NFC 实体', '可绑定资产'];
+  return rawTags.length ? rawTags.slice(0, 4) : shopCopy.product.defaultTags;
 };
 
 const statusText = (group: any) => {
-  if (group.sale_status === 'purchasable') return `剩余 ${group.available_count || 0}`;
-  if (group.sale_status === 'crowdfunding') return `众筹中 ${group.pledge_count || 0}/${group.crowdfund_goal || 0}`;
-  if (group.sale_status === 'crowdfund_success') return '众筹成功';
-  if (group.sale_status === 'crowdfund_failed') return '已结束';
-  return '售罄';
+  if (group.sale_status === 'purchasable') return shopCopy.product.stockLeft(group.available_count || 0);
+  if (group.sale_status === 'crowdfunding') return shopCopy.product.crowdfunding(group.pledge_count || 0, group.crowdfund_goal || 0);
+  if (group.sale_status === 'crowdfund_success') return shopCopy.product.crowdfundSuccess;
+  if (group.sale_status === 'crowdfund_failed') return shopCopy.product.crowdfundFailed;
+  return shopCopy.product.soldOut;
 };
 
 const progressPercent = (group: any) => {
@@ -144,22 +145,22 @@ const handleExternalPurchase = (group: any) => {
     window.open(group.external_purchase_url, '_blank', 'noopener,noreferrer');
     return;
   }
-  toast?.show(`购买「${group.name}」请前往外部渠道；收到 token 后回到“我的资产”绑定。`, 3600, 'success');
+  toast?.show(shopCopy.toast.externalPurchase(group.name), 3600, 'success');
 };
 
 const handlePledge = async (group: any) => {
   if (!isLoggedIn()) {
-    toast?.show('请先登录或注册后再参与众筹', 2600, 'error');
+    toast?.show(shopCopy.toast.loginBeforePledge, 2600, 'error');
     return;
   }
 
   const data = await pledgeGroup(group.id);
   if (data.success || data.pledged) {
-    toast?.show('已记录你的众筹意向', 2200, 'success');
+    toast?.show(shopCopy.toast.pledgeSuccess, 2200, 'success');
     const groupRows = await fetchGroups();
     groups.value = Array.isArray(groupRows) ? groupRows : [];
   } else {
-    toast?.show(data.error || '参与失败', 2200, 'error');
+    toast?.show(data.error || shopCopy.toast.pledgeFailed, 2200, 'error');
   }
 };
 
@@ -171,8 +172,8 @@ const handleAddWishlist = async (group: any) => {
   wishlistCounts.value[group.id] = result?.count || 0;
   toast?.show(
     result?.added === false
-      ? `「${group.name}」已在心愿单，目前 ${wishlistCounts.value[group.id] || 0} 人想要`
-      : `已将「${group.name}」加入心愿单，目前 ${wishlistCounts.value[group.id] || 0} 人想要`,
+      ? shopCopy.toast.alreadyWishlist(group.name, wishlistCounts.value[group.id] || 0)
+      : shopCopy.toast.addedWishlist(group.name, wishlistCounts.value[group.id] || 0),
     2500,
     'heart'
   );
@@ -188,21 +189,24 @@ onMounted(loadData);
     <main class="shop-shell">
       <section class="shop-hero">
         <div class="hero-copy">
-          <span class="eyebrow">WhatMint Toy Shelf</span>
-          <h1>把现实物品做成可以触碰的小世界</h1>
-          <p>商城只展示商品与 IP 档案，购买在外部渠道完成。收到 token 后，回到“我的资产”把实体放进自己的展馆。</p>
+          <span class="eyebrow">{{ shopCopy.hero.eyebrow }}</span>
+          <h1>{{ shopCopy.hero.title }}</h1>
+          <p>{{ shopCopy.hero.subtitle }}</p>
           <div class="hero-pills">
-            <span>情绪 IP</span>
-            <span>资产归属</span>
-            <span>NFC 入口</span>
+            <span v-for="pill in shopCopy.hero.pills" :key="pill">{{ pill }}</span>
           </div>
         </div>
 
-        <button v-if="featuredGroup" class="hero-product" @click="openDetail(featuredGroup)">
-          <span class="hero-product-tag">Featured Drop</span>
+        <button
+          v-if="featuredGroup"
+          class="hero-product"
+          :data-inspect-hint="shopCopy.hero.inspectHint"
+          @click="openDetail(featuredGroup)"
+        >
+          <span class="hero-product-tag">{{ shopCopy.hero.featured }}</span>
           <img :src="productImage(featuredGroup)" :alt="featuredGroup.name" />
           <strong>{{ featuredGroup.name }}</strong>
-          <small>{{ featuredGroup.description || featuredGroup.series_name || '触碰后进入它的小世界' }}</small>
+          <small>{{ featuredGroup.description || featuredGroup.series_name || shopCopy.hero.fallbackDescription }}</small>
         </button>
       </section>
 
@@ -241,7 +245,7 @@ onMounted(loadData);
         </div>
 
         <div v-else class="shop-empty">
-          <p>暂无可展示的实体 IP</p>
+          <p>{{ shopCopy.product.empty }}</p>
         </div>
 
         <InfiniteScrollTrigger
@@ -391,7 +395,7 @@ onMounted(loadData);
 }
 
 .hero-product::after {
-  content: "Tap to inspect";
+  content: attr(data-inspect-hint);
   position: absolute;
   right: 18px;
   top: 18px;

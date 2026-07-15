@@ -2,7 +2,7 @@ import { Router } from 'express';
 import crypto from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
 import { getDb, saveDb } from '../db/index.js';
-import { authRequired } from '../middleware/auth.js';
+import { adminRoute, registerRoutes } from '../services/routePermissions.js';
 import { createUniqueEntityToken, normalizeEntityToken } from '../services/tokens.js';
 import { recordOwnershipEvent } from '../services/ownership.js';
 
@@ -18,14 +18,6 @@ function resultToObjects(results) {
   });
 }
 
-// Admin-only guard
-function adminOnly(req, res, next) {
-  if (req.user.username !== 'admin') {
-    return res.status(403).json({ error: '仅管理员可操作' });
-  }
-  next();
-}
-
 function parsePositiveInt(value, fallback) {
   const num = Number.parseInt(value, 10);
   return Number.isFinite(num) && num > 0 ? num : fallback;
@@ -38,7 +30,7 @@ function generateOrderNo() {
 }
 
 // List all orders (admin only)
-router.get('/', authRequired, adminOnly, async (req, res) => {
+async function listOrders(req, res) {
   try {
     const db = await getDb();
     const page = parsePositiveInt(req.query.page, 1);
@@ -106,9 +98,9 @@ router.get('/', authRequired, adminOnly, async (req, res) => {
     console.error('List orders error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+}
 
-router.post('/external', authRequired, adminOnly, async (req, res) => {
+async function createExternalOrder(req, res) {
   try {
     const { group_id, status } = req.body;
     const orderNo = String(req.body.order_no || generateOrderNo()).trim();
@@ -167,10 +159,10 @@ router.post('/external', authRequired, adminOnly, async (req, res) => {
     console.error('Create external order error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+}
 
 // Update order status (admin only)
-router.put('/:id/status', authRequired, adminOnly, async (req, res) => {
+async function updateOrderStatus(req, res) {
   try {
     const { status } = req.body;
     const validStatuses = ['pending', 'shipped', 'completed'];
@@ -187,6 +179,12 @@ router.put('/:id/status', authRequired, adminOnly, async (req, res) => {
     console.error('Update order status error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+}
+
+registerRoutes(router, [
+  adminRoute('get', '/', listOrders),
+  adminRoute('post', '/external', createExternalOrder),
+  adminRoute('put', '/:id/status', updateOrderStatus),
+]);
 
 export default router;

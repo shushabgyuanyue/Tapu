@@ -7,6 +7,7 @@ import {
   resolveCheck,
   toggleChecklistItemByKey,
 } from '../api';
+import { appCopy } from '../copy';
 
 const route = useRoute();
 const loading = ref(true);
@@ -21,9 +22,9 @@ const token = computed(() => String(route.query.key || '').trim());
 const checklist = computed(() => data.value?.checklist || {});
 const items = computed(() => Array.isArray(data.value?.items) ? data.value.items : []);
 const themeColor = computed(() => data.value?.content?.themeColor || checklist.value.theme_color || '#2f6f5e');
-const title = computed(() => data.value?.content?.title || checklist.value.title || 'Check');
-const subtitle = computed(() => data.value?.content?.subtitle || checklist.value.subtitle || '碰一下这个物件，完成一次轻轻的检查。');
-const objectLabel = computed(() => data.value?.token?.label || checklist.value.object_label || '这个物件');
+const title = computed(() => data.value?.content?.title || checklist.value.title || appCopy.check.fallbackTitle);
+const subtitle = computed(() => data.value?.content?.subtitle || checklist.value.subtitle || appCopy.check.fallbackSubtitle);
+const objectLabel = computed(() => data.value?.token?.label || checklist.value.object_label || appCopy.check.fallbackObjectLabel);
 const checkedCount = computed(() => items.value.filter((item: any) => item.is_checked).length);
 const progress = computed(() => items.value.length ? Math.round((checkedCount.value / items.value.length) * 100) : 0);
 const isComplete = computed(() => items.value.length > 0 && checkedCount.value === items.value.length);
@@ -42,7 +43,7 @@ const load = async () => {
   error.value = '';
   message.value = '';
   if (!token.value) {
-    error.value = '缺少 Check 链接，请确认 NFC 写入地址是否完整。';
+    error.value = appCopy.check.missingToken;
     loading.value = false;
     return;
   }
@@ -66,7 +67,7 @@ const toggleItem = async (item: any) => {
     error.value = result.error;
     return;
   }
-  syncChecklist(result, !item.is_checked ? `已确认：${item.label}` : `已取消：${item.label}`);
+  syncChecklist(result, !item.is_checked ? appCopy.check.messages.checked(item.label) : appCopy.check.messages.unchecked(item.label));
 };
 
 const addCustomItem = async () => {
@@ -86,7 +87,7 @@ const addCustomItem = async () => {
   }
   customLabel.value = '';
   customHint.value = '';
-  syncChecklist(result, '这个物件多记住了一项检查。');
+  syncChecklist(result, appCopy.check.messages.added);
 };
 
 const resetCheck = async () => {
@@ -100,7 +101,7 @@ const resetCheck = async () => {
     error.value = result.error;
     return;
   }
-  syncChecklist(result, '已重新开始这次检查。');
+  syncChecklist(result, appCopy.check.messages.reset);
 };
 
 onMounted(load);
@@ -109,20 +110,20 @@ watch(() => route.fullPath, load);
 
 <template>
   <main class="check-page" :style="{ '--check-accent': themeColor }">
-    <div class="corner-stamp">CHECK</div>
+    <div class="corner-stamp">{{ appCopy.check.cornerStamp }}</div>
 
     <section class="check-shell">
-      <p class="app-mark">WhatMint Check</p>
+      <p class="app-mark">{{ appCopy.check.mark }}</p>
 
       <div v-if="loading" class="state-card">
         <span class="loading-mark"></span>
-        <h1>正在打开这份检查</h1>
-        <p>{{ objectLabel }}正在把要确认的东西排好。</p>
+        <h1>{{ appCopy.check.loading.title }}</h1>
+        <p>{{ appCopy.check.loading.body(objectLabel) }}</p>
       </div>
 
       <div v-else-if="error && !data" class="state-card">
         <span class="error-mark">?</span>
-        <h1>这份 Check 暂时没有打开</h1>
+        <h1>{{ appCopy.check.error.title }}</h1>
         <p>{{ error }}</p>
       </div>
 
@@ -136,12 +137,12 @@ watch(() => route.fullPath, load);
         <section class="progress-card" :class="{ complete: isComplete }">
           <div>
             <strong>{{ checkedCount }}/{{ items.length }}</strong>
-            <span>{{ isComplete ? '检查完成' : '正在检查' }}</span>
+            <span>{{ isComplete ? appCopy.check.progress.complete : appCopy.check.progress.checking }}</span>
           </div>
           <div class="progress-track" aria-hidden="true">
             <i :style="{ width: `${progress}%` }"></i>
           </div>
-          <p>{{ isComplete ? '可以安心带着它出门了。' : '不需要完美，只需要临出门前多看一眼。' }}</p>
+          <p>{{ isComplete ? appCopy.check.progress.completeBody : appCopy.check.progress.checkingBody }}</p>
         </section>
 
         <section class="item-grid">
@@ -159,25 +160,25 @@ watch(() => route.fullPath, load);
           </button>
 
           <div v-if="items.length === 0" class="empty-list">
-            <strong>还没有检查项目</strong>
-            <p>给这个物件加上第一项需要确认的东西。</p>
+            <strong>{{ appCopy.check.empty.title }}</strong>
+            <p>{{ appCopy.check.empty.body }}</p>
           </div>
         </section>
 
         <form class="custom-card" @submit.prevent="addCustomItem">
           <div>
-            <label>自定义加一项</label>
-            <input v-model="customLabel" placeholder="例如：备用电池 / 孩子的水杯" />
+            <label>{{ appCopy.check.form.itemLabel }}</label>
+            <input v-model="customLabel" :placeholder="appCopy.check.form.itemPlaceholder" />
           </div>
           <div>
-            <label>一句提醒，可选</label>
-            <input v-model="customHint" placeholder="用一句话帮未来的自己记住原因" />
+            <label>{{ appCopy.check.form.hintLabel }}</label>
+            <input v-model="customHint" :placeholder="appCopy.check.form.hintPlaceholder" />
           </div>
-          <button :disabled="saving || !customLabel.trim()">{{ saving ? '保存中...' : '加入 Check' }}</button>
+          <button :disabled="saving || !customLabel.trim()">{{ saving ? appCopy.check.form.saving : appCopy.check.form.action }}</button>
         </form>
 
         <div class="actions">
-          <button class="ghost" :disabled="saving || checkedCount === 0" @click="resetCheck">重新检查</button>
+          <button class="ghost" :disabled="saving || checkedCount === 0" @click="resetCheck">{{ appCopy.check.actions.reset }}</button>
         </div>
 
         <p v-if="message" class="message">{{ message }}</p>

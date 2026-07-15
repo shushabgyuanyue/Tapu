@@ -78,6 +78,11 @@ const routes = [
     component: () => import('../views/AssetsPage.vue'),
   },
   {
+    path: '/mint',
+    name: 'mint-studio',
+    component: () => import('../views/MintStudioPage.vue'),
+  },
+  {
     path: '/appeals',
     name: 'appeals',
     component: () => import('../views/AppealPage.vue'),
@@ -194,6 +199,10 @@ router.beforeEach(async (to, _from, next) => {
   }
   if (key && to.path === '/assets') {
     // Asset binding accepts keys through the dedicated assets page.
+    return next();
+  }
+  if (key && to.path === '/mint') {
+    // Mint Studio accepts keys as the first step of guided creation.
     return next();
   }
   if (key) {

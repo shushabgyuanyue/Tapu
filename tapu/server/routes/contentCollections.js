@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { getDb, saveDb } from '../db/index.js';
-import { authRequired } from '../middleware/auth.js';
+import { adminRoute, registerRoutes } from '../services/routePermissions.js';
 import { resultToObjects } from '../services/tokens.js';
 import {
   cleanString,
@@ -16,12 +16,6 @@ import {
 
 const router = Router();
 
-function adminOnly(req, res, next) {
-  if (req.user.username !== 'admin') {
-    return res.status(403).json({ error: '仅管理员可操作' });
-  }
-  next();
-}
 
 function parsePositiveInt(value, fallback) {
   const num = Number.parseInt(value, 10);
@@ -45,7 +39,7 @@ function collectionSummary(row) {
   };
 }
 
-router.get('/', authRequired, adminOnly, async (req, res) => {
+async function listCollections(req, res) {
   try {
     const db = await getDb();
     const page = parsePositiveInt(req.query.page, 1);
@@ -82,9 +76,9 @@ router.get('/', authRequired, adminOnly, async (req, res) => {
     console.error('List content collections error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+}
 
-router.post('/', authRequired, adminOnly, async (req, res) => {
+async function createCollection(req, res) {
   try {
     const name = cleanString(req.body.name);
     if (!name) return res.status(400).json({ error: '请填写内容集合名称' });
@@ -117,9 +111,9 @@ router.post('/', authRequired, adminOnly, async (req, res) => {
     console.error('Create content collection error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+}
 
-router.get('/bindings', authRequired, adminOnly, async (req, res) => {
+async function listBindings(req, res) {
   try {
     const db = await getDb();
     const appCode = cleanString(req.query.app_code);
@@ -153,9 +147,9 @@ router.get('/bindings', authRequired, adminOnly, async (req, res) => {
     console.error('List app bindings error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+}
 
-router.post('/bindings', authRequired, adminOnly, async (req, res) => {
+async function createBinding(req, res) {
   try {
     const appCode = cleanString(req.body.app_code);
     const collectionId = cleanString(req.body.collection_id);
@@ -194,9 +188,9 @@ router.post('/bindings', authRequired, adminOnly, async (req, res) => {
     console.error('Create app binding error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+}
 
-router.get('/:id', authRequired, adminOnly, async (req, res) => {
+async function getCollection(req, res) {
   try {
     const collection = getContentCollection(await getDb(), req.params.id);
     if (!collection) return res.status(404).json({ error: '内容集合不存在' });
@@ -205,9 +199,9 @@ router.get('/:id', authRequired, adminOnly, async (req, res) => {
     console.error('Get content collection error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+}
 
-router.put('/:id', authRequired, adminOnly, async (req, res) => {
+async function updateCollection(req, res) {
   try {
     const name = cleanString(req.body.name);
     if (!name) return res.status(400).json({ error: '请填写内容集合名称' });
@@ -242,9 +236,9 @@ router.put('/:id', authRequired, adminOnly, async (req, res) => {
     console.error('Update content collection error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+}
 
-router.delete('/:id', authRequired, adminOnly, async (req, res) => {
+async function deleteCollection(req, res) {
   try {
     const db = await getDb();
     db.run('DELETE FROM content_collections WHERE id = ?', [req.params.id]);
@@ -254,9 +248,9 @@ router.delete('/:id', authRequired, adminOnly, async (req, res) => {
     console.error('Delete content collection error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+}
 
-router.put('/bindings/:id', authRequired, adminOnly, async (req, res) => {
+async function updateBinding(req, res) {
   try {
     const appCode = cleanString(req.body.app_code);
     const collectionId = cleanString(req.body.collection_id);
@@ -296,9 +290,9 @@ router.put('/bindings/:id', authRequired, adminOnly, async (req, res) => {
     console.error('Update app binding error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+}
 
-router.delete('/bindings/:id', authRequired, adminOnly, async (req, res) => {
+async function deleteBinding(req, res) {
   try {
     const db = await getDb();
     db.run('DELETE FROM app_bindings WHERE id = ?', [req.params.id]);
@@ -308,6 +302,18 @@ router.delete('/bindings/:id', authRequired, adminOnly, async (req, res) => {
     console.error('Delete app binding error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+}
+
+registerRoutes(router, [
+  adminRoute('get', '/', listCollections),
+  adminRoute('post', '/', createCollection),
+  adminRoute('get', '/bindings', listBindings),
+  adminRoute('post', '/bindings', createBinding),
+  adminRoute('get', '/:id', getCollection),
+  adminRoute('put', '/:id', updateCollection),
+  adminRoute('delete', '/:id', deleteCollection),
+  adminRoute('put', '/bindings/:id', updateBinding),
+  adminRoute('delete', '/bindings/:id', deleteBinding),
+]);
 
 export default router;

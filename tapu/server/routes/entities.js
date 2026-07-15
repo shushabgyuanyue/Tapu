@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { getDb, saveDb } from '../db/index.js';
-import { authRequired } from '../middleware/auth.js';
+import { adminRoute, loginRoute, registerRoutes } from '../services/routePermissions.js';
 import { createUniqueEntityToken } from '../services/tokens.js';
 import { recordOwnershipEvent } from '../services/ownership.js';
 
@@ -17,12 +17,6 @@ function resultToObjects(results) {
   });
 }
 
-function adminOnly(req, res, next) {
-  if (req.user.username !== 'admin') {
-    return res.status(403).json({ error: '仅管理员可操作' });
-  }
-  next();
-}
 
 function parsePositiveInt(value, fallback) {
   const num = Number.parseInt(value, 10);
@@ -30,7 +24,7 @@ function parsePositiveInt(value, fallback) {
 }
 
 // List entities by group (admin)
-router.get('/by-group/:groupId', authRequired, adminOnly, async (req, res) => {
+async function listEntitiesByGroup(req, res) {
   try {
     const db = await getDb();
     const results = db.exec(
@@ -42,10 +36,10 @@ router.get('/by-group/:groupId', authRequired, adminOnly, async (req, res) => {
     console.error('List entities error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+}
 
 // Create entity (admin)
-router.post('/', authRequired, adminOnly, async (req, res) => {
+async function createEntity(req, res) {
   try {
     const { group_id, external_order_no } = req.body;
     if (!group_id) return res.status(400).json({ error: 'group_id is required' });
@@ -71,9 +65,9 @@ router.post('/', authRequired, adminOnly, async (req, res) => {
     console.error('Create entity error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+}
 
-router.get('/ownership-events', authRequired, adminOnly, async (req, res) => {
+async function listOwnershipEvents(req, res) {
   try {
     const db = await getDb();
     const page = parsePositiveInt(req.query.page, 1);
@@ -149,10 +143,10 @@ router.get('/ownership-events', authRequired, adminOnly, async (req, res) => {
     console.error('List ownership events error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+}
 
 // Delete entity
-router.delete('/:id', authRequired, adminOnly, async (req, res) => {
+async function deleteEntity(req, res) {
   try {
     const db = await getDb();
     db.run('DELETE FROM entities WHERE id = ?', [req.params.id]);
@@ -162,10 +156,10 @@ router.delete('/:id', authRequired, adminOnly, async (req, res) => {
     console.error('Delete entity error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+}
 
 // Pledge (crowdfund) for a group
-router.post('/pledge/:groupId', authRequired, async (req, res) => {
+async function createPledge(req, res) {
   try {
     const db = await getDb();
     const existing = db.exec(
@@ -185,7 +179,7 @@ router.post('/pledge/:groupId', authRequired, async (req, res) => {
     console.error('Pledge error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+}
 
 // Get pledge count for a group (public)
 router.get('/pledge-count/:groupId', async (req, res) => {
@@ -204,7 +198,7 @@ router.get('/pledge-count/:groupId', async (req, res) => {
 });
 
 // Get current user's pledge status for a group
-router.get('/pledge-status/:groupId', authRequired, async (req, res) => {
+async function getPledgeStatus(req, res) {
   try {
     const db = await getDb();
     const results = db.exec(
@@ -216,6 +210,15 @@ router.get('/pledge-status/:groupId', authRequired, async (req, res) => {
     console.error('Pledge status error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+}
+
+registerRoutes(router, [
+  adminRoute('get', '/by-group/:groupId', listEntitiesByGroup),
+  adminRoute('post', '/', createEntity),
+  adminRoute('get', '/ownership-events', listOwnershipEvents),
+  adminRoute('delete', '/:id', deleteEntity),
+  loginRoute('post', '/pledge/:groupId', createPledge),
+  loginRoute('get', '/pledge-status/:groupId', getPledgeStatus),
+]);
 
 export default router;

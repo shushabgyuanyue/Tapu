@@ -6,6 +6,7 @@ import {
   resolveTravelTrail,
   setTravelTrailNextDestinationByKey,
 } from '../api';
+import { appCopy } from '../copy';
 
 const route = useRoute();
 const loading = ref(true);
@@ -24,14 +25,14 @@ const places = computed(() => Array.isArray(data.value?.places) ? data.value.pla
 const nextPlace = computed(() => trail.value.next_place || ritual.value.nextPlace || '');
 const nextPlaceNote = computed(() => trail.value.next_place_note || ritual.value.nextPlaceNote || '');
 const themeColor = computed(() => data.value?.content?.themeColor || trail.value.theme_color || '#2f6f5e');
-const title = computed(() => data.value?.content?.title || trail.value.title || '旅行轨迹');
+const title = computed(() => data.value?.content?.title || trail.value.title || appCopy.travelTrail.fallbackTitle);
 const subtitle = computed(() => (
   data.value?.content?.subtitle
   || trail.value.subtitle
-  || '每次出发前碰一下行李箱，回来后再把这一站接进人生轨迹。'
+  || appCopy.travelTrail.fallbackSubtitle
 ));
-const lifeQuestion = computed(() => ritual.value.lifeQuestion || '我的人生走过了哪些地方？');
-const objectLabel = computed(() => data.value?.token?.object_label || trail.value.object_label || '这件会移动的物品');
+const lifeQuestion = computed(() => ritual.value.lifeQuestion || appCopy.travelTrail.fallbackLifeQuestion);
+const objectLabel = computed(() => data.value?.token?.object_label || trail.value.object_label || appCopy.travelTrail.fallbackObjectLabel);
 
 const displayPlaces = computed(() => {
   const base = places.value.map((place: any) => ({ ...place, future: false }));
@@ -91,7 +92,7 @@ const load = async () => {
   error.value = '';
   message.value = '';
   if (!token.value) {
-    error.value = '缺少旅行轨迹链接，请确认 NFC 写入地址是否完整。';
+    error.value = appCopy.travelTrail.missingToken;
     loading.value = false;
     return;
   }
@@ -121,7 +122,7 @@ const planNextStop = async () => {
   }
   nextInput.value = '';
   nextNoteInput.value = '';
-  syncTrail(result, `下一站：${result.trail?.next_place || next}。出发前，行李已经记住它了。`);
+  syncTrail(result, appCopy.travelTrail.messages.planned(result.trail?.next_place || next));
 };
 
 const confirmReturn = async () => {
@@ -138,7 +139,7 @@ const confirmReturn = async () => {
     return;
   }
   returnNote.value = '';
-  syncTrail(result, `${result.place?.name || '这一站'}已经加入你的生命轨迹。`);
+  syncTrail(result, appCopy.travelTrail.messages.returned(result.place?.name || appCopy.travelTrail.messages.returnedFallback));
 };
 
 onMounted(load);
@@ -147,27 +148,27 @@ watch(() => route.fullPath, load);
 
 <template>
   <main class="trail-page" :style="{ '--trail-accent': themeColor }">
-    <div class="stamp stamp-a">WMT</div>
-    <div class="stamp stamp-b">NFC</div>
+    <div class="stamp stamp-a">{{ appCopy.travelTrail.stamps.brand }}</div>
+    <div class="stamp stamp-b">{{ appCopy.travelTrail.stamps.signal }}</div>
 
     <section class="trail-shell">
-      <p class="app-mark">WhatMint Travel Trail</p>
+      <p class="app-mark">{{ appCopy.travelTrail.mark }}</p>
 
       <div v-if="loading" class="state-card">
         <span class="loading-dot"></span>
-        <h1>正在展开这段路线</h1>
-        <p>{{ objectLabel }}里的地点正在排成一条线。</p>
+        <h1>{{ appCopy.travelTrail.loading.title }}</h1>
+        <p>{{ appCopy.travelTrail.loading.body(objectLabel) }}</p>
       </div>
 
       <div v-else-if="error && !data" class="state-card">
         <span class="error-dot">?</span>
-        <h1>这条轨迹暂时没有打开</h1>
+        <h1>{{ appCopy.travelTrail.error.title }}</h1>
         <p>{{ error }}</p>
       </div>
 
       <article v-else class="trail-card">
         <header class="trail-head">
-          <span>{{ places.length }} stops · {{ objectLabel }}</span>
+          <span>{{ appCopy.travelTrail.stops(places.length, objectLabel) }}</span>
           <p class="question">{{ lifeQuestion }}</p>
           <h1>{{ title }}</h1>
           <p>{{ subtitle }}</p>
@@ -191,32 +192,32 @@ watch(() => route.fullPath, load);
           </div>
 
           <div v-if="displayPlaces.length === 0" class="empty-map">
-            <strong>还没有出发</strong>
-            <p>先写下第一段下一站，让这件物品开始拥有方向。</p>
+            <strong>{{ appCopy.travelTrail.emptyMap.title }}</strong>
+            <p>{{ appCopy.travelTrail.emptyMap.body }}</p>
           </div>
         </section>
 
         <section v-if="nextPlace" class="ritual-card active-ritual">
-          <p>出发前</p>
-          <h2>下一站：{{ nextPlace }}</h2>
+          <p>{{ appCopy.travelTrail.activeRitual.kicker }}</p>
+          <h2>{{ appCopy.travelTrail.activeRitual.nextTitle(nextPlace) }}</h2>
           <span v-if="nextPlaceNote">{{ nextPlaceNote }}</span>
-          <span v-else>它还没有成为过去，但已经被这件行李轻轻记住。</span>
+          <span v-else>{{ appCopy.travelTrail.activeRitual.noNote }}</span>
 
           <div class="return-row">
-            <input v-model="returnNote" placeholder="回来后，可以给这一站留一句话" @keyup.enter="confirmReturn" />
+            <input v-model="returnNote" :placeholder="appCopy.travelTrail.activeRitual.returnPlaceholder" @keyup.enter="confirmReturn" />
             <button :disabled="saving" @click="confirmReturn">
-              {{ saving ? '记录中...' : '我回来了，把这一站加入轨迹' }}
+              {{ saving ? appCopy.travelTrail.activeRitual.saving : appCopy.travelTrail.activeRitual.action }}
             </button>
           </div>
         </section>
 
         <form v-else class="ritual-card plan-card" @submit.prevent="planNextStop">
-          <p>出发的仪式</p>
-          <h2>写下下一站</h2>
+          <p>{{ appCopy.travelTrail.plan.kicker }}</p>
+          <h2>{{ appCopy.travelTrail.plan.title }}</h2>
           <div class="plan-grid">
-            <input v-model="nextInput" placeholder="例如：东京 / 京都 / 冰岛黑沙滩" />
-            <input v-model="nextNoteInput" placeholder="一句出发前的心情，可选" />
-            <button :disabled="saving || !nextInput.trim()">{{ saving ? '写入中...' : '让行李记住它' }}</button>
+            <input v-model="nextInput" :placeholder="appCopy.travelTrail.plan.placePlaceholder" />
+            <input v-model="nextNoteInput" :placeholder="appCopy.travelTrail.plan.notePlaceholder" />
+            <button :disabled="saving || !nextInput.trim()">{{ saving ? appCopy.travelTrail.plan.saving : appCopy.travelTrail.plan.action }}</button>
           </div>
         </form>
 

@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router';
 import { getWishlist, removeFromWishlist } from '../api';
 import NavBar from '../components/NavBar.vue';
 import InfiniteScrollTrigger from '../components/InfiniteScrollTrigger.vue';
+import { userCopy } from '../copy';
 
 const router = useRouter();
 const toast = inject<{ show: (text: string, duration?: number, type?: string) => void }>('toast');
@@ -26,7 +27,7 @@ const loadWishlist = async () => {
 const handleRemove = async (groupId: string) => {
   await removeFromWishlist(groupId);
   items.value = items.value.filter(item => item.group_id !== groupId);
-  toast?.show('已移出心愿单', 2000, 'success');
+  toast?.show(userCopy.wishlist.removedToast, 2000, 'success');
 };
 
 const goShop = () => {
@@ -34,7 +35,7 @@ const goShop = () => {
 };
 
 const handleExternalPurchase = (item: any) => {
-  toast?.show(`请在官方外部渠道购买「${item.group_name}」，收到 token 后到“我的资产”绑定实体。`, 3600, 'success');
+  toast?.show(userCopy.wishlist.externalPurchaseToast(item.group_name), 3600, 'success');
 };
 
 onMounted(loadWishlist);
@@ -46,9 +47,9 @@ onMounted(loadWishlist);
 
     <main class="wishlist-shell">
       <div class="wishlist-heading">
-        <span class="eyebrow">Wishlist</span>
-        <h1>心愿单</h1>
-        <p>这里单独记录你想要的实体 IP，不再和商城混在同一个页面里。</p>
+        <span class="eyebrow">{{ userCopy.wishlist.eyebrow }}</span>
+        <h1>{{ userCopy.wishlist.title }}</h1>
+        <p>{{ userCopy.wishlist.intro }}</p>
       </div>
 
       <div v-if="loading" class="wishlist-loading">
@@ -58,9 +59,9 @@ onMounted(loadWishlist);
       <template v-else>
         <div v-if="items.length === 0" class="wishlist-empty">
           <div class="empty-mark">♡</div>
-          <h2>心愿单还是空的</h2>
-          <p>去商城看看有没有想被做成实体的小狗。</p>
-          <button @click="goShop">去商城</button>
+          <h2>{{ userCopy.wishlist.emptyTitle }}</h2>
+          <p>{{ userCopy.wishlist.emptyBody }}</p>
+          <button @click="goShop">{{ userCopy.wishlist.goShop }}</button>
         </div>
 
         <TransitionGroup v-else name="wish-list" tag="div" class="wishlist-list">
@@ -72,13 +73,13 @@ onMounted(loadWishlist);
 
             <div class="wish-info">
               <h2>{{ item.group_name }}</h2>
-              <p v-if="item.video_title">已记录默认内容：{{ item.video_title }}</p>
-              <p v-else>未指定默认内容</p>
+              <p v-if="item.video_title">{{ userCopy.wishlist.defaultContent(item.video_title) }}</p>
+              <p v-else>{{ userCopy.wishlist.noDefaultContent }}</p>
             </div>
 
             <div class="wish-actions">
-              <button class="buy-btn" @click="handleExternalPurchase(item)">去外部购买</button>
-              <button class="remove-btn" @click="handleRemove(item.group_id)">移除</button>
+              <button class="buy-btn" @click="handleExternalPurchase(item)">{{ userCopy.wishlist.externalPurchase }}</button>
+              <button class="remove-btn" @click="handleRemove(item.group_id)">{{ userCopy.wishlist.remove }}</button>
             </div>
           </article>
         </TransitionGroup>

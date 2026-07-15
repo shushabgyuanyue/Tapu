@@ -2,9 +2,14 @@ import express from 'express';
 import crypto from 'crypto';
 import { getDb, saveDb } from '../db/index.js';
 import { v4 as uuidv4 } from 'uuid';
-import { authOptional, authRequired, createLoginSession, verifyEntityKey } from '../middleware/auth.js';
+import { createLoginSession, verifyEntityKey } from '../middleware/auth.js';
 import { getEntityByToken, resultToObjects } from '../services/tokens.js';
 import { recordOwnershipEvent } from '../services/ownership.js';
+import { adminRoute, loginRoute, publicRoute, registerRoutes } from '../services/routePermissions.js';
+import {
+  assertVideoAssignableToEntity,
+} from '../services/objectPermissions.js';
+import { serverMessages } from '../copy/messages.js';
 
 const router = express.Router();
 
@@ -23,11 +28,13 @@ function hashPassword(password) {
   return crypto.createHash('sha256').update(password).digest('hex');
 }
 
-function adminOnly(req, res, next) {
-  if (req.user.username !== 'admin') {
-    return res.status(403).json({ error: '仅管理员可操作' });
-  }
-  next();
+function sendKnownError(res, error) {
+  if (!error?.status) return false;
+  res.status(error.status).json({
+    error: error.message,
+    code: error.code,
+  });
+  return true;
 }
 
 function isWithinAppealWindow(createdAt) {
@@ -99,18 +106,9 @@ router.post('/login', async (req, res) => {
 });
 
 // Bind entity to current user account
-router.post('/bind-entity', authRequired, async (req, res) => {
+async function bindEntityHandler(req, res) {
   try {
-    const { key } = req.body;
-    if (!key) return res.status(400).json({ error: 'key is required' });
-
-    const db = await getDb();
-    const entity = getEntityByToken(db, key);
-    if (!entity) return res.status(400).json({ error: '无效的 token' });
-
-    if (entity.user_id && entity.user_id !== req.user.id) {
-      return res.status(409).json({ error: '该实体已绑定其他账户，如有争议请使用订单号申诉解绑' });
-    }
+    const { db, entity } = req.permission;
 
     // Update entity owner to current user
     db.run('UPDATE entities SET user_id = ?, bound_at = CURRENT_TIMESTAMP WHERE id = ?', [req.user.id, entity.id]);
@@ -122,59 +120,48 @@ router.post('/bind-entity', authRequired, async (req, res) => {
       toUserId: req.user.id,
       actorUserId: req.user.id,
       orderId: entity.external_order_no || null,
-      note: '用户绑定实体',
+      note: serverMessages.routes.auth.entityBindNote,
     });
     saveDb();
 
     res.json({ success: true, entity_id: entity.id });
   } catch (error) {
+    if (sendKnownError(res, error)) return;
     console.error('Bind entity error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+}
 
 // Unbind entity from current user
-router.post('/unbind-entity', authRequired, async (req, res) => {
+async function unbindEntityHandler(req, res) {
   try {
-    const { entity_id } = req.body;
-    if (!entity_id) return res.status(400).json({ error: 'entity_id is required' });
+    const { db, entityId, entity } = req.permission;
 
-    const db = await getDb();
-
-    // Verify entity belongs to current user
-    const entityResults = db.exec('SELECT user_id, token, entity_key, external_order_no FROM entities WHERE id = ?', [entity_id]);
-    const entities = resultToObjects(entityResults);
-    if (entities.length === 0) {
-      return res.status(400).json({ error: '该实体不存在' });
-    }
-    if (entities[0].user_id !== req.user.id) {
-      return res.status(403).json({ error: '无权解绑该实体' });
-    }
-
-    db.run('UPDATE entities SET user_id = NULL, unbound_at = CURRENT_TIMESTAMP WHERE id = ?', [entity_id]);
+    db.run('UPDATE entities SET user_id = NULL, unbound_at = CURRENT_TIMESTAMP WHERE id = ?', [entityId]);
     recordOwnershipEvent(db, {
-      entityId: entity_id,
-      token: entities[0].token || entities[0].entity_key,
+      entityId,
+      token: entity.token || entity.entity_key,
       eventType: 'unbind',
       fromUserId: req.user.id,
       toUserId: null,
       actorUserId: req.user.id,
-      orderId: entities[0].external_order_no || null,
-      note: '用户主动解绑实体',
+      orderId: entity.external_order_no || null,
+      note: serverMessages.routes.auth.entityUnbindNote,
     });
     saveDb();
 
     res.json({ success: true });
   } catch (error) {
+    if (sendKnownError(res, error)) return;
     console.error('Unbind entity error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+}
 
 // Get current user profile
-router.get('/profile', authRequired, async (req, res) => {
+async function getProfileHandler(req, res) {
   try {
-    const db = await getDb();
+    const { db } = req.permission;
     const userResults = db.exec(
       'SELECT id, username, is_creator, created_at FROM users WHERE id = ?',
       [req.user.id]
@@ -187,17 +174,17 @@ router.get('/profile', authRequired, async (req, res) => {
     console.error('Profile error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+}
 
 // Change password
-router.put('/password', authRequired, async (req, res) => {
+async function changePasswordHandler(req, res) {
   try {
     const { old_password, new_password } = req.body;
     if (!old_password || !new_password) {
       return res.status(400).json({ error: 'old_password and new_password required' });
     }
 
-    const db = await getDb();
+    const { db } = req.permission;
     const oldHash = hashPassword(old_password);
     const stmt = db.prepare('SELECT id FROM users WHERE id = ? AND password_hash = ?');
     stmt.bind([req.user.id, oldHash]);
@@ -205,7 +192,7 @@ router.put('/password', authRequired, async (req, res) => {
     stmt.free();
 
     if (!match) {
-      return res.status(400).json({ error: '原密码不正确' });
+      return res.status(400).json({ error: serverMessages.routes.auth.wrongOldPassword });
     }
 
     const newHash = hashPassword(new_password);
@@ -217,12 +204,12 @@ router.put('/password', authRequired, async (req, res) => {
     console.error('Password change error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+}
 
 // Get user's entities
-router.get('/entities', authRequired, async (req, res) => {
+async function listUserEntitiesHandler(req, res) {
   try {
-    const db = await getDb();
+    const { db } = req.permission;
     const results = db.exec(
       `SELECT e.*, g.name as group_name, g.series_id, g.cover_url, g.hero_url, g.product_image_url,
               g.description, g.rarity_label, g.theme_color, g.official_default_video_id,
@@ -242,26 +229,26 @@ router.get('/entities', authRequired, async (req, res) => {
     console.error('Get entities error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+}
 
 // Generate entity key (admin/creator use)
-router.post('/entity-key', authRequired, adminOnly, async (req, res) => {
+async function generateEntityKeyHandler(req, res) {
   try {
     const { group_id, entity_id } = req.body;
     if (!group_id || !entity_id) {
       return res.status(400).json({ error: 'group_id and entity_id required' });
     }
 
-    const db = await getDb();
+    const { db } = req.permission;
     const entityRows = resultToObjects(db.exec('SELECT token FROM entities WHERE id = ? AND group_id = ?', [entity_id, group_id]));
-    if (entityRows.length === 0) return res.status(404).json({ error: '实体不存在' });
+    if (entityRows.length === 0) return res.status(404).json({ error: serverMessages.permissions.entityNotFound });
     const key = entityRows[0].token;
     res.json({ success: true, key });
   } catch (error) {
     console.error('Generate key error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+}
 
 // Verify key
 router.post('/verify-key', async (req, res) => {
@@ -281,27 +268,24 @@ router.post('/verify-key', async (req, res) => {
 });
 
 // Set default content with an unbound entity token.
-router.put('/entity-default-by-token', async (req, res) => {
+async function setEntityDefaultByTokenHandler(req, res) {
   try {
-    const { key } = req.body;
     const video_id = normalizeVideoId(req.body?.video_id);
-    if (!key || !video_id) return res.status(400).json({ error: 'key and video_id are required' });
+    if (!video_id) return res.status(400).json({ error: 'video_id is required' });
 
-    const db = await getDb();
-    const entity = getEntityByToken(db, key);
-    if (!entity) return res.status(400).json({ error: '无效的 token' });
-    if (entity.user_id) {
-      return res.status(403).json({ error: '该实体已绑定账号，请登录对应账号后修改' });
-    }
+    const { db, entity } = req.permission;
 
     const videos = resultToObjects(db.exec(
-      'SELECT id, group_id, status, is_private FROM videos WHERE id = ?',
+      'SELECT id, group_id, status, is_private, entity_id, owner_user_id FROM videos WHERE id = ?',
       [video_id]
     ));
-    if (videos.length === 0) return res.status(404).json({ error: '默认内容不存在' });
-    if (videos[0].group_id !== entity.group_id) return res.status(400).json({ error: '该内容不属于当前 IP' });
-    if (videos[0].status !== 'ready') return res.status(400).json({ error: '只能将就绪内容设为默认内容' });
-    if (videos[0].is_private === 1) return res.status(403).json({ error: '私有内容需要登录后才能设置' });
+    if (videos.length === 0) return res.status(404).json({ error: serverMessages.routes.common.contentDefaultMissing });
+    if (videos[0].group_id !== entity.group_id) return res.status(400).json({ error: serverMessages.routes.common.contentNotInIp });
+    if (!['ready', 'processing'].includes(videos[0].status)) return res.status(400).json({ error: serverMessages.routes.common.contentUnavailableForDefault });
+    assertVideoAssignableToEntity(req.user, videos[0], entity.id);
+    if (Number(videos[0].is_private || 0) === 1 && !videos[0].entity_id) {
+      db.run('UPDATE videos SET entity_id = ? WHERE id = ?', [entity.id, video_id]);
+    }
 
     db.run('DELETE FROM user_defaults WHERE entity_id = ?', [entity.id]);
     db.run('INSERT INTO user_defaults (entity_id, video_id, group_id) VALUES (?, ?, ?)', [entity.id, video_id, entity.group_id]);
@@ -309,54 +293,53 @@ router.put('/entity-default-by-token', async (req, res) => {
       entityId: entity.id,
       token: entity.token || entity.entity_key,
       eventType: 'content_default_set',
-      actorUserId: null,
+      actorUserId: req.user?.id || null,
       orderId: entity.external_order_no || null,
-      note: '未绑定 token 修改实体默认内容',
+      note: serverMessages.routes.auth.unboundTokenDefaultNote,
     });
     saveDb();
     res.json({ success: true, entity_id: entity.id });
   } catch (error) {
+    if (sendKnownError(res, error)) return;
     console.error('Set token default error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+}
 
 // Transfer a bound entity to another account. Token remains unchanged.
-router.post('/transfer-entity', authRequired, async (req, res) => {
+async function transferEntityHandler(req, res) {
   try {
-    const { entity_id, to_username } = req.body;
-    if (!entity_id || !to_username) return res.status(400).json({ error: 'entity_id and to_username are required' });
+    const { to_username } = req.body;
+    if (!to_username) return res.status(400).json({ error: 'to_username is required' });
 
-    const db = await getDb();
-    const entities = resultToObjects(db.exec('SELECT id, user_id, token, entity_key, external_order_no FROM entities WHERE id = ?', [entity_id]));
-    if (entities.length === 0) return res.status(404).json({ error: '实体不存在' });
-    if (entities[0].user_id !== req.user.id) return res.status(403).json({ error: '无权转赠该实体' });
+    const { db, entityId, entity } = req.permission;
 
     const targets = resultToObjects(db.exec('SELECT id, username FROM users WHERE username = ?', [to_username]));
-    if (targets.length === 0) return res.status(404).json({ error: '目标账号不存在' });
-    if (targets[0].id === req.user.id) return res.status(400).json({ error: '不能转赠给自己' });
+    if (targets.length === 0) return res.status(404).json({ error: serverMessages.routes.auth.targetAccountMissing });
+    if (targets[0].id === req.user.id) return res.status(400).json({ error: serverMessages.routes.auth.transferSelf });
 
-    db.run('UPDATE entities SET user_id = ?, bound_at = CURRENT_TIMESTAMP WHERE id = ?', [targets[0].id, entity_id]);
+    db.run('UPDATE entities SET user_id = ?, bound_at = CURRENT_TIMESTAMP WHERE id = ?', [targets[0].id, entityId]);
     recordOwnershipEvent(db, {
-      entityId: entity_id,
-      token: entities[0].token || entities[0].entity_key,
+      entityId,
+      token: entity.token || entity.entity_key,
       eventType: 'transfer',
       fromUserId: req.user.id,
       toUserId: targets[0].id,
       actorUserId: req.user.id,
-      orderId: entities[0].external_order_no || null,
-      note: `一键转赠给 ${targets[0].username}`,
+      orderId: entity.external_order_no || null,
+      note: serverMessages.routes.auth.transferNote(targets[0].username),
     });
     saveDb();
-    res.json({ success: true, entity_id, to_username: targets[0].username });
+    res.json({ success: true, entity_id: entityId, to_username: targets[0].username });
   } catch (error) {
+    if (sendKnownError(res, error)) return;
     console.error('Transfer entity error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+}
 
 // Appeal for official manual unbinding within one month of entity/order creation.
-router.post('/unbind-appeals', authOptional, async (req, res) => {
+async function createUnbindAppealHandler(req, res) {
   try {
     const { order_no, token, reason } = req.body;
     if (!order_no) return res.status(400).json({ error: 'order_no is required' });
@@ -368,10 +351,10 @@ router.post('/unbind-appeals', authOptional, async (req, res) => {
     }
 
     if (entity && entity.external_order_no && entity.external_order_no !== order_no) {
-      return res.status(400).json({ error: '订单号与实体 token 不匹配' });
+      return res.status(400).json({ error: serverMessages.routes.auth.orderTokenMismatch });
     }
     if (entity && !isWithinAppealWindow(entity.created_at)) {
-      return res.status(400).json({ error: '申诉窗口已超过一个月，请联系官方人工处理' });
+      return res.status(400).json({ error: serverMessages.routes.auth.appealExpired });
     }
 
     const id = uuidv4();
@@ -386,11 +369,11 @@ router.post('/unbind-appeals', authOptional, async (req, res) => {
     console.error('Create unbind appeal error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+}
 
-router.get('/unbind-appeals', authRequired, adminOnly, async (_req, res) => {
+async function listUnbindAppealsHandler(req, res) {
   try {
-    const db = await getDb();
+    const { db } = req.permission;
     const rows = resultToObjects(db.exec(
       `SELECT a.*, e.group_id, g.name as group_name, u.username as requester_username
        FROM token_unbind_appeals a
@@ -404,16 +387,16 @@ router.get('/unbind-appeals', authRequired, adminOnly, async (_req, res) => {
     console.error('List unbind appeals error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+}
 
-router.post('/unbind-appeals/:id/resolve', authRequired, adminOnly, async (req, res) => {
+async function resolveUnbindAppealHandler(req, res) {
   try {
     const { action } = req.body;
     if (!['approve', 'reject'].includes(action)) return res.status(400).json({ error: 'action must be approve or reject' });
 
-    const db = await getDb();
+    const { db } = req.permission;
     const appeals = resultToObjects(db.exec('SELECT * FROM token_unbind_appeals WHERE id = ?', [req.params.id]));
-    if (appeals.length === 0) return res.status(404).json({ error: '申诉不存在' });
+    if (appeals.length === 0) return res.status(404).json({ error: serverMessages.routes.auth.appealMissing });
     const appeal = appeals[0];
 
     if (action === 'approve' && appeal.entity_id) {
@@ -431,7 +414,7 @@ router.post('/unbind-appeals/:id/resolve', authRequired, adminOnly, async (req, 
         toUserId: null,
         actorUserId: req.user.id,
         orderId: entity?.external_order_no || appeal.order_no,
-        note: '官方申诉解绑',
+        note: serverMessages.routes.auth.appealUnbindNote,
       });
     }
     db.run(
@@ -444,84 +427,121 @@ router.post('/unbind-appeals/:id/resolve', authRequired, adminOnly, async (req, 
     console.error('Resolve unbind appeal error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+}
 
 // Get default video for an entity
-router.get('/entity-default/:entityId', authRequired, async (req, res) => {
+async function getEntityDefaultHandler(req, res) {
   try {
-    const db = await getDb();
-    // Verify entity belongs to user
-    const entityResults = db.exec('SELECT user_id, group_id, token, entity_key, external_order_no FROM entities WHERE id = ?', [req.params.entityId]);
-    const entities = resultToObjects(entityResults);
-    if (entities.length === 0 || entities[0].user_id !== req.user.id) {
-      return res.status(403).json({ error: '无权查看该实体' });
-    }
+    const { db, entityId } = req.permission;
     const results = db.exec(
       `SELECT ud.video_id, v.title as video_title FROM user_defaults ud
        LEFT JOIN videos v ON ud.video_id = v.id
        WHERE ud.entity_id = ? ORDER BY ud.created_at DESC LIMIT 1`,
-      [req.params.entityId]
+      [entityId]
     );
     const defaults = resultToObjects(results);
     res.json(defaults.length > 0 ? defaults[0] : { video_id: null, video_title: null });
   } catch (error) {
+    if (sendKnownError(res, error)) return;
     console.error('Get entity default error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+}
 
 // Set default video for an entity
-router.put('/entity-default/:entityId', authRequired, async (req, res) => {
+async function setEntityDefaultHandler(req, res) {
   try {
     const video_id = normalizeVideoId(req.body?.video_id);
     if (!video_id) return res.status(400).json({ error: 'video_id is required' });
 
-    const db = await getDb();
-    // Verify entity belongs to user
-    const entityResults = db.exec('SELECT user_id, group_id, token, entity_key, external_order_no FROM entities WHERE id = ?', [req.params.entityId]);
-    const entities = resultToObjects(entityResults);
-    if (entities.length === 0 || entities[0].user_id !== req.user.id) {
-      return res.status(403).json({ error: '无权操作该实体' });
-    }
-    const group_id = entities[0].group_id;
+    const { db, entityId, entity } = req.permission;
+    const group_id = entity.group_id;
 
     const videoResults = db.exec(
-      'SELECT id, group_id, status, is_private, entity_id FROM videos WHERE id = ?',
+      'SELECT id, group_id, status, is_private, entity_id, owner_user_id FROM videos WHERE id = ?',
       [video_id]
     );
     const videos = resultToObjects(videoResults);
     if (videos.length === 0) {
-      return res.status(404).json({ error: '默认内容不存在' });
+      return res.status(404).json({ error: serverMessages.routes.common.contentDefaultMissing });
     }
     if (videos[0].group_id !== group_id) {
-      return res.status(400).json({ error: '该内容不属于当前 IP' });
+      return res.status(400).json({ error: serverMessages.routes.common.contentNotInIp });
     }
-    if (videos[0].status !== 'ready') {
-      return res.status(400).json({ error: '只能将就绪内容设为默认内容' });
+    if (!['ready', 'processing'].includes(videos[0].status)) {
+      return res.status(400).json({ error: serverMessages.routes.common.contentUnavailableForDefault });
     }
-    if (videos[0].is_private === 1 && videos[0].entity_id !== req.params.entityId && req.user.username !== 'admin') {
-      return res.status(403).json({ error: '不能将其他实体的私有内容设为默认内容' });
+    assertVideoAssignableToEntity(req.user, videos[0], entityId);
+    if (Number(videos[0].is_private || 0) === 1 && !videos[0].entity_id) {
+      db.run('UPDATE videos SET entity_id = ? WHERE id = ?', [entityId, video_id]);
     }
 
     // Delete old default and insert new
-    db.run('DELETE FROM user_defaults WHERE entity_id = ?', [req.params.entityId]);
+    db.run('DELETE FROM user_defaults WHERE entity_id = ?', [entityId]);
     db.run('INSERT INTO user_defaults (entity_id, video_id, group_id) VALUES (?, ?, ?)',
-      [req.params.entityId, video_id, group_id]);
+      [entityId, video_id, group_id]);
     recordOwnershipEvent(db, {
-      entityId: req.params.entityId,
-      token: entities[0].token || entities[0].entity_key,
+      entityId,
+      token: entity.token || entity.entity_key,
       eventType: 'content_default_set',
       actorUserId: req.user.id,
-      orderId: entities[0].external_order_no || null,
-      note: '账号所有者修改实体默认内容',
+      orderId: entity.external_order_no || null,
+      note: serverMessages.routes.auth.ownerDefaultNote,
     });
     saveDb();
 
     res.json({ success: true });
   } catch (error) {
+    if (sendKnownError(res, error)) return;
     console.error('Set entity default error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+}
+
+registerRoutes(router, [
+  loginRoute('get', '/profile', getProfileHandler),
+  loginRoute('put', '/password', changePasswordHandler),
+  loginRoute('get', '/entities', listUserEntitiesHandler),
+  publicRoute('post', '/unbind-appeals', createUnbindAppealHandler),
+  adminRoute('post', '/entity-key', generateEntityKeyHandler),
+  adminRoute('get', '/unbind-appeals', listUnbindAppealsHandler),
+  adminRoute('post', '/unbind-appeals/:id/resolve', resolveUnbindAppealHandler),
+  {
+    method: 'post',
+    path: '/bind-entity',
+    permission: 'claimable_asset',
+    handler: bindEntityHandler,
+  },
+  {
+    method: 'post',
+    path: '/unbind-entity',
+    permission: 'entity_owner',
+    handler: unbindEntityHandler,
+  },
+  {
+    method: 'put',
+    path: '/entity-default-by-token',
+    permission: 'token_unbound_or_owner',
+    handler: setEntityDefaultByTokenHandler,
+  },
+  {
+    method: 'post',
+    path: '/transfer-entity',
+    permission: 'entity_owner',
+    handler: transferEntityHandler,
+  },
+  {
+    method: 'get',
+    path: '/entity-default/:entityId',
+    permission: 'entity_owner',
+    handler: getEntityDefaultHandler,
+  },
+  {
+    method: 'put',
+    path: '/entity-default/:entityId',
+    permission: 'entity_owner',
+    handler: setEntityDefaultHandler,
+  },
+]);
 
 export default router;

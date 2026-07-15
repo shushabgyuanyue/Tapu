@@ -3,62 +3,25 @@ import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { getConfig } from '../api';
 import NavBar from '../components/NavBar.vue';
+import { homeCopy } from '../copy';
 
 const router = useRouter();
 const communityEnabled = ref(false);
 const wishlistEnabled = ref(false);
 
 const primaryPath = computed(() => (communityEnabled.value ? '/community' : '/shop'));
-const primaryCtaLabel = computed(() => (communityEnabled.value ? '进入灵感社区' : '看看可以触碰的物'));
+const primaryCtaLabel = computed(() => (communityEnabled.value ? homeCopy.hero.primaryCommunity : homeCopy.hero.primaryShop));
 
-const objectCards = [
-  {
-    name: '纸巾小狗',
-    label: '情绪 IP',
-    desc: '把一句祝福、一段关系、一份陪伴，安放进一个长期存在的实体里。',
-    image: new URL('../IPimg/永远系列-纸巾小狗-合集.png', import.meta.url).href,
-  },
-  {
-    name: '守护小狗',
-    label: '关系载体',
-    desc: '不是扫码看内容，而是触碰一个被赋予性格的物，进入它的小世界。',
-    image: new URL('../IPimg/永远系列-守护小狗-合集.png', import.meta.url).href,
-  },
-  {
-    name: '祈福小狗',
-    label: '礼物入口',
-    desc: '适合礼物、纪念日、企业伴手礼，也适合一个人安静地想起另一个人。',
-    image: new URL('../IPimg/永远系列-祈福小狗-合集.png', import.meta.url).href,
-  },
-];
+const objectImages: Record<string, string> = {
+  '永远系列-纸巾小狗-合集.png': new URL('../IPimg/永远系列-纸巾小狗-合集.png', import.meta.url).href,
+  '永远系列-守护小狗-合集.png': new URL('../IPimg/永远系列-守护小狗-合集.png', import.meta.url).href,
+  '永远系列-祈福小狗-合集.png': new URL('../IPimg/永远系列-祈福小狗-合集.png', import.meta.url).href,
+};
 
-const lightApps = [
-  {
-    index: '01',
-    name: '手账慢故事贴纸',
-    desc: '一枚贴纸就是一个慢慢更新的数字角落，让普通物品多出故事、气味和时间。',
-    tag: '内容容器',
-  },
-  {
-    index: '02',
-    name: '答案之书',
-    desc: '碰一下，得到一张克制、正念、带一点黑色幽默的回应卡。',
-    tag: '轻交互',
-  },
-  {
-    index: '03',
-    name: '情绪 IP',
-    desc: '把数字祝福重新变成一个可触碰、可收藏、可复访的关系载体。',
-    tag: '商业化',
-  },
-];
-
-const principles = [
-  'NFC 是入口，不是产品本身。',
-  '实体是载体，内容是应用。',
-  '每个贴纸、摆件、作品，都可以拥有自己的数字空间。',
-  '后台隐藏复杂路由与权限，前台只保留一次轻轻的触碰。',
-];
+const objectCards = homeCopy.objectSection.cards.map(card => ({
+  ...card,
+  image: objectImages[card.imageName],
+}));
 
 const goPrimary = () => {
   router.push(primaryPath.value);
@@ -86,19 +49,16 @@ onMounted(async () => {
     <main>
       <section class="hero-section">
         <div class="hero-copy">
-          <p class="eyebrow">WhatMint Object Space</p>
+          <p class="eyebrow">{{ homeCopy.hero.eyebrow }}</p>
           <h1>
-            给现实里的物，
-            <span>安装情绪应用。</span>
+            {{ homeCopy.hero.titlePrefix }}
+            <span>{{ homeCopy.hero.titleAccent }}</span>
           </h1>
-          <p class="hero-sub">
-            一枚 NFC 贴纸、一个摆件、一件作品，被触碰后打开自己的数字空间。
-            我们用轻应用把物的特性延展出来，形成新的交互范式和情绪表达。
-          </p>
+          <p class="hero-sub">{{ homeCopy.hero.subtitle }}</p>
 
           <div class="hero-actions">
             <button class="primary-btn" @click="goPrimary">{{ primaryCtaLabel }}</button>
-            <button v-if="wishlistEnabled" class="secondary-btn" @click="router.push('/wishlist')">打开心愿单</button>
+            <button v-if="wishlistEnabled" class="secondary-btn" @click="router.push('/wishlist')">{{ homeCopy.hero.wishlist }}</button>
           </div>
         </div>
 
@@ -110,21 +70,21 @@ onMounted(async () => {
           </div>
           <div class="object-card">
             <span class="object-chip">tap</span>
-            <strong>答案之书</strong>
-            <p>今天先别急着证明自己。把手松开一点，答案会浮上来。</p>
+            <strong>{{ homeCopy.demo.app }}</strong>
+            <p>{{ homeCopy.demo.answer }}</p>
           </div>
           <div class="nfc-card">
             <span>NFC</span>
-            <small>碰一下进入</small>
+            <small>{{ homeCopy.demo.chip }}</small>
           </div>
         </div>
       </section>
 
       <section class="object-section">
         <div class="section-head">
-          <p class="eyebrow">Objects As IP</p>
-          <h2>用户先理解一个物，再慢慢理解一个系统。</h2>
-          <span>贴纸、摆件、手作和礼物天然像 IP。我们把复杂的应用、内容、权限和运行时藏在后面。</span>
+          <p class="eyebrow">{{ homeCopy.objectSection.eyebrow }}</p>
+          <h2>{{ homeCopy.objectSection.title }}</h2>
+          <span>{{ homeCopy.objectSection.subtitle }}</span>
         </div>
 
         <div class="object-grid">
@@ -142,13 +102,13 @@ onMounted(async () => {
       <section class="apps-section">
         <div class="apps-panel">
           <div class="section-head section-head--light">
-            <p class="eyebrow">Light Apps First</p>
-            <h2>先做爆款轻应用，再把共性抽成平台能力。</h2>
-            <span>WhatMint 不是先教育用户什么是 OS，而是让用户碰到一个好玩的物，然后自然进入它的应用。</span>
+            <p class="eyebrow">{{ homeCopy.appsSection.eyebrow }}</p>
+            <h2>{{ homeCopy.appsSection.title }}</h2>
+            <span>{{ homeCopy.appsSection.subtitle }}</span>
           </div>
 
           <div class="app-list">
-            <article v-for="app in lightApps" :key="app.name" class="light-app-card">
+            <article v-for="app in homeCopy.appsSection.apps" :key="app.name" class="light-app-card">
               <span class="app-index">{{ app.index }}</span>
               <div>
                 <strong>{{ app.name }}</strong>
@@ -162,16 +122,13 @@ onMounted(async () => {
 
       <section class="os-section">
         <div class="os-copy">
-          <p class="eyebrow">WhatMint OS</p>
-          <h2>真正的系统感，应该让使用者感觉不到系统。</h2>
-          <p>
-            管理端负责应用目录、内容集合、对象事件和绑定关系。
-            用户端只需要一次触碰，一个恰到好处的回应，和一个愿意再次打开的小空间。
-          </p>
+          <p class="eyebrow">{{ homeCopy.osSection.eyebrow }}</p>
+          <h2>{{ homeCopy.osSection.title }}</h2>
+          <p>{{ homeCopy.osSection.body }}</p>
         </div>
 
         <div class="principle-list">
-          <div v-for="item in principles" :key="item" class="principle-item">
+          <div v-for="item in homeCopy.osSection.principles" :key="item" class="principle-item">
             <span></span>
             <p>{{ item }}</p>
           </div>
@@ -179,16 +136,16 @@ onMounted(async () => {
       </section>
 
       <section class="final-cta">
-        <p>有灵气，有个性，歌颂美好，同时成熟克制，兼具商业性。</p>
-        <h2>让物开始表达，让触碰重新变得有意义。</h2>
+        <p>{{ homeCopy.finalCta.tone }}</p>
+        <h2>{{ homeCopy.finalCta.title }}</h2>
         <button @click="goPrimary">{{ primaryCtaLabel }}</button>
       </section>
     </main>
 
     <footer class="landing-footer">
       <span>whatmint</span>
-      <router-link to="/disclaimer">免责声明</router-link>
-      <router-link to="/privacy">隐私政策</router-link>
+      <router-link to="/disclaimer">{{ homeCopy.footer.disclaimer }}</router-link>
+      <router-link to="/privacy">{{ homeCopy.footer.privacy }}</router-link>
     </footer>
   </div>
 </template>

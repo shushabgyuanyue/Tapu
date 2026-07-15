@@ -1,0 +1,9 @@
+export { commonCopy } from './common';
+export { appCopy } from './apps';
+export { communityCopy } from './community';
+export { contentCopy } from './content';
+export { homeCopy } from './home';
+export { legalCopy } from './legal';
+export { shopCopy } from './shop';
+export { studioCopy } from './studio';
+export { userCopy } from './user';

@@ -1,7 +1,8 @@
 import { Router } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { getDb, saveDb } from '../db/index.js';
-import { authRequired } from '../middleware/auth.js';
+import { adminRoute, registerRoutes } from '../services/routePermissions.js';
+import { serverMessages } from '../copy/messages.js';
 
 const router = Router();
 
@@ -26,12 +27,6 @@ function resultToObjects(results) {
   });
 }
 
-function adminOnly(req, res, next) {
-  if (req.user.username !== 'admin') {
-    return res.status(403).json({ error: '仅管理员可操作' });
-  }
-  next();
-}
 
 function computeSaleStatus(group) {
   const available = group.available_count || 0;
@@ -150,12 +145,12 @@ router.get('/:id', async (req, res) => {
   );
   const rows = resultToObjects(results);
   if (rows.length === 0) {
-    return res.status(404).json({ error: 'IP 不存在' });
+    return res.status(404).json({ error: serverMessages.routes.common.ipNotFound });
   }
   res.json(enrichGroup(rows[0]));
 });
 
-router.post('/', authRequired, adminOnly, async (req, res) => {
+async function createGroup(req, res) {
   const payload = buildGroupPayload(req.body);
   if (!payload.name) return res.status(400).json({ error: 'Name is required' });
 
@@ -191,9 +186,9 @@ router.post('/', authRequired, adminOnly, async (req, res) => {
   );
   saveDb();
   res.json({ id, ...payload });
-});
+}
 
-router.put('/:id', authRequired, adminOnly, async (req, res) => {
+async function updateGroup(req, res) {
   const payload = buildGroupPayload(req.body);
   if (!payload.name) return res.status(400).json({ error: 'Name is required' });
 
@@ -229,16 +224,16 @@ router.put('/:id', authRequired, adminOnly, async (req, res) => {
   );
   saveDb();
   res.json({ id: req.params.id, ...payload });
-});
+}
 
-router.delete('/:id', authRequired, adminOnly, async (req, res) => {
+async function deleteGroup(req, res) {
   const db = await getDb();
   db.run('DELETE FROM groups WHERE id = ?', [req.params.id]);
   saveDb();
   res.json({ success: true });
-});
+}
 
-router.put('/:id/official-default', authRequired, adminOnly, async (req, res) => {
+async function setOfficialDefault(req, res) {
   const video_id = normalizeVideoId(req.body?.video_id);
   if (!video_id) return res.status(400).json({ error: 'video_id is required' });
 
@@ -249,18 +244,25 @@ router.put('/:id/official-default', authRequired, adminOnly, async (req, res) =>
   );
   const videos = resultToObjects(videoResults);
   if (videos.length === 0) {
-    return res.status(404).json({ error: '默认内容不存在' });
+    return res.status(404).json({ error: serverMessages.routes.common.contentDefaultMissing });
   }
   if (videos[0].group_id !== req.params.id) {
-    return res.status(400).json({ error: '该内容不属于当前 IP' });
+    return res.status(400).json({ error: serverMessages.routes.common.contentNotInIp });
   }
   if (videos[0].status !== 'ready') {
-    return res.status(400).json({ error: '只能将已就绪内容设为默认内容' });
+    return res.status(400).json({ error: serverMessages.routes.common.readyContentOnly });
   }
 
   db.run('UPDATE groups SET official_default_video_id = ? WHERE id = ?', [video_id, req.params.id]);
   saveDb();
   res.json({ success: true, group_id: req.params.id, official_default_video_id: video_id });
-});
+}
+
+registerRoutes(router, [
+  adminRoute('post', '/', createGroup),
+  adminRoute('put', '/:id', updateGroup),
+  adminRoute('delete', '/:id', deleteGroup),
+  adminRoute('put', '/:id/official-default', setOfficialDefault),
+]);
 
 export default router;

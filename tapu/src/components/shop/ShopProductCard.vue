@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { shopCopy } from '../../copy';
+
 defineProps<{
   group: any;
   image: string;
@@ -35,7 +37,7 @@ defineEmits<{
         <strong>{{ priceText }}</strong>
       </div>
 
-      <p>{{ group.description || '触碰实体即可进入它绑定的小世界，内容可以被更新，也可以成为长期存在的关系载体。' }}</p>
+      <p>{{ group.description || shopCopy.card.fallbackDescription }}</p>
 
       <div class="tag-list">
         <span v-for="tag in tags" :key="tag">{{ tag }}</span>
@@ -45,15 +47,15 @@ defineEmits<{
         <div class="progress-track">
           <div class="progress-fill" :class="{ crowd: group.sale_status === 'crowdfunding' }" :style="{ width: progress + '%' }"></div>
         </div>
-        <span v-if="group.stock_limit > 0">已发放 {{ group.entity_count || 0 }} / {{ group.stock_limit }}</span>
-        <span v-else>众筹 {{ group.pledge_count || 0 }} / {{ group.crowdfund_goal }}</span>
+        <span v-if="group.stock_limit > 0">{{ shopCopy.card.issued(group.entity_count || 0, group.stock_limit) }}</span>
+        <span v-else>{{ shopCopy.card.crowdfundProgress(group.pledge_count || 0, group.crowdfund_goal) }}</span>
       </div>
 
       <div class="shop-actions">
-        <button class="primary-action" @click="$emit('openDetail', group)">查看档案</button>
-        <button v-if="group.sale_status === 'purchasable'" class="secondary-action" @click="$emit('externalPurchase', group)">外部购买</button>
-        <button v-else-if="group.sale_status === 'crowdfunding'" class="secondary-action" @click="$emit('pledge', group)">参与众筹</button>
-        <button v-else class="secondary-action" disabled>{{ group.sale_status === 'sold_out' ? '已售罄' : '暂不可购买' }}</button>
+        <button class="primary-action" @click="$emit('openDetail', group)">{{ shopCopy.card.detail }}</button>
+        <button v-if="group.sale_status === 'purchasable'" class="secondary-action" @click="$emit('externalPurchase', group)">{{ shopCopy.card.externalPurchase }}</button>
+        <button v-else-if="group.sale_status === 'crowdfunding'" class="secondary-action" @click="$emit('pledge', group)">{{ shopCopy.card.pledge }}</button>
+        <button v-else class="secondary-action" disabled>{{ group.sale_status === 'sold_out' ? shopCopy.card.soldOut : shopCopy.card.unavailable }}</button>
       </div>
 
       <button
@@ -62,7 +64,7 @@ defineEmits<{
         :class="{ active: inWishlist }"
         @click="$emit('addWishlist', group)"
       >
-        <span>{{ inWishlist ? '已在心愿单' : '加入心愿单' }}</span>
+        <span>{{ inWishlist ? shopCopy.card.wishlistAdded : shopCopy.card.wishlistAdd }}</span>
         <strong>{{ wishlistCount || 0 }}</strong>
       </button>
     </div>

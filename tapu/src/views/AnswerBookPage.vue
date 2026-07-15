@@ -4,6 +4,7 @@ import { useRoute } from 'vue-router';
 import { resolveAnswerBook } from '../api';
 import ContentRenderer from '../components/content/ContentRenderer.vue';
 import type { ContentBlock } from '../components/content/types';
+import { appCopy } from '../copy';
 
 const route = useRoute();
 const loading = ref(true);
@@ -17,7 +18,7 @@ const deck = computed(() => data.value?.deck || {});
 const tapContent = computed(() => data.value?.content || null);
 const card = computed(() => data.value?.card || null);
 const themeColor = computed(() => tapContent.value?.themeColor || deck.value.theme_color || '#2f6f5e');
-const deckTitle = computed(() => tapContent.value?.title || deck.value.name || '答案之书');
+const deckTitle = computed(() => tapContent.value?.title || deck.value.name || appCopy.answerBook.fallbackTitle);
 const deckSubtitle = computed(() => tapContent.value?.subtitle || deck.value.subtitle || '');
 const contentBlocks = computed<ContentBlock[]>(() => {
   if (Array.isArray(tapContent.value?.blocks) && tapContent.value.blocks.length > 0) {
@@ -29,7 +30,7 @@ const contentBlocks = computed<ContentBlock[]>(() => {
       id: `${card.value.id}-answer`,
       kind: 'heading',
       body: card.value.answer,
-      tag: card.value.tag || '当下',
+      tag: card.value.tag || appCopy.answerBook.fallbackTag,
     },
     {
       id: `${card.value.id}-response`,
@@ -40,7 +41,7 @@ const contentBlocks = computed<ContentBlock[]>(() => {
     {
       id: `${card.value.id}-action`,
       kind: 'action',
-      title: '小动作',
+      title: appCopy.answerBook.actionTitle,
       action: card.value.action,
     },
   ].filter(block => block.body || block.action);
@@ -48,7 +49,7 @@ const contentBlocks = computed<ContentBlock[]>(() => {
 
 const load = async (exclude?: string) => {
   if (!token.value) {
-    error.value = '缺少答案之书 token。请确认 NFC 写入的是完整链接。';
+    error.value = appCopy.answerBook.missingToken;
     loading.value = false;
     return;
   }
@@ -75,7 +76,7 @@ const drawAgain = () => {
 
 const copyAnswer = async () => {
   if (!card.value) return;
-  const text = `${card.value.answer}\n\n${card.value.response || ''}\n\n小动作：${card.value.action || ''}`.trim();
+  const text = `${card.value.answer}\n\n${card.value.response || ''}\n\n${appCopy.answerBook.copyTextActionPrefix}${card.value.action || ''}`.trim();
   await navigator.clipboard.writeText(text);
   copied.value = true;
   window.setTimeout(() => { copied.value = false; }, 1600);
@@ -88,29 +89,29 @@ onMounted(() => load());
   <main class="answer-page" :style="{ '--answer-accent': themeColor }">
     <section class="answer-stage">
       <header class="app-mark">
-        <span>WhatMint</span>
-        <strong>答案之书</strong>
+        <span>{{ appCopy.answerBook.header.brand }}</span>
+        <strong>{{ appCopy.answerBook.header.app }}</strong>
       </header>
 
       <div v-if="loading" class="answer-state">
         <span class="scan-line"></span>
-        <h1>正在翻到这一页</h1>
-        <p>把问题留在心里。答案不需要知道全部细节。</p>
+        <h1>{{ appCopy.answerBook.loading.title }}</h1>
+        <p>{{ appCopy.answerBook.loading.body }}</p>
       </div>
 
       <div v-else-if="error" class="answer-state">
         <span class="error-dot">?</span>
-        <h1>这本书暂时没说话</h1>
+        <h1>{{ appCopy.answerBook.error.title }}</h1>
         <p>{{ error }}</p>
       </div>
 
       <article v-else class="answer-card" :class="{ drawing }" :key="card?.id">
         <div class="deck-line">
           <span>{{ deckTitle }}</span>
-          <small>{{ card?.tag || '当下' }}</small>
+          <small>{{ card?.tag || appCopy.answerBook.fallbackTag }}</small>
         </div>
 
-        <p class="ritual">心里默念一个问题，然后看这一页。</p>
+        <p class="ritual">{{ appCopy.answerBook.ritual }}</p>
 
         <ContentRenderer
           class="answer-content"
@@ -120,9 +121,9 @@ onMounted(() => load());
 
         <footer>
           <button class="primary" @click="drawAgain" :disabled="drawing">
-            {{ drawing ? '翻页中...' : '再问一次' }}
+            {{ drawing ? appCopy.answerBook.actions.drawing : appCopy.answerBook.actions.draw }}
           </button>
-          <button class="ghost" @click="copyAnswer">{{ copied ? '已复制' : '复制答案' }}</button>
+          <button class="ghost" @click="copyAnswer">{{ copied ? appCopy.answerBook.actions.copied : appCopy.answerBook.actions.copy }}</button>
         </footer>
       </article>
 

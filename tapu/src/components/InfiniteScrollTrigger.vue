@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
+import { commonCopy } from '../copy';
 
 const props = withDefaults(defineProps<{
   disabled?: boolean;
@@ -13,8 +14,8 @@ const props = withDefaults(defineProps<{
   loading: false,
   hasMore: true,
   rootMargin: '200px',
-  loadingText: '加载中...',
-  finishedText: '没有更多了',
+  loadingText: commonCopy.states.loadingMore,
+  finishedText: commonCopy.states.noMore,
 });
 
 const emit = defineEmits<{ (e: 'load-more'): void }>();

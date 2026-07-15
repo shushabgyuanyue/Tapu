@@ -13,6 +13,7 @@ import {
   pledgeGroup,
 } from '../api';
 import NavBar from '../components/NavBar.vue';
+import { communityCopy } from '../copy';
 
 const route = useRoute();
 const router = useRouter();
@@ -48,11 +49,11 @@ const tags = computed(() => {
     .split(/[，,\s]+/)
     .map(tag => tag.trim())
     .filter(Boolean);
-  return rawTags.length ? rawTags : ['情绪应用', '实体入口', '可绑定资产'];
+  return rawTags.length ? rawTags : communityCopy.ipDetail.defaults.tags;
 });
 
 const storyParagraphs = computed(() => {
-  const story = group.value?.story || group.value?.description || '这个 IP 的档案还在补全中。它的核心不是一件商品，而是一个可以被触碰、被收藏、被再次回到的小世界。';
+  const story = group.value?.story || group.value?.description || communityCopy.ipDetail.defaults.story;
   return String(story)
     .split(/\n+/)
     .map(line => line.trim())
@@ -60,11 +61,11 @@ const storyParagraphs = computed(() => {
 });
 
 const specs = computed(() => [
-  { label: '系列', value: group.value?.series_name || '未归档系列' },
-  { label: '设计', value: group.value?.designer || 'WhatMint Studio' },
-  { label: '材质', value: group.value?.material || '实体载体 + NFC 芯片' },
-  { label: '尺寸', value: group.value?.size_label || '以实物为准' },
-  { label: '稀有度', value: group.value?.rarity_label || (group.value?.stock_limit ? `限量 ${group.value.stock_limit}` : '常规发售') },
+  { label: communityCopy.ipDetail.specs.series, value: group.value?.series_name || communityCopy.ipDetail.defaults.series },
+  { label: communityCopy.ipDetail.specs.designer, value: group.value?.designer || communityCopy.ipDetail.defaults.designer },
+  { label: communityCopy.ipDetail.specs.material, value: group.value?.material || communityCopy.ipDetail.defaults.material },
+  { label: communityCopy.ipDetail.specs.size, value: group.value?.size_label || communityCopy.ipDetail.defaults.size },
+  { label: communityCopy.ipDetail.specs.rarity, value: group.value?.rarity_label || (group.value?.stock_limit ? communityCopy.ipDetail.labels.limited(group.value.stock_limit) : communityCopy.ipDetail.defaults.rarity) },
 ]);
 
 const progressPercent = computed(() => {
@@ -76,11 +77,11 @@ const progressPercent = computed(() => {
 
 const statusText = computed(() => {
   const item = group.value || {};
-  if (item.sale_status === 'purchasable') return `可购买，剩余 ${item.available_count || 0}`;
-  if (item.sale_status === 'crowdfunding') return `众筹中 ${item.pledge_count || pledgeCount.value || 0}/${item.crowdfund_goal || 0}`;
-  if (item.sale_status === 'crowdfund_success') return '众筹成功';
-  if (item.sale_status === 'crowdfund_failed') return '众筹已结束';
-  return '暂不可购买';
+  if (item.sale_status === 'purchasable') return communityCopy.ipDetail.status.purchasable(item.available_count || 0);
+  if (item.sale_status === 'crowdfunding') return communityCopy.ipDetail.status.crowdfunding(item.pledge_count || pledgeCount.value || 0, item.crowdfund_goal || 0);
+  if (item.sale_status === 'crowdfund_success') return communityCopy.ipDetail.status.success;
+  if (item.sale_status === 'crowdfund_failed') return communityCopy.ipDetail.status.failed;
+  return communityCopy.ipDetail.status.unavailable;
 });
 
 const loadData = async () => {
@@ -116,21 +117,21 @@ const handlePurchase = () => {
     window.open(group.value.external_purchase_url, '_blank', 'noopener,noreferrer');
     return;
   }
-  toast?.show(`购买「${group.value?.name || '该 IP'}」请前往外部渠道；收到 token 后在“我的资产”绑定。`, 3600, 'success');
+  toast?.show(communityCopy.ipDetail.toasts.purchaseExternal(group.value?.name || communityCopy.ipDetail.defaults.ip), 3600, 'success');
 };
 
 const handlePledge = async () => {
   if (!isLoggedIn()) {
-    toast?.show('请先登录后再参与众筹', 2400, 'error');
+    toast?.show(communityCopy.ipDetail.toasts.pledgeLogin, 2400, 'error');
     return;
   }
   const result = await pledgeGroup(groupId);
   if (result.success) {
     hasPledged.value = true;
     pledgeCount.value += 1;
-    toast?.show('已记录你的众筹意向', 2200, 'success');
+    toast?.show(communityCopy.ipDetail.toasts.pledgeSuccess, 2200, 'success');
   } else {
-    toast?.show(result.error || '众筹登记失败', 2400, 'error');
+    toast?.show(result.error || communityCopy.ipDetail.toasts.pledgeFailed, 2400, 'error');
   }
 };
 
@@ -141,8 +142,8 @@ const handleWishlist = async () => {
   wishlistCount.value = result?.count || 0;
   toast?.show(
     result?.added === false
-      ? `「${group.value?.name || 'IP'}」已在心愿单，目前 ${wishlistCount.value} 人想要`
-      : `已加入心愿单，目前 ${wishlistCount.value} 人想要`,
+      ? communityCopy.ipDetail.toasts.wishlistExists(group.value?.name || communityCopy.ipDetail.defaults.ip, wishlistCount.value)
+      : communityCopy.ipDetail.toasts.wishlistAdded(wishlistCount.value),
     2500,
     'heart'
   );
@@ -178,36 +179,36 @@ onMounted(loadData);
         </div>
 
         <div class="hero-copy">
-          <span class="eyebrow">{{ group.series_name || group.application_name || 'WhatMint IP' }}</span>
+          <span class="eyebrow">{{ group.series_name || group.application_name || communityCopy.ipDetail.defaults.eyebrow }}</span>
           <h1>{{ group.name }}</h1>
-          <p>{{ group.description || '一个可以通过实体触碰进入的小世界。购买在外部完成，WhatMint 负责内容、绑定和资产关系。' }}</p>
+          <p>{{ group.description || communityCopy.ipDetail.defaults.description }}</p>
 
           <div class="tag-list">
             <span v-for="tag in tags" :key="tag">{{ tag }}</span>
           </div>
 
           <div class="price-row">
-            <strong>{{ group.price > 0 ? `¥${Number(group.price).toFixed(0)}` : '外部渠道发售' }}</strong>
-            <span>{{ group.rarity_label || (group.stock_limit ? `限量 ${group.stock_limit}` : '开放登记') }}</span>
+            <strong>{{ group.price > 0 ? `¥${Number(group.price).toFixed(0)}` : communityCopy.ipDetail.defaults.price }}</strong>
+            <span>{{ group.rarity_label || (group.stock_limit ? communityCopy.ipDetail.labels.limited(group.stock_limit) : communityCopy.ipDetail.defaults.registry) }}</span>
           </div>
 
           <div class="progress-card" v-if="group.stock_limit > 0 || group.crowdfund_goal > 0">
             <div class="progress-track">
               <div class="progress-fill" :style="{ width: progressPercent + '%' }"></div>
             </div>
-            <span v-if="group.stock_limit > 0">已发放 {{ group.entity_count || 0 }} / {{ group.stock_limit }}</span>
-            <span v-else>众筹 {{ group.pledge_count || pledgeCount }} / {{ group.crowdfund_goal }}</span>
+            <span v-if="group.stock_limit > 0">{{ communityCopy.ipDetail.labels.issued(group.entity_count || 0, group.stock_limit) }}</span>
+            <span v-else>{{ communityCopy.ipDetail.labels.crowdfunding(group.pledge_count || pledgeCount, group.crowdfund_goal) }}</span>
           </div>
 
           <div class="hero-actions">
-            <button v-if="canPurchase" class="primary" @click="handlePurchase">外部购买</button>
+            <button v-if="canPurchase" class="primary" @click="handlePurchase">{{ communityCopy.ipDetail.actions.purchase }}</button>
             <button v-else-if="canPledge" class="primary" :disabled="hasPledged" @click="handlePledge">
-              {{ hasPledged ? '已登记众筹' : '参与众筹' }}
+              {{ hasPledged ? communityCopy.ipDetail.actions.pledged : communityCopy.ipDetail.actions.pledge }}
             </button>
-            <button v-else class="primary" disabled>暂不可购买</button>
-            <button class="ghost" @click="router.push('/assets')">去我的资产绑定 token</button>
+            <button v-else class="primary" disabled>{{ communityCopy.ipDetail.actions.unavailable }}</button>
+            <button class="ghost" @click="router.push('/assets')">{{ communityCopy.ipDetail.actions.bindAssets }}</button>
             <button v-if="wishlistEnabled" class="wish" :class="{ active: inWishlist }" @click="handleWishlist">
-              {{ inWishlist ? '已在心愿单' : '加入心愿单' }} · {{ wishlistCount }}
+              {{ inWishlist ? communityCopy.ipDetail.actions.wished : communityCopy.ipDetail.actions.wish }} · {{ wishlistCount }}
             </button>
           </div>
         </div>
@@ -215,14 +216,14 @@ onMounted(loadData);
 
       <section class="detail-grid">
         <article class="panel story-panel">
-          <span class="panel-kicker">IP Story</span>
-          <h2>小世界档案</h2>
+          <span class="panel-kicker">{{ communityCopy.ipDetail.panels.storyKicker }}</span>
+          <h2>{{ communityCopy.ipDetail.panels.storyTitle }}</h2>
           <p v-for="paragraph in storyParagraphs" :key="paragraph">{{ paragraph }}</p>
         </article>
 
         <article class="panel specs-panel">
-          <span class="panel-kicker">Product Info</span>
-          <h2>产品信息</h2>
+          <span class="panel-kicker">{{ communityCopy.ipDetail.panels.productKicker }}</span>
+          <h2>{{ communityCopy.ipDetail.panels.productTitle }}</h2>
           <div class="spec-row" v-for="spec in specs" :key="spec.label">
             <span>{{ spec.label }}</span>
             <strong>{{ spec.value }}</strong>
@@ -233,10 +234,10 @@ onMounted(loadData);
       <section class="content-section">
         <div class="section-head">
           <div>
-            <span class="panel-kicker">Content Preview</span>
-            <h2>官方内容预览</h2>
+            <span class="panel-kicker">{{ communityCopy.ipDetail.panels.contentKicker }}</span>
+            <h2>{{ communityCopy.ipDetail.panels.contentTitle }}</h2>
           </div>
-          <p>购买后写入 NFC 的是 token 链接，内容可以继续更新，实体仍然是那个实体。</p>
+          <p>{{ communityCopy.ipDetail.panels.contentIntro }}</p>
         </div>
 
         <div class="content-grid" v-if="readyVideos.length > 0">
@@ -256,7 +257,7 @@ onMounted(loadData);
         </div>
 
         <div class="ip-empty" v-else>
-          <p>这个 IP 暂无公开内容，后续可在官方管理端补充预览。</p>
+          <p>{{ communityCopy.ipDetail.panels.emptyContent }}</p>
         </div>
       </section>
     </main>
