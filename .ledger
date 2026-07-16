@@ -1,6 +1,6 @@
 domain: frontend, backend, storage, ecommerce
 pack_status: packed
-branch: tapu-master
+branch: evo/core-domain-closeout
 base: tapu-master
 description: 前端重构 + 交互防抖与全局动效 + 双轨账号认证 + 实体选购架构 + 转码兼容性修复
 
@@ -296,3 +296,25 @@ entrypoint: tapu/src/main.ts
 - post-mortem:
   - The sprint is now closed according to the local evo practice: implementation, validation, review notes, constraints, and ledger are aligned.
   - Current branch is already `tapu-master`; merge is therefore a mainline commit-and-push rather than a feature-branch merge.
+
+## 2026-07-16 Codex Increment 15
+
+- domain: backend, database, whatmint-os, official-management
+- ref: working-tree
+- branch_context: `evo/core-domain-closeout` cut from `tapu-master`; this round isolates the core-domain cleanup from unrelated local edits.
+- todo:
+  - [x] Move application registry writes from legacy `applications` into core `application_definitions`.
+  - [x] Collapse runtime event writes and app analytics reads onto core `events` instead of legacy `object_events`.
+  - [x] Rewire emotion IP adapter lookup to core `ip_instances / ip_definitions / application_definitions`.
+  - [x] Stop bootstrap schema from creating legacy `applications` and `object_events` for new databases while keeping backfill compatibility for old databases.
+  - [x] Update contract coverage so core event writes and core object resolution are tested directly.
+  - [x] Remove obvious process residue: tracked `tapu/public/test.mp4` and stale files under `tapu/server/uploads/temp`.
+- evidence:
+  - `npm run check:server`
+  - `npm run check:permissions`
+  - `npm run test:contracts`
+  - `npm run check:db`
+  - `npm run build`
+- post-mortem:
+  - The repo still contains legacy compatibility surfaces such as `groups / entities / videos` route naming and backfill readers; this round intentionally removed active duplicate writes first, not every compatibility shell at once.
+  - Root note and unrelated working-tree changes remain intentionally out of this commit.

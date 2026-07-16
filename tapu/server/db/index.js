@@ -9,12 +9,14 @@ import { ensureApplicationRegistry } from '../services/applicationRegistry.js';
 import { ensureCheckTemplatesSeed } from '../services/checkTemplateSeed.js';
 import { ensureTravelTrailDemoSeed } from '../services/travelTrailSeed.js';
 import { ensureDailyStickerExperienceDemoSeed } from '../services/dailyStickerExperience.js';
+import { backfillCoreTables } from './coreBackfill.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Support Railway Volume: DB_PATH env var overrides default location
 const DB_PATH = process.env.DB_PATH || path.join(__dirname, '..', 'data.db');
 const SCHEMA_PATH = path.join(__dirname, 'schema.sql');
+const CORE_SCHEMA_PATH = path.join(__dirname, 'core-schema.sql');
 
 let db;
 
@@ -150,9 +152,12 @@ export async function getDb() {
 
   // Run schema
   const schema = fs.readFileSync(SCHEMA_PATH, 'utf-8');
+  const coreSchema = fs.readFileSync(CORE_SCHEMA_PATH, 'utf-8');
   runSchemaSafely(db, schema);
+  runSchemaSafely(db, coreSchema);
   resetContentBindingSchemaIfNeeded(db);
   runSchemaSafely(db, schema);
+  runSchemaSafely(db, coreSchema);
 
   // Migrations: add columns if missing
   const migrations = [
@@ -186,6 +191,11 @@ export async function getDb() {
     'ALTER TABLE entities ADD COLUMN unbound_at DATETIME',
     'ALTER TABLE entities ADD COLUMN external_order_no TEXT',
     'ALTER TABLE users ADD COLUMN is_creator INTEGER DEFAULT 0',
+    "ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'user'",
+    'ALTER TABLE users ADD COLUMN display_name TEXT',
+    'ALTER TABLE users ADD COLUMN avatar_url TEXT',
+    'ALTER TABLE users ADD COLUMN profile_json TEXT',
+    'ALTER TABLE users ADD COLUMN updated_at DATETIME',
     'ALTER TABLE interactions ADD COLUMN user_id TEXT',
     'ALTER TABLE wishlist ADD COLUMN fingerprint TEXT',
     'ALTER TABLE wishlist ADD COLUMN default_video_id TEXT',
@@ -200,17 +210,6 @@ export async function getDb() {
       key TEXT PRIMARY KEY,
       value TEXT
     )`,
-    `CREATE TABLE IF NOT EXISTS applications (
-      id TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      code TEXT UNIQUE NOT NULL,
-      app_type TEXT DEFAULT 'meaning' CHECK(app_type IN ('meaning', 'behavior', 'state')),
-      interaction_type TEXT NOT NULL,
-      description TEXT,
-      status TEXT DEFAULT 'active',
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    )`,
-    "ALTER TABLE applications ADD COLUMN app_type TEXT DEFAULT 'meaning'",
     'ALTER TABLE orders ADD COLUMN external_order_no TEXT',
     "ALTER TABLE orders ADD COLUMN order_source TEXT DEFAULT 'platform'",
     'ALTER TABLE orders ADD COLUMN nfc_written_at DATETIME',
@@ -257,20 +256,6 @@ export async function getDb() {
       FOREIGN KEY (from_user_id) REFERENCES users(id) ON DELETE SET NULL,
       FOREIGN KEY (to_user_id) REFERENCES users(id) ON DELETE SET NULL,
       FOREIGN KEY (actor_user_id) REFERENCES users(id) ON DELETE SET NULL
-    )`,
-    `CREATE TABLE IF NOT EXISTS object_events (
-      id TEXT PRIMARY KEY,
-      object_type TEXT,
-      object_id TEXT,
-      token_id TEXT,
-      token TEXT,
-      app_code TEXT,
-      event_type TEXT NOT NULL,
-      content_id TEXT,
-      user_id TEXT,
-      user_agent TEXT,
-      metadata_json TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )`,
     `CREATE TABLE IF NOT EXISTS meaningful_states (
       id TEXT PRIMARY KEY,
@@ -754,6 +739,15 @@ export async function getDb() {
   } catch (e) { /* application registry should never block startup */ }
 
   try {
+    db.run("UPDATE users SET role = COALESCE(NULLIF(role, ''), CASE WHEN is_creator = 1 THEN 'creator' ELSE 'user' END)");
+    db.run("UPDATE users SET updated_at = COALESCE(updated_at, created_at, CURRENT_TIMESTAMP)");
+  } catch (e) { /* ignore */ }
+
+  try {
+    backfillCoreTables(db);
+  } catch (e) { /* core backfill should not block startup while routes are transitioning */ }
+
+  try {
     db.run(
       `INSERT OR IGNORE INTO daily_sticker_templates
        (code, name, renderer_type, description, schema_json, default_motion_preset, status)
@@ -904,10 +898,6 @@ export async function getDb() {
     db.run('CREATE INDEX IF NOT EXISTS idx_answer_book_cards_deck ON answer_book_cards(deck_id)');
     db.run('CREATE INDEX IF NOT EXISTS idx_answer_book_tokens_deck ON answer_book_tokens(deck_id)');
     db.run('CREATE INDEX IF NOT EXISTS idx_answer_book_draw_events_token ON answer_book_draw_events(token_id)');
-    db.run('CREATE INDEX IF NOT EXISTS idx_object_events_token ON object_events(token)');
-    db.run('CREATE INDEX IF NOT EXISTS idx_object_events_app ON object_events(app_code)');
-    db.run('CREATE INDEX IF NOT EXISTS idx_object_events_type ON object_events(event_type)');
-    db.run('CREATE INDEX IF NOT EXISTS idx_object_events_created ON object_events(created_at)');
     db.run('CREATE INDEX IF NOT EXISTS idx_meaningful_states_subject ON meaningful_states(subject_type, subject_id)');
     db.run('CREATE INDEX IF NOT EXISTS idx_meaningful_states_key ON meaningful_states(state_key)');
     db.run('CREATE INDEX IF NOT EXISTS idx_meaningful_states_source ON meaningful_states(source_app_code, source_object_id)');

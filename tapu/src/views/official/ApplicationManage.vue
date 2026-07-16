@@ -39,7 +39,7 @@ const installedApps = [
     appType: 'state',
     stage: '已接入',
     tone: '一枚贴纸进入一个连续更新的小世界。',
-    runtime: 'whatmint.tap / content.blocks / object_events',
+    runtime: 'whatmint.tap / content.blocks / events',
     content: '故事条目、图片、音频、视频、发布节奏',
     operatorPath: '/official/daily-stickers',
     publicPath: '/sticker?key=...',
@@ -51,7 +51,7 @@ const installedApps = [
     appType: 'state',
     stage: '已接入',
     tone: '碰一下，得到一张克制、正念、带一点反差感的回应卡。',
-    runtime: 'whatmint.tap / random draw / object_events',
+    runtime: 'whatmint.tap / random draw / events',
     content: '答案牌组、回应、行动提示',
     operatorPath: '/official/answer-book',
     publicPath: '/answer?key=...',
@@ -75,7 +75,7 @@ const installedApps = [
     appType: 'state',
     stage: '已接入',
     tone: '贴在行李或旅行物件上，碰一下展开出发与归来的仪式。',
-    runtime: 'whatmint.tap / journey state / object_events',
+    runtime: 'whatmint.tap / journey state / events',
     content: '地点、下一站、归来确认、动态路线',
     operatorPath: '/official/travel-trails',
     publicPath: '/trail?key=...',
@@ -87,7 +87,7 @@ const installedApps = [
     appType: 'behavior',
     stage: '已接入',
     tone: '绑定具体物件的行为型检查清单，提供常见模板并允许自定义修改。',
-    runtime: 'whatmint.tap / checklist state / object_events',
+    runtime: 'whatmint.tap / checklist state / events',
     content: '场景模板、检查项目、勾选状态、自定义项目',
     operatorPath: '/official/checks',
     publicPath: '/check?key=...',
@@ -217,7 +217,7 @@ onMounted(loadData);
       <ol>
         <li><strong>实现轻应用页面</strong><span>公开触碰页和官方管理页先存在。</span></li>
         <li><strong>声明 manifest</strong><span>描述 app_code、入口、内容能力、事件和权限。</span></li>
-        <li><strong>接入运行时</strong><span>返回 whatmint.tap，写入 object_events。</span></li>
+        <li><strong>接入运行时</strong><span>返回 whatmint.tap，写入核心 events。</span></li>
         <li><strong>绑定内容集合</strong><span>需要多媒介内容时使用 Content Collection。</span></li>
       </ol>
     </section>

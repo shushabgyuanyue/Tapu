@@ -4,6 +4,7 @@ import { getDb, saveDb } from '../db/index.js';
 import { adminRoute, registerRoutes } from '../services/routePermissions.js';
 import { recordObjectEvent } from '../services/objectEvents.js';
 import { resolveObjectByToken } from '../services/objectRegistry.js';
+import { buildAppRuntimeContext } from '../services/appAdapters.js';
 import { buildTapResponse } from '../services/tapRuntime.js';
 import { createUniqueToken, normalizeEntityToken, resultToObjects } from '../services/tokens.js';
 import {
@@ -15,6 +16,10 @@ import {
 } from '../services/contentCollections.js';
 import { createWork, getWork, updateWork } from '../services/works.js';
 import { serverMessages } from '../copy/messages.js';
+import {
+  archiveAppContentInstance,
+  syncMomentTokenContent,
+} from '../services/coreCreationSync.js';
 
 const router = Router();
 const APP_CODE = 'moment';
@@ -171,6 +176,10 @@ router.get('/resolve', async (req, res) => {
       },
     });
     saveDb();
+    const runtimeContext = buildAppRuntimeContext(db, resolvedObject, {
+      userId: req.user?.id || tokenRow.user_id || null,
+      token: tokenRow.token,
+    });
 
     const tapResponse = buildTapResponse({
       object: resolvedObject.object,
@@ -213,6 +222,7 @@ router.get('/resolve', async (req, res) => {
       },
       work,
       collection,
+      runtime_context: runtimeContext,
     });
   } catch (error) {
     console.error('Resolve moment error:', error);
@@ -231,7 +241,9 @@ async function listMomentTokens(_req, res) {
        FROM moment_tokens m
        LEFT JOIN content_collections c ON c.id = m.collection_id
        LEFT JOIN works w ON w.id = m.work_id
-       LEFT JOIN object_events e ON e.token_id = m.id AND e.app_code = ?
+       LEFT JOIN events e
+         ON json_extract(e.context_snapshot_json, '$.token_id') = m.id
+        AND e.application_definition_id IN (SELECT id FROM application_definitions WHERE code = ?)
        GROUP BY m.id
        ORDER BY m.updated_at DESC, m.created_at DESC`,
       [APP_CODE]
@@ -285,6 +297,7 @@ async function createMomentToken(req, res) {
       ]
     );
     ensureMomentBinding(db, token, collectionId, work.id);
+    syncMomentTokenContent(db, id);
     saveDb();
     res.json({ success: true, id, token, collection_id: collectionId, work_id: work.id });
   } catch (error) {
@@ -350,6 +363,7 @@ async function updateMomentToken(req, res) {
       db.run('UPDATE moment_tokens SET work_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [work.id, existing.id]);
     }
     ensureMomentBinding(db, existing.token, collectionId, work.id);
+    syncMomentTokenContent(db, existing.id);
     saveDb();
     res.json({ success: true, work_id: work.id });
   } catch (error) {
@@ -370,6 +384,7 @@ async function deleteMomentToken(req, res) {
           versionNote: 'moment-token-deleted',
         });
       }
+      archiveAppContentInstance(db, 'moment_tokens', existing.id);
     }
     db.run('DELETE FROM moment_tokens WHERE id = ?', [req.params.id]);
     saveDb();

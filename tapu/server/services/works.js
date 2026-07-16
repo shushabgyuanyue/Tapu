@@ -281,7 +281,9 @@ export function listWorks(db, params = {}) {
      FROM works w
      LEFT JOIN content_collections c ON c.id = w.collection_id
      LEFT JOIN work_versions v ON v.work_id = w.id
-     LEFT JOIN object_events e ON e.token = w.token AND e.app_code = w.app_code
+     LEFT JOIN events e
+       ON json_extract(e.context_snapshot_json, '$.token') = w.token
+      AND e.application_definition_id IN (SELECT id FROM application_definitions WHERE code = w.app_code)
      ${where}
      GROUP BY w.id
      ORDER BY w.updated_at DESC, w.created_at DESC`,

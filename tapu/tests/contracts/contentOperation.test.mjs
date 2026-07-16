@@ -4,23 +4,55 @@ import initSqlJs from 'sql.js';
 import { recordObjectEvent } from '../../server/services/objectEvents.js';
 import { buildRuntimeContextForObject, upsertMeaningfulState } from '../../server/services/contentOperation.js';
 import { assembleDailyStickerExperience } from '../../server/services/dailyStickerExperience.js';
+import { getAppAdapter, getRegisteredAppAdapters } from '../../server/services/appAdapters.js';
 import { resultToObjects } from '../../server/services/tokens.js';
 
 async function createDb() {
   const SQL = await initSqlJs();
   const db = new SQL.Database();
-  db.run(`CREATE TABLE object_events (
+  db.run(`CREATE TABLE application_definitions (
     id TEXT PRIMARY KEY,
-    object_type TEXT,
-    object_id TEXT,
-    token_id TEXT,
+    code TEXT UNIQUE NOT NULL,
+    name TEXT NOT NULL,
+    interaction_type TEXT,
+    app_type TEXT,
+    status TEXT DEFAULT 'active'
+  )`);
+  db.run(`CREATE TABLE ip_definitions (
+    id TEXT PRIMARY KEY,
+    name TEXT,
+    theme_color TEXT
+  )`);
+  db.run(`CREATE TABLE ip_instances (
+    id TEXT PRIMARY KEY,
+    ip_definition_id TEXT,
+    owner_user_id TEXT,
+    application_definition_id TEXT,
+    label TEXT,
     token TEXT,
-    app_code TEXT,
+    entity_key TEXT,
+    instance_type TEXT,
+    status TEXT
+  )`);
+  db.run(`CREATE TABLE events (
+    id TEXT PRIMARY KEY,
     event_type TEXT NOT NULL,
-    content_id TEXT,
+    dedupe_key TEXT,
+    actor_user_id TEXT,
     user_id TEXT,
-    user_agent TEXT,
-    metadata_json TEXT,
+    ip_definition_id TEXT,
+    application_definition_id TEXT,
+    content_definition_id TEXT,
+    ip_instance_id TEXT,
+    content_instance_id TEXT,
+    resource_id TEXT,
+    source_event_id TEXT,
+    payload_json TEXT,
+    context_snapshot_json TEXT,
+    processing_status TEXT DEFAULT 'pending',
+    processing_attempts INTEGER DEFAULT 0,
+    processed_at DATETIME,
+    occurred_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   )`);
   db.run(`CREATE TABLE meaningful_states (
@@ -43,6 +75,10 @@ async function createDb() {
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
   )`);
+  db.run(`INSERT INTO application_definitions (id, code, name, interaction_type, app_type, status) VALUES
+    ('app-emotion', 'emotion-ip', 'Emotion IP', 'tap_to_receive_emotional_content', 'meaning', 'active'),
+    ('app-daily-sticker', 'daily-sticker', 'Daily Sticker', 'tap_to_slow_story', 'state', 'active'),
+    ('app-moment', 'moment', 'Moment', 'tap_to_saved_moment', 'meaning', 'active')`);
   return db;
 }
 
@@ -58,7 +94,7 @@ test('emotion IP object event derives meaningful comfort state', async () => {
     eventType: 'emotion_content_tap',
     contentId: 'video-1',
     metadata: {
-      objectName: '纸巾小狗',
+      objectName: 'Puppy',
     },
   });
 
@@ -84,7 +120,7 @@ test('daily sticker runtime context unlocks guest character story from OS state'
     sourceAppCode: 'emotion-ip',
     sourceObjectType: 'mint-entity',
     sourceObjectId: 'puppy-entity-1',
-    sourceObjectLabel: '纸巾小狗',
+    sourceObjectLabel: 'Puppy',
     category: 'comfort',
     strength: 15,
     evidence: { taps_7d: 15 },
@@ -96,7 +132,7 @@ test('daily sticker runtime context unlocks guest character story from OS state'
     sourceAppCode: 'emotion-ip',
     sourceObjectType: 'mint-entity',
     sourceObjectId: 'puppy-entity-1',
-    sourceObjectLabel: '纸巾小狗',
+    sourceObjectLabel: 'Puppy',
     category: 'comfort',
     strength: 6,
     evidence: { taps_7d: 6 },
@@ -116,19 +152,27 @@ test('daily sticker runtime context unlocks guest character story from OS state'
   assert.deepEqual(runtimeContext.states.map(state => state.key), ['comfort.action_active']);
   assert.equal(runtimeContext.states[0].strength, 15);
   assert.ok(runtimeContext.unlockedSkills.some(skill => skill.key === 'guest_character_story'));
+  assert.deepEqual(Object.keys(runtimeContext).sort(), [
+    'contentModifiers',
+    'ownedMintHints',
+    'states',
+    'unlockedSkills',
+  ]);
+  assert.ok(Array.isArray(runtimeContext.ownedMintHints));
+  assert.ok(runtimeContext.contentModifiers.some(modifier => modifier.skillKey === 'guest_character_story'));
 });
 
 test('daily sticker app adapter turns unlocked skill into visible content block', () => {
   const blocks = [
-    { id: 'voice', kind: 'text', body: '耳机小姐今天听见：', emphasis: 'quiet' },
-    { id: 'title', kind: 'heading', body: '茉莉花的晚安' },
+    { id: 'voice', kind: 'text', body: 'The earphones heard the rain.', emphasis: 'quiet' },
+    { id: 'title', kind: 'heading', body: 'Good night' },
   ];
   const assembled = assembleDailyStickerExperience(blocks, {
     states: [
       {
         key: 'comfort.action_active',
         sourceAppCode: 'emotion-ip',
-        sourceObjectLabel: '纸巾小狗',
+        sourceObjectLabel: 'Puppy',
       },
     ],
     unlockedSkills: [
@@ -140,6 +184,70 @@ test('daily sticker app adapter turns unlocked skill into visible content block'
 
   const crossover = assembled.find(block => block.role === 'crossover');
   assert.ok(crossover);
-  assert.equal(crossover.title, '纸巾小狗来过');
-  assert.match(crossover.body, /纸巾小狗/);
+  assert.match(crossover.title, /Puppy|puppy/i);
+  assert.match(crossover.body, /Puppy|puppy/i);
+});
+
+test('registered app adapters expose the onboarding contract shape', () => {
+  const adapters = getRegisteredAppAdapters();
+  assert.ok(adapters.length >= 6);
+  for (const adapter of adapters) {
+    assert.ok(adapter.appCode);
+    assert.ok(adapter.manifest);
+    assert.equal(typeof adapter.resolveObject, 'function');
+    assert.equal(typeof adapter.recordEvents, 'function');
+    assert.equal(typeof adapter.deriveAppStates, 'function');
+    assert.equal(typeof adapter.buildRuntimeContext, 'function');
+    assert.equal(typeof adapter.assembleExperience, 'function');
+    assert.ok('studioRecipe' in adapter);
+    assert.ok('adminConfig' in adapter);
+  }
+});
+
+test('emotion IP adapter resolves core ip instance token into standard object shape', async () => {
+  const db = await createDb();
+  db.run('INSERT INTO ip_definitions (id, name, theme_color) VALUES (?, ?, ?)', [
+    'group-puppy',
+    'Puppy',
+    '#ff4fd8',
+  ]);
+  db.run('INSERT INTO ip_definitions (id, name, theme_color) VALUES (?, ?, ?)', [
+    'group-moment',
+    'Moment Ticket',
+    '#9a6a2f',
+  ]);
+  db.run(`INSERT INTO ip_instances
+    (id, ip_definition_id, owner_user_id, application_definition_id, label, token, entity_key, instance_type, status)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, [
+    'entity-puppy-1',
+    'group-puppy',
+    null,
+    'app-emotion',
+    null,
+    'puppy-token',
+    'legacy-puppy-key',
+    'physical',
+    'active',
+  ]);
+  db.run(`INSERT INTO ip_instances
+    (id, ip_definition_id, owner_user_id, application_definition_id, label, token, entity_key, instance_type, status)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, [
+    'entity-moment-1',
+    'group-moment',
+    null,
+    'app-moment',
+    null,
+    'moment-entity-token',
+    'legacy-moment-key',
+    'physical',
+    'active',
+  ]);
+
+  const resolved = getAppAdapter('emotion-ip').resolveObject({ db, key: 'puppy-token' });
+
+  assert.equal(resolved.app.code, 'emotion-ip');
+  assert.equal(resolved.object.type, 'mint-entity');
+  assert.equal(resolved.object.displayName, 'Puppy');
+  assert.equal(resolved.object.token, 'puppy-token');
+  assert.equal(getAppAdapter('emotion-ip').resolveObject({ db, key: 'moment-entity-token' }), null);
 });

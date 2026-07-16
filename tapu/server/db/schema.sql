@@ -135,17 +135,6 @@ CREATE TABLE IF NOT EXISTS user_defaults (
   FOREIGN KEY (group_id) REFERENCES groups(id) ON DELETE CASCADE
 );
 
-CREATE TABLE IF NOT EXISTS applications (
-  id TEXT PRIMARY KEY,
-  name TEXT NOT NULL,
-  code TEXT UNIQUE NOT NULL,
-  app_type TEXT DEFAULT 'meaning' CHECK(app_type IN ('meaning', 'behavior', 'state')),
-  interaction_type TEXT NOT NULL,
-  description TEXT,
-  status TEXT DEFAULT 'active',
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-
 CREATE TABLE IF NOT EXISTS orders (
   id TEXT PRIMARY KEY,
   buyer_user_id TEXT NOT NULL,
@@ -208,21 +197,6 @@ CREATE TABLE IF NOT EXISTS entity_ownership_events (
   FOREIGN KEY (from_user_id) REFERENCES users(id) ON DELETE SET NULL,
   FOREIGN KEY (to_user_id) REFERENCES users(id) ON DELETE SET NULL,
   FOREIGN KEY (actor_user_id) REFERENCES users(id) ON DELETE SET NULL
-);
-
-CREATE TABLE IF NOT EXISTS object_events (
-  id TEXT PRIMARY KEY,
-  object_type TEXT,
-  object_id TEXT,
-  token_id TEXT,
-  token TEXT,
-  app_code TEXT,
-  event_type TEXT NOT NULL,
-  content_id TEXT,
-  user_id TEXT,
-  user_agent TEXT,
-  metadata_json TEXT,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS meaningful_states (
@@ -698,18 +672,6 @@ ON answer_book_tokens(deck_id);
 
 CREATE INDEX IF NOT EXISTS idx_answer_book_draw_events_token
 ON answer_book_draw_events(token_id);
-
-CREATE INDEX IF NOT EXISTS idx_object_events_token
-ON object_events(token);
-
-CREATE INDEX IF NOT EXISTS idx_object_events_app
-ON object_events(app_code);
-
-CREATE INDEX IF NOT EXISTS idx_object_events_type
-ON object_events(event_type);
-
-CREATE INDEX IF NOT EXISTS idx_object_events_created
-ON object_events(created_at);
 
 CREATE INDEX IF NOT EXISTS idx_meaningful_states_subject
 ON meaningful_states(subject_type, subject_id);

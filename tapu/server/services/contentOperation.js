@@ -88,10 +88,10 @@ export function upsertMeaningfulState(db, params = {}) {
 }
 
 function countRecentEvents(db, { appCode, eventTypes = [], token, userId, days = 7 }) {
-  const conditions = ['created_at >= datetime(CURRENT_TIMESTAMP, ?)'];
+  const conditions = ['occurred_at >= datetime(CURRENT_TIMESTAMP, ?)'];
   const params = [`-${days} days`];
   if (appCode) {
-    conditions.push('app_code = ?');
+    conditions.push('application_definition_id IN (SELECT id FROM application_definitions WHERE code = ?)');
     params.push(appCode);
   }
   if (eventTypes.length) {
@@ -102,11 +102,15 @@ function countRecentEvents(db, { appCode, eventTypes = [], token, userId, days =
     conditions.push('user_id = ?');
     params.push(userId);
   } else if (token) {
-    conditions.push('token = ?');
-    params.push(token);
+    conditions.push(`(
+      ip_instance_id IN (SELECT id FROM ip_instances WHERE token = ? OR entity_key = ?)
+      OR json_extract(context_snapshot_json, '$.token') = ?
+      OR json_extract(payload_json, '$.token') = ?
+    )`);
+    params.push(token, token, token, token);
   }
   const rows = resultToObjects(db.exec(
-    `SELECT COUNT(*) as count FROM object_events WHERE ${conditions.join(' AND ')}`,
+    `SELECT COUNT(*) as count FROM events WHERE ${conditions.join(' AND ')}`,
     params
   ));
   return Number(rows[0]?.count || 0);
@@ -226,6 +230,71 @@ function skillMatches(skill, states) {
   return requiredStates.every(key => stateKeys.has(key));
 }
 
+function safeRows(db, sql, params = []) {
+  try {
+    return resultToObjects(db.exec(sql, params));
+  } catch {
+    return [];
+  }
+}
+
+function buildOwnedMintHints(db, userId) {
+  if (!userId) return [];
+
+  const hints = [];
+  const entityRows = safeRows(db,
+    `SELECT i.id, i.token, d.name as object_label, COALESCE(a.code, 'emotion-ip') as app_code, COALESCE(a.app_type, 'meaning') as app_type
+     FROM ip_instances i
+     LEFT JOIN ip_definitions d ON d.id = i.ip_definition_id
+     LEFT JOIN application_definitions a ON a.id = i.application_definition_id
+     WHERE i.owner_user_id = ?
+       AND i.instance_type != 'official_demo'
+     ORDER BY COALESCE(i.bound_at, i.created_at) DESC
+     LIMIT 12`,
+    [userId]
+  );
+  for (const row of entityRows) {
+    hints.push({
+      appCode: row.app_code,
+      appType: row.app_type,
+      objectId: row.id,
+      objectLabel: row.object_label,
+      token: row.token,
+    });
+  }
+
+  const dailyStickerRows = safeRows(db,
+    `SELECT t.id, t.token, COALESCE(w.name, p.name, t.label) as object_label
+     FROM daily_sticker_tokens t
+     LEFT JOIN daily_sticker_personas p ON p.id = t.persona_id
+     LEFT JOIN daily_sticker_worlds w ON w.id = t.world_id
+     WHERE t.user_id = ?
+     ORDER BY COALESCE(t.bound_at, t.created_at) DESC
+     LIMIT 12`,
+    [userId]
+  );
+  for (const row of dailyStickerRows) {
+    hints.push({
+      appCode: 'daily-sticker',
+      appType: 'state',
+      objectId: row.id,
+      objectLabel: row.object_label,
+      token: row.token,
+    });
+  }
+
+  return hints.slice(0, 20);
+}
+
+function buildContentModifiers(skills) {
+  return skills.map(skill => ({
+    skillKey: skill.key,
+    role: skill.effect?.role || null,
+    contentAssembly: skill.effect?.contentAssembly || null,
+    effect: skill.effect || {},
+  }));
+}
+
 export function buildRuntimeContextForObject(db, resolvedObject, options = {}) {
   const context = {
     userId: options.userId || resolvedObject?.raw?.user_id || null,
@@ -245,6 +314,11 @@ export function buildRuntimeContextForObject(db, resolvedObject, options = {}) {
   const uniqueStates = [...stateMap.values()];
   const manifest = findAppManifest(context.appCode);
   const skills = (manifest?.skills || []).filter(skill => skillMatches(skill, uniqueStates));
+  const unlockedSkills = skills.map(skill => ({
+    key: skill.key,
+    label: skill.label,
+    effect: skill.effect || {},
+  }));
 
   return {
     states: uniqueStates.map(state => ({
@@ -255,10 +329,8 @@ export function buildRuntimeContextForObject(db, resolvedObject, options = {}) {
       sourceObjectLabel: state.source_object_label,
       evidence: state.evidence,
     })),
-    unlockedSkills: skills.map(skill => ({
-      key: skill.key,
-      label: skill.label,
-      effect: skill.effect || {},
-    })),
+    unlockedSkills,
+    ownedMintHints: buildOwnedMintHints(db, context.userId),
+    contentModifiers: buildContentModifiers(unlockedSkills),
   };
 }

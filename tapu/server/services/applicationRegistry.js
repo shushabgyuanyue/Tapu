@@ -56,14 +56,17 @@ export function getBuiltInApplications() {
 export function ensureApplicationRegistry(db) {
   for (const app of BUILT_IN_APPLICATIONS) {
     db.run(
-      `INSERT INTO applications (id, name, code, app_type, interaction_type, description, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?)
+      `INSERT INTO application_definitions
+       (id, name, code, version_no, app_type, interaction_type, description, status)
+       VALUES (?, ?, ?, '1.0.0', ?, ?, ?, ?)
        ON CONFLICT(code) DO UPDATE SET
          name = excluded.name,
+         version_no = excluded.version_no,
          app_type = excluded.app_type,
          interaction_type = excluded.interaction_type,
          description = excluded.description,
-         status = excluded.status`,
+         status = excluded.status,
+         updated_at = CURRENT_TIMESTAMP`,
       [
         app.code,
         app.name,

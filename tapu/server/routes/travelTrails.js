@@ -4,11 +4,13 @@ import { getDb, saveDb } from '../db/index.js';
 import { cleanString, parseJson } from '../services/contentCollections.js';
 import { recordObjectEvent } from '../services/objectEvents.js';
 import { resolveObjectByToken } from '../services/objectRegistry.js';
+import { buildAppRuntimeContext } from '../services/appAdapters.js';
 import { adminRoute, registerRoutes, tokenRoute } from '../services/routePermissions.js';
 import { buildTapResponse } from '../services/tapRuntime.js';
 import { createUniqueToken, normalizeEntityToken, resultToObjects } from '../services/tokens.js';
 import { createWork, getWork, updateWork } from '../services/works.js';
 import { serverMessages } from '../copy/messages.js';
+import { syncTravelTrailContent } from '../services/coreCreationSync.js';
 
 const router = Router();
 const APP_CODE = 'travel-trail';
@@ -207,6 +209,10 @@ router.get('/resolve', async (req, res) => {
       },
     });
     saveDb();
+    const runtimeContext = buildAppRuntimeContext(db, resolvedObject, {
+      userId: req.user?.id || tokenRow.user_id || null,
+      token: tokenRow.token,
+    });
 
     const tapResponse = buildTapResponse({
       object: resolvedObject.object,
@@ -247,6 +253,7 @@ router.get('/resolve', async (req, res) => {
         journeyState: trail.journey_state || 'planning',
       },
       work,
+      runtime_context: runtimeContext,
     });
   } catch (error) {
     console.error('Resolve travel trail error:', error);
@@ -264,7 +271,9 @@ async function listTrails(_req, res) {
        FROM travel_trails t
        LEFT JOIN works w ON w.id = t.work_id
        LEFT JOIN travel_trail_places p ON p.trail_id = t.id
-       LEFT JOIN object_events e ON e.token_id = t.id AND e.app_code = ?
+       LEFT JOIN events e
+         ON json_extract(e.context_snapshot_json, '$.token_id') = t.id
+        AND e.application_definition_id IN (SELECT id FROM application_definitions WHERE code = ?)
        GROUP BY t.id
        ORDER BY t.updated_at DESC, t.created_at DESC`,
       [APP_CODE]
@@ -339,6 +348,7 @@ async function createTrail(req, res) {
     }
 
     const trail = getTrail(db, id);
+    syncTravelTrailContent(db, id);
     saveDb();
     res.json({ success: true, id, token, work_id: work.id, trail });
   } catch (error) {
@@ -364,6 +374,7 @@ async function addTrailPlace(req, res) {
       placeCount: nextTrail.places.length,
       lastPlace: place.name,
     });
+    syncTravelTrailContent(db, trail.id);
     saveDb();
     res.json({ success: true, place, trail: nextTrail });
   } catch (error) {
@@ -386,6 +397,7 @@ async function updateTrailNextDestination(req, res) {
       nextPlace: nextTrail.next_place || null,
       journeyState: nextTrail.journey_state,
     });
+    syncTravelTrailContent(db, trail.id);
     saveDb();
     res.json({ success: true, trail: nextTrail });
   } catch (error) {
@@ -410,6 +422,7 @@ async function addPublicTravelPlaceHandler(req, res) {
       placeCount: trail.places.length,
       lastPlace: place.name,
     });
+    syncTravelTrailContent(db, tokenRow.id);
     recordObjectEvent(db, {
       objectType: resolvedObject.object.type,
       objectId: resolvedObject.object.id,
@@ -455,6 +468,7 @@ async function setPublicTravelNextDestinationHandler(req, res) {
       nextPlace: trail.next_place || null,
       journeyState: trail.journey_state,
     });
+    syncTravelTrailContent(db, tokenRow.id);
     recordObjectEvent(db, {
       objectType: resolvedObject.object.type,
       objectId: resolvedObject.object.id,
@@ -495,6 +509,7 @@ async function confirmPublicTravelReturnHandler(req, res) {
       nextPlace: null,
       journeyState: 'returned',
     });
+    syncTravelTrailContent(db, tokenRow.id);
     recordObjectEvent(db, {
       objectType: resolvedObject.object.type,
       objectId: resolvedObject.object.id,
@@ -529,6 +544,7 @@ async function deleteTrailPlace(req, res) {
       placeCount: nextTrail.places.length,
       lastPlace: nextTrail.places.at(-1)?.name || null,
     });
+    syncTravelTrailContent(db, trail.id);
     saveDb();
     res.json({ success: true });
   } catch (error) {
