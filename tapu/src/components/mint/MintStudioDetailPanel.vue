@@ -4,19 +4,13 @@ import type { MintedItem } from '../../composables/useMintStudioLibrary';
 
 defineProps<{
   item: MintedItem;
-  connectionLabel: string;
-  canConnect: boolean;
   canDelete: boolean;
-  canRemove: boolean;
   busy: boolean;
 }>();
-
-const connectToken = defineModel<string>('connectToken', { required: true });
 
 defineEmits<{
   (event: 'close'): void;
   (event: 'preview'): void;
-  (event: 'connect'): void;
   (event: 'delete'): void;
 }>();
 </script>
@@ -38,33 +32,18 @@ defineEmits<{
       <img :src="item.thumb" :alt="item.title" />
     </div>
 
-    <div class="detail-row">
-      <span>{{ studioCopy.detail.currentObject }}</span>
-      <strong>{{ connectionLabel }}</strong>
-    </div>
-
-    <div v-if="canConnect" class="detail-connect">
-      <p>{{ studioCopy.detail.tokenHint }}</p>
-      <div>
-        <input v-model="connectToken" :placeholder="studioCopy.detail.tokenPlaceholder" />
-        <button type="button" :disabled="!connectToken.trim() || busy" @click="$emit('connect')">
-          {{ busy ? studioCopy.actions.connectingObject : studioCopy.actions.connectObject }}
-        </button>
-      </div>
-    </div>
-
     <div class="detail-actions">
       <button type="button" class="primary-step" :disabled="!item.previewRoute" @click="$emit('preview')">
         {{ studioCopy.detail.preview }}
       </button>
       <button
-        v-if="canDelete || canRemove"
+        v-if="canDelete"
         type="button"
         class="danger-step"
         :disabled="busy"
         @click="$emit('delete')"
       >
-        {{ canRemove ? studioCopy.actions.removeRecord : studioCopy.actions.deleteContent }}
+        {{ studioCopy.actions.deleteContent }}
       </button>
       <span v-else>{{ studioCopy.detail.deleteUnavailable }}</span>
     </div>

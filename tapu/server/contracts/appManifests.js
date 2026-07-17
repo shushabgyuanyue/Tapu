@@ -24,20 +24,36 @@ export const APPLICATION_MANIFESTS = [
     },
     mintStudio: {
       profile: 'entity-recipe',
-      primaryActions: ['open_preview', 'use_current_content', 'upload_custom_video', 'collect_asset'],
+      primaryActions: ['open_preview', 'save_definition_content_by_token', 'collect_asset'],
     },
     permissionOperations: ['view:open', 'view:preview', 'content:token_update', 'content:account_create', 'asset:claim'],
+    operationDefinitions: [
+      {
+        key: 'object.touch',
+        label: 'Touch Object',
+        meaning: 'A user touched or opened the emotional IP object.',
+      },
+    ],
+    eventRules: [
+      {
+        eventType: 'emotion.frequent_touch',
+        sourceOperations: ['object.touch'],
+        windowHours: 24,
+        countGte: 10,
+        relationFocus: 'comfort',
+      },
+    ],
     producesStates: [
       {
         key: 'comfort.action_active',
         category: 'comfort',
-        fromEvents: ['tap_open', 'emotion_content_tap', 'media_play'],
+        fromEvents: ['emotion.frequent_touch'],
         meaning: 'This object is being used as active comfort or companionship.',
       },
       {
         key: 'companion.used_30_days',
         category: 'companion',
-        fromEvents: ['tap_open', 'emotion_content_tap'],
+        fromEvents: ['emotion.long_term_companion'],
         meaning: 'This Mint has become a long-running companion.',
       },
     ],
@@ -54,44 +70,49 @@ export const APPLICATION_MANIFESTS = [
     },
   },
   {
-    code: 'daily-sticker',
-    type: 'state',
-    objectPrinciple: 'A sticker opens a small slow world that updates over time.',
-    behavior: 'touch_to_read_today_story',
-    meaningQuestion: 'How does this small world accompany this moment?',
+    code: 'earphone-girl',
+    type: 'meaning',
+    objectPrinciple: 'An earphone sticker opens a traveler-listener who brings back stories from the IP world.',
+    behavior: 'touch_to_listen_then_follow_story',
+    meaningQuestion: 'Whose story did she bring back today?',
     defaultRoutes: {
-      open: '/sticker',
+      open: '/earphone-girl',
       studio: '/mint-studio',
-      admin: '/official/daily-stickers',
+      admin: '/official/applications',
     },
     mintStudio: {
-      profile: 'daily-sticker',
+      profile: 'earphone-girl',
       primaryActions: ['open_app', 'collect_asset'],
     },
-    permissionOperations: ['view:open', 'asset:claim', 'asset:owner_manage'],
-    producesStates: [
+    permissionOperations: ['view:open', 'app:token_operate', 'asset:claim', 'asset:owner_manage'],
+    operationDefinitions: [
       {
-        key: 'story.returning_touch',
-        category: 'continuity',
-        fromEvents: ['daily_sticker_tap'],
-        meaning: 'The user keeps returning to this slow story world.',
+        key: 'object.touch',
+        label: 'Touch Earphone Girl',
+        meaning: 'A user opened Earphone Girl story space.',
+      },
+      {
+        key: 'story.play_completed',
+        label: 'Story Completed',
+        meaning: 'A story was completed and the instance sequence can advance.',
       },
     ],
     skills: [
       {
-        key: 'guest_character_story',
-        label: 'Guest Character Story',
+        key: 'repeat_touch_crossover_invite',
+        label: 'Crossover Invite',
         trigger: {
-          states: ['comfort.action_active'],
+          events: ['object.touch'],
         },
         effect: {
-          contentAssembly: 'daily_sticker_guest_character_story',
+          actionType: 'show_gateway',
+          contentAssembly: 'earphone_girl_crossover_invite',
           role: 'crossover',
         },
       },
     ],
     contentContainer: {
-      capabilities: ['text', 'image', 'mixed'],
+      capabilities: ['text', 'image', 'audio', 'mixed', 'link'],
       defaultModality: 'mixed',
     },
   },
@@ -129,7 +150,7 @@ export const APPLICATION_MANIFESTS = [
     },
     mintStudio: {
       profile: 'moment',
-      primaryActions: ['open_app', 'save_moment_by_token', 'collect_asset'],
+      primaryActions: ['open_app', 'collect_asset'],
     },
     permissionOperations: ['view:open', 'content:token_update', 'asset:claim', 'asset:owner_manage'],
     contentContainer: {

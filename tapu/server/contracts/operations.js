@@ -49,9 +49,11 @@ export const OPERATIONS = {
 export const STUDIO_ACTION_OPERATIONS = {
   open_app: 'view:open',
   open_preview: 'view:preview',
-  use_current_content: 'content:token_update',
-  save_moment_by_token: 'content:token_update',
-  upload_custom_video: 'content:account_create',
+  continue_guidance: 'view:preview',
+  upload_authoring_resource: 'content:account_create',
+  save_definition_content_by_token: 'content:token_update',
+  publish_definition_content: 'content:token_update',
+  append_unit: 'view:preview',
   collect_asset: 'asset:claim',
 };
 

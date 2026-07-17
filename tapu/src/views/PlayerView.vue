@@ -8,8 +8,8 @@ import {
   setDefault,
   resolveByKey,
   getConfig,
-  setEntityDefault,
-  setEntityDefaultByToken,
+  setIpInstanceDefaultContent,
+  setIpInstanceContentByToken,
   isLoggedIn,
 } from '../api';
 import { contentCopy } from '../copy';
@@ -394,9 +394,9 @@ const onDoubleTap = async () => {
           }, 2200);
           return;
         }
-        result = await setEntityDefault(resolvedEntityId.value, video.id);
+        result = await setIpInstanceDefaultContent(resolvedEntityId.value, video.id);
       } else {
-        result = await setEntityDefaultByToken(activeEntityKey.value, video.id);
+        result = await setIpInstanceContentByToken(activeEntityKey.value, video.id);
       }
       if (result?.error) throw new Error(result.error);
     } else {

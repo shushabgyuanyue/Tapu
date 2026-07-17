@@ -8,12 +8,11 @@ export const CRITICAL_PERMISSION_FLOWS = [
     ],
   },
   {
-    id: 'mint-studio-custom-video-binding',
-    title: 'Mint Studio uploads and binds custom content',
+    id: 'mint-studio-definition-authoring',
+    title: 'Mint Studio creates definition-driven content',
     routes: [
-      { method: 'post', path: '/api/videos/upload', permissionType: 'login_required', operation: 'content:account_create' },
-      { method: 'put', path: '/api/auth/entity-default-by-token', permissionType: 'token_unbound_or_owner', operation: 'content:token_update' },
-      { method: 'put', path: '/api/auth/entity-default/:entityId', permissionType: 'entity_owner', operation: 'content:owner_manage' },
+      { method: 'post', path: '/api/authoring/resources', permissionType: 'login_required', operation: 'content:account_create' },
+      { method: 'post', path: '/api/authoring/content-by-token', permissionType: 'studio_action', operation: 'content:token_update' },
     ],
   },
   {
@@ -29,17 +28,8 @@ export const CRITICAL_PERMISSION_FLOWS = [
     id: 'private-content-guard',
     title: 'Private content can only be managed by owner',
     routes: [
-      { method: 'post', path: '/api/videos/upload', permissionType: 'login_required', operation: 'content:account_create' },
       { method: 'delete', path: '/api/videos/:id', permissionType: 'content_owner', operation: 'content:owner_manage' },
-    ],
-  },
-  {
-    id: 'daily-sticker-account-object',
-    title: 'Daily sticker token can be claimed and unclaimed',
-    routes: [
-      { method: 'get', path: '/api/daily-stickers/resolve', permissionType: 'public', operation: 'view:open' },
-      { method: 'post', path: '/api/daily-stickers/bind-token', permissionType: 'account_object_claimable', operation: 'asset:claim' },
-      { method: 'post', path: '/api/daily-stickers/unbind-token', permissionType: 'account_object_owner', operation: 'asset:owner_manage' },
+      { method: 'delete', path: '/api/contents/:id', permissionType: 'content_owner', operation: 'content:owner_manage' },
     ],
   },
   {

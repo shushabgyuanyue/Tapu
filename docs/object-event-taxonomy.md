@@ -35,7 +35,7 @@
 | app_code | 当前事件 | 可映射通用事件 | 说明 |
 | --- | --- | --- | --- |
 | `answer-book` | `answer_draw` | `tap_open` + `content_view` | 一次触碰会抽取一张答案卡 |
-| `daily-sticker` | `daily_sticker_tap` | `tap_open` + `content_view` | 一次触碰会展示当前慢故事条目 |
+| `earphone-girl` | `earphone_girl_touch` | `tap_open` + `content_view` | 一次触碰会展示当前故事空间内容 |
 | `moment` | `moment_tap` | `tap_open` + `content_view` | 一次触碰会打开某个纪念瞬间 |
 | `travel-trail` | `travel_trail_tap` | `tap_open` + `content_view` | 一次触碰会展开旅行轨迹 |
 | `travel-trail` | `travel_next_destination_set` | `action_click` | 用户写下下一站 |

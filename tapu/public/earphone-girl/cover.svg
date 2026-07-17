@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 900" role="img" aria-label="Earphone Girl cover">
+  <defs>
+    <linearGradient id="sky" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#f6efe3"/>
+      <stop offset="0.48" stop-color="#d7ece8"/>
+      <stop offset="1" stop-color="#ffd0ba"/>
+    </linearGradient>
+    <linearGradient id="ink" x1="0" x2="1">
+      <stop offset="0" stop-color="#254b56"/>
+      <stop offset="1" stop-color="#1d2f38"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="900" fill="url(#sky)"/>
+  <path d="M170 660 C320 570 420 710 560 630 C710 545 815 590 1000 505" fill="none" stroke="#e98d6f" stroke-width="12" stroke-linecap="round" opacity="0.5"/>
+  <circle cx="360" cy="380" r="118" fill="#fff8ee" stroke="#1d2f38" stroke-width="14"/>
+  <circle cx="830" cy="380" r="118" fill="#fff8ee" stroke="#1d2f38" stroke-width="14"/>
+  <path d="M478 380 C520 270 674 270 716 380" fill="none" stroke="url(#ink)" stroke-width="22" stroke-linecap="round"/>
+  <path d="M360 505 C360 610 432 665 520 690" fill="none" stroke="#1d2f38" stroke-width="12" stroke-linecap="round"/>
+  <path d="M830 505 C830 625 748 684 640 704" fill="none" stroke="#1d2f38" stroke-width="12" stroke-linecap="round"/>
+  <path d="M510 700 C550 735 620 735 665 700" fill="none" stroke="#2f7d7a" stroke-width="10" stroke-linecap="round"/>
+  <g fill="#1d2f38" font-family="Georgia, serif">
+    <text x="130" y="150" font-size="68">Earphone Girl</text>
+    <text x="132" y="210" font-size="28" opacity="0.72">she listens, travels, and brings stories home</text>
+  </g>
+</svg>

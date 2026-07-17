@@ -13,6 +13,7 @@ import {
   replaceCollectionBlocks,
   stringifyJson,
 } from '../services/contentCollections.js';
+import { archiveAppContentInstance, syncContentCollectionContent } from '../services/coreCreationSync.js';
 
 const router = Router();
 
@@ -102,6 +103,7 @@ async function createCollection(req, res) {
       ]
     );
     replaceCollectionBlocks(db, id, req.body.blocks);
+    syncContentCollectionContent(db, id);
     saveDb();
     res.json({ success: true, id, slug });
   } catch (error) {
@@ -179,6 +181,7 @@ async function createBinding(req, res) {
         stringifyJson(req.body.metadata),
       ]
     );
+    syncContentCollectionContent(db, collectionId);
     saveDb();
     res.json({ success: true, id });
   } catch (error) {
@@ -227,6 +230,7 @@ async function updateCollection(req, res) {
       ]
     );
     if (Array.isArray(req.body.blocks)) replaceCollectionBlocks(db, existing.id, req.body.blocks);
+    syncContentCollectionContent(db, existing.id);
     saveDb();
     res.json({ success: true });
   } catch (error) {
@@ -242,6 +246,7 @@ async function deleteCollection(req, res) {
   try {
     const db = await getDb();
     db.run('DELETE FROM content_collections WHERE id = ?', [req.params.id]);
+    archiveAppContentInstance(db, 'content_collections', req.params.id);
     saveDb();
     res.json({ success: true });
   } catch (error) {
@@ -281,6 +286,7 @@ async function updateBinding(req, res) {
         req.params.id,
       ]
     );
+    syncContentCollectionContent(db, collectionId);
     saveDb();
     res.json({ success: true });
   } catch (error) {
@@ -295,7 +301,12 @@ async function updateBinding(req, res) {
 async function deleteBinding(req, res) {
   try {
     const db = await getDb();
+    const existing = resultToObjects(db.exec(
+      'SELECT collection_id FROM app_bindings WHERE id = ? LIMIT 1',
+      [req.params.id]
+    ))[0] || null;
     db.run('DELETE FROM app_bindings WHERE id = ?', [req.params.id]);
+    if (existing?.collection_id) syncContentCollectionContent(db, existing.collection_id);
     saveDb();
     res.json({ success: true });
   } catch (error) {

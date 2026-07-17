@@ -36,7 +36,7 @@ WhatMint 不是先做一个完整平台，再让应用迁入；当前策略是�
 已接入：
 
 - `answer-book`：答案之书贴纸。
-- `daily-sticker`：手账慢故事贴纸。
+- `earphone-girl`：耳机小姐故事空间。
 
 后续再接入情绪 IP 实体和收藏作品。
 
@@ -68,7 +68,7 @@ WhatMint 不是先做一个完整平台，再让应用迁入；当前策略是�
 当前后端接入：
 
 - `answer-book /resolve` 已返回 `content.blocks`，前端优先使用协议块，缺失时回退到旧的 `card` 拼装逻辑。
-- `daily-sticker /resolve` 已返回 `content.blocks`，前端保留原有视觉外壳，但故事内容区交给 `ContentRenderer`。
+- `earphone-girl /resolve` 返回 `content.blocks`，前端保留耳机小姐的声音空间外壳，故事内容区交给 `ContentRenderer`。
 
 ### 4. Object Events
 
@@ -88,7 +88,7 @@ WhatMint 不是先做一个完整平台，再让应用迁入；当前策略是�
 当前接入：
 
 - 答案之书抽卡会继续写入 `answer_book_draw_events`，同时写入 `object_events`。
-- 手账慢故事贴纸触碰会继续写入 `daily_sticker_tap_events`，同时写入 `object_events`。
+- 耳机小姐触碰会写入统一事件账本，并可继续被提炼为有意义状态。
 
 事件命名规范见：[object-event-taxonomy.md](object-event-taxonomy.md)
 
@@ -108,7 +108,7 @@ WhatMint 不是先做一个完整平台，再让应用迁入；当前策略是�
     blocks: []
   },
   binding: {
-    appCode: 'daily-sticker',
+    appCode: 'earphone-girl',
     scopeType: 'token',
     scopeId: '<token>',
     collectionId: '<collection-id>',
@@ -130,15 +130,15 @@ WhatMint 不是先做一个完整平台，再让应用迁入；当前策略是�
 - 不做统一前端 `/tap/:token` 总路由。
 - 不迁移所有旧应用数据。
 - 不把内容创作中心改造成完整 CMS。
-- 不把内容集合强制接管答案之书和日常贴纸的现有业务表。
+- 不把内容集合强制接管所有轻应用的既有业务表；新应用优先按核心对象和适配器范式接入。
 - 不提前定义复杂权限矩阵。
 - 不为了平台感牺牲轻应用的克制体验。
 
 ## 下一步建议
 
 1. 把情绪 IP 实体的触碰播放事件也映射到 `object_events`。
-2. 选一个新轻应用试用 `Content Collection / App Binding`，验证它是否真的减少重复劳动。
-3. 观察两个贴纸应用的协议差异，再决定是否需要统一 `/tap/:token` 总路由。
+2. 用耳机小姐故事空间试用 `Content Collection / App Binding`，验证它是否真的减少重复劳动。
+3. 观察多个核心 IP 应用的协议差异，再决定是否需要统一 `/tap/:token` 总路由。
 4. 在内容容器中继续攻坚 iOS Safari、微信内置浏览器和 Android WebView 的媒体兼容。
 
 ## 判断标准

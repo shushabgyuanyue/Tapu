@@ -1,8 +1,19 @@
 import { Router } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { getDb, saveDb } from '../db/index.js';
-import { adminRoute, registerRoutes } from '../services/routePermissions.js';
+import { adminRoute, publicRoute, registerRoutes } from '../services/routePermissions.js';
 import { serverMessages } from '../copy/messages.js';
+import {
+  ensureOfficialIpInstance,
+  getIpDefinitionRelations,
+  getPrimaryApplicationForIpDefinition,
+  normalizeRelationType,
+  normalizeStatus,
+  parseJson,
+  stringifyJson,
+  upsertIpDefinitionRelation,
+  upsertIpInstanceContentLink,
+} from '../services/coreStore.js';
 
 const router = Router();
 
@@ -51,10 +62,42 @@ function cleanString(value) {
   return typeof value === 'string' ? value.trim() : '';
 }
 
+function normalizeCode(code, name) {
+  const source = (code || name || '').trim().toLowerCase();
+  return source
+    .replace(/[^a-z0-9_-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 48);
+}
+
+function buildRelationPayload(body) {
+  return {
+    target_ip_definition_id: cleanString(body.target_ip_definition_id || body.counterpart_ip_definition_id),
+    relation_type: normalizeRelationType(body.relation_type || body.display_relation_type || 'related'),
+    relation_label: cleanString(body.relation_label),
+    reverse_relation_type: cleanString(body.reverse_relation_type)
+      ? normalizeRelationType(body.reverse_relation_type)
+      : null,
+    reverse_relation_label: cleanString(body.reverse_relation_label),
+    narrative: cleanString(body.narrative),
+    strength: Number.isFinite(Number(body.strength)) ? Number(body.strength) : 1,
+    is_mutual: body.is_mutual === true || body.is_mutual === 'true' || body.is_mutual === 1 || body.is_mutual === '1',
+    sort_order: Number.isFinite(Number(body.sort_order)) ? Number(body.sort_order) : 0,
+    status: cleanString(body.status) || 'active',
+    starts_at: cleanString(body.starts_at) || null,
+    ends_at: cleanString(body.ends_at) || null,
+    metadata: body.metadata && typeof body.metadata === 'object' ? body.metadata : null,
+  };
+}
+
 function buildGroupPayload(body) {
   return {
     name: cleanString(body.name),
+    code: cleanString(body.code) || null,
+    creator_user_id: cleanString(body.creator_user_id) || null,
     series_id: cleanString(body.series_id) || null,
+    series_name: cleanString(body.series_name) || null,
+    application_id: cleanString(body.application_id) || null,
     crowdfund_goal: Number(body.crowdfund_goal) || 0,
     crowdfund_deadline: cleanString(body.crowdfund_deadline) || null,
     price: Number(body.price) || 0,
@@ -64,22 +107,95 @@ function buildGroupPayload(body) {
     product_image_url: cleanString(body.product_image_url) || null,
     description: cleanString(body.description) || null,
     story: cleanString(body.story) || null,
+    personality: cleanString(body.personality) || null,
     designer: cleanString(body.designer) || null,
     material: cleanString(body.material) || null,
+    nfc_type: cleanString(body.nfc_type) || null,
     size_label: cleanString(body.size_label) || null,
     rarity_label: cleanString(body.rarity_label) || null,
     external_purchase_url: cleanString(body.external_purchase_url) || null,
     display_tags: cleanString(body.display_tags) || null,
     theme_color: cleanString(body.theme_color) || '#ff4fd8',
+    status: cleanString(body.status) || 'active',
   };
 }
 
 function enrichGroup(group) {
   const stockLimit = group.stock_limit || 0;
   const soldCount = group.entity_count || 0;
+  const displayTags = Array.isArray(parseJson(group.display_tags_json, []))
+    ? parseJson(group.display_tags_json, [])
+    : [];
+  group.display_tags_list = displayTags;
+  group.display_tags = displayTags.join(', ');
   group.available_count = stockLimit > 0 ? Math.max(0, stockLimit - soldCount) : 0;
   group.sale_status = computeSaleStatus(group);
   return group;
+}
+
+function baseGroupSql() {
+  return `SELECT d.*,
+            d.primary_series_key as series_id,
+            d.primary_series_name as series_name,
+            COALESCE(app.id, fallback_app.id) as application_id,
+            COALESCE(app.name, fallback_app.name) as application_name,
+            COALESCE(app.code, fallback_app.code) as application_code,
+            COALESCE(app.interaction_type, fallback_app.interaction_type) as interaction_type,
+            COALESCE(app.app_type, fallback_app.app_type) as app_type,
+            content.id as official_default_video_id,
+            content.title as official_default_video_title,
+            resource.preview_url as official_default_video_poster,
+            COUNT(DISTINCT owned.id) as entity_count,
+            COALESCE((SELECT COUNT(*) FROM crowdfund_pledges cp WHERE cp.group_id = d.id), 0) as pledge_count
+     FROM ip_definitions d
+     LEFT JOIN ip_definition_application_links link
+       ON link.ip_definition_id = d.id
+      AND link.is_primary = 1
+     LEFT JOIN application_definitions app ON app.id = link.application_definition_id
+     LEFT JOIN application_definitions fallback_app ON fallback_app.code = 'emotion-ip'
+     LEFT JOIN ip_instances owned ON owned.ip_definition_id = d.id AND owned.instance_type != 'official_demo'
+     LEFT JOIN ip_instances official ON official.ip_definition_id = d.id AND official.instance_type = 'official_demo'
+     LEFT JOIN ip_instance_content_instance_links content_link
+       ON content_link.ip_instance_id = official.id
+      AND content_link.relation_role = 'official_default'
+      AND content_link.is_primary = 1
+     LEFT JOIN content_instances content ON content.id = content_link.content_instance_id
+     LEFT JOIN content_instance_resource_links resource_link
+       ON resource_link.content_instance_id = content.id
+      AND resource_link.is_primary = 1
+     LEFT JOIN resources resource ON resource.id = resource_link.resource_id`;
+}
+
+function syncPrimaryApplicationLink(db, ipDefinitionId, applicationId) {
+  db.run(
+    'UPDATE ip_definition_application_links SET is_primary = 0, updated_at = CURRENT_TIMESTAMP WHERE ip_definition_id = ?',
+    [ipDefinitionId]
+  );
+  if (!applicationId) return;
+  db.run(
+    `INSERT INTO ip_definition_application_links
+     (id, ip_definition_id, application_definition_id, relation_role, is_primary, sort_order, metadata_json)
+     VALUES (?, ?, ?, 'primary', 1, 0, ?)
+     ON CONFLICT(ip_definition_id, application_definition_id, relation_role) DO UPDATE SET
+       is_primary = 1,
+       updated_at = CURRENT_TIMESTAMP`,
+    [
+      `ipapp-${ipDefinitionId}-${applicationId}`,
+      ipDefinitionId,
+      applicationId,
+      stringifyJson({ source: 'groups-route' }),
+    ]
+  );
+}
+
+function resolveApplicationId(db, payload) {
+  if (payload.application_id) return payload.application_id;
+  if (!payload.series_id) return null;
+  const row = resultToObjects(db.exec(
+    'SELECT application_id FROM series WHERE id = ? LIMIT 1',
+    [payload.series_id]
+  ))[0] || null;
+  return row?.application_id || null;
 }
 
 router.get('/', async (req, res) => {
@@ -88,27 +204,17 @@ router.get('/', async (req, res) => {
   const page = parsePositiveInt(req.query.page, 1);
   const pageSize = parsePositiveInt(req.query.page_size, 10);
   const shouldPaginate = req.query.page !== undefined || req.query.page_size !== undefined;
-  const baseQuery = `SELECT g.*, s.name as series_name, s.application_id,
-              a.name as application_name, a.code as application_code, a.interaction_type,
-              ov.title as official_default_video_title,
-              ov.poster_url as official_default_video_poster,
-              COUNT(e.id) as entity_count,
-              COALESCE((SELECT COUNT(*) FROM crowdfund_pledges cp WHERE cp.group_id = g.id), 0) as pledge_count
-       FROM groups g
-       LEFT JOIN series s ON g.series_id = s.id
-       LEFT JOIN applications a ON s.application_id = a.id
-       LEFT JOIN videos ov ON ov.id = g.official_default_video_id
-       LEFT JOIN entities e ON e.group_id = g.id`;
-  const countSql = 'SELECT COUNT(*) as total FROM groups g';
+  const baseQuery = baseGroupSql();
+  const countSql = 'SELECT COUNT(*) as total FROM ip_definitions d';
   const totalRows = series_id
-    ? db.exec(`${countSql} WHERE g.series_id = ?`, [series_id])
+    ? db.exec(`${countSql} WHERE d.primary_series_key = ?`, [series_id])
     : db.exec(countSql);
   const total = totalRows.length > 0 ? totalRows[0].values[0][0] : 0;
   const params = series_id ? [series_id] : [];
-  const where = series_id ? ' WHERE g.series_id = ?' : '';
+  const where = series_id ? ' WHERE d.primary_series_key = ?' : '';
   const paging = shouldPaginate ? ' LIMIT ? OFFSET ?' : '';
   const results = db.exec(
-    `${baseQuery}${where} GROUP BY g.id ORDER BY g.created_at DESC${paging}`,
+    `${baseQuery}${where} GROUP BY d.id ORDER BY d.created_at DESC${paging}`,
     shouldPaginate ? [...params, pageSize, (page - 1) * pageSize] : params
   );
   const groups = resultToObjects(results).map(enrichGroup);
@@ -128,27 +234,77 @@ router.get('/', async (req, res) => {
 router.get('/:id', async (req, res) => {
   const db = await getDb();
   const results = db.exec(
-    `SELECT g.*, s.name as series_name, s.application_id,
-            a.name as application_name, a.code as application_code, a.interaction_type,
-            ov.title as official_default_video_title,
-            ov.poster_url as official_default_video_poster,
-            COUNT(e.id) as entity_count,
-            COALESCE((SELECT COUNT(*) FROM crowdfund_pledges cp WHERE cp.group_id = g.id), 0) as pledge_count
-     FROM groups g
-     LEFT JOIN series s ON g.series_id = s.id
-     LEFT JOIN applications a ON s.application_id = a.id
-     LEFT JOIN videos ov ON ov.id = g.official_default_video_id
-     LEFT JOIN entities e ON e.group_id = g.id
-     WHERE g.id = ?
-     GROUP BY g.id`,
+    `${baseGroupSql()}
+     WHERE d.id = ?
+     GROUP BY d.id`,
     [req.params.id]
   );
   const rows = resultToObjects(results);
   if (rows.length === 0) {
     return res.status(404).json({ error: serverMessages.routes.common.ipNotFound });
   }
-  res.json(enrichGroup(rows[0]));
+  const group = enrichGroup(rows[0]);
+  group.relations = getIpDefinitionRelations(db, req.params.id);
+  res.json(group);
 });
+
+async function listGroupRelations(req, res) {
+  const db = await getDb();
+  const exists = resultToObjects(db.exec('SELECT id FROM ip_definitions WHERE id = ? LIMIT 1', [req.params.id]))[0] || null;
+  if (!exists) return res.status(404).json({ error: serverMessages.routes.common.ipNotFound });
+  res.json(getIpDefinitionRelations(db, req.params.id));
+}
+
+async function upsertGroupRelation(req, res) {
+  const payload = buildRelationPayload(req.body || {});
+  if (!payload.target_ip_definition_id) {
+    return res.status(400).json({ error: 'target_ip_definition_id is required' });
+  }
+  if (payload.target_ip_definition_id === req.params.id) {
+    return res.status(400).json({ error: 'source and target ip_definition_id must be different' });
+  }
+
+  const db = await getDb();
+  const source = resultToObjects(db.exec('SELECT id FROM ip_definitions WHERE id = ? LIMIT 1', [req.params.id]))[0] || null;
+  const target = resultToObjects(db.exec('SELECT id FROM ip_definitions WHERE id = ? LIMIT 1', [payload.target_ip_definition_id]))[0] || null;
+  if (!source || !target) {
+    return res.status(404).json({ error: serverMessages.routes.common.ipNotFound });
+  }
+
+  const relationId = upsertIpDefinitionRelation(db, {
+    id: cleanString(req.body?.id) || null,
+    sourceIpDefinitionId: req.params.id,
+    targetIpDefinitionId: payload.target_ip_definition_id,
+    relationType: payload.relation_type,
+    relationLabel: payload.relation_label,
+    reverseRelationType: payload.reverse_relation_type,
+    reverseRelationLabel: payload.reverse_relation_label,
+    narrative: payload.narrative,
+    strength: payload.strength,
+    isMutual: payload.is_mutual,
+    sortOrder: payload.sort_order,
+    status: payload.status,
+    startsAt: payload.starts_at,
+    endsAt: payload.ends_at,
+    metadata: payload.metadata,
+  });
+  saveDb();
+
+  const relation = getIpDefinitionRelations(db, req.params.id, {
+    statuses: ['active', 'draft', 'archived'],
+  }).find(item => item.id === relationId) || null;
+  res.json({ success: true, relation });
+}
+
+async function deleteGroupRelation(req, res) {
+  const db = await getDb();
+  db.run(
+    'DELETE FROM ip_definition_relation_links WHERE id = ? AND (source_ip_definition_id = ? OR target_ip_definition_id = ?)',
+    [req.params.relationId, req.params.id, req.params.id]
+  );
+  saveDb();
+  res.json({ success: true });
+}
 
 async function createGroup(req, res) {
   const payload = buildGroupPayload(req.body);
@@ -156,34 +312,44 @@ async function createGroup(req, res) {
 
   const db = await getDb();
   const id = uuidv4();
+  const applicationId = resolveApplicationId(db, payload);
   db.run(
-    `INSERT INTO groups
-     (id, name, series_id, crowdfund_goal, crowdfund_deadline, price, stock_limit,
-      cover_url, hero_url, product_image_url, description, story, designer, material,
-      size_label, rarity_label, external_purchase_url, display_tags, theme_color)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO ip_definitions
+     (id, code, name, creator_user_id, primary_series_key, primary_series_name, description, story, personality, designer,
+      material, nfc_type, size_label, rarity_label, price, stock_limit, crowdfund_goal, crowdfund_deadline,
+      cover_url, hero_url, product_image_url, external_purchase_url, display_tags_json, theme_color, status, extra_json)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       id,
+      payload.code || normalizeCode(payload.name, payload.name),
       payload.name,
+      payload.creator_user_id,
       payload.series_id,
-      payload.crowdfund_goal,
-      payload.crowdfund_deadline,
+      payload.series_name,
+      payload.description,
+      payload.story,
+      payload.personality,
+      payload.designer,
+      payload.material,
+      payload.nfc_type,
+      payload.size_label,
+      payload.rarity_label,
       payload.price,
       payload.stock_limit,
+      payload.crowdfund_goal,
+      payload.crowdfund_deadline,
       payload.cover_url,
       payload.hero_url,
       payload.product_image_url,
-      payload.description,
-      payload.story,
-      payload.designer,
-      payload.material,
-      payload.size_label,
-      payload.rarity_label,
       payload.external_purchase_url,
-      payload.display_tags,
+      stringifyJson(payload.display_tags ? payload.display_tags.split(',').map(tag => tag.trim()).filter(Boolean) : []),
       payload.theme_color,
+      normalizeStatus(payload.status, ['active', 'draft', 'archived'], 'active'),
+      stringifyJson({ source: 'groups-route' }),
     ]
   );
+  syncPrimaryApplicationLink(db, id, applicationId);
+  ensureOfficialIpInstance(db, id, applicationId);
   saveDb();
   res.json({ id, ...payload });
 }
@@ -193,16 +359,21 @@ async function updateGroup(req, res) {
   if (!payload.name) return res.status(400).json({ error: 'Name is required' });
 
   const db = await getDb();
+  const applicationId = resolveApplicationId(db, payload);
   db.run(
-    `UPDATE groups
-     SET name = ?, series_id = ?, crowdfund_goal = ?, crowdfund_deadline = ?, price = ?,
-         stock_limit = ?, cover_url = ?, hero_url = ?, product_image_url = ?, description = ?,
-         story = ?, designer = ?, material = ?, size_label = ?, rarity_label = ?,
-         external_purchase_url = ?, display_tags = ?, theme_color = ?
+    `UPDATE ip_definitions
+     SET code = ?, name = ?, creator_user_id = ?, primary_series_key = ?, primary_series_name = ?,
+         crowdfund_goal = ?, crowdfund_deadline = ?, price = ?, stock_limit = ?, cover_url = ?, hero_url = ?,
+         product_image_url = ?, description = ?, story = ?, personality = ?, designer = ?, material = ?, nfc_type = ?,
+         size_label = ?, rarity_label = ?, external_purchase_url = ?, display_tags_json = ?, theme_color = ?,
+         status = ?, updated_at = CURRENT_TIMESTAMP
      WHERE id = ?`,
     [
+      payload.code || normalizeCode(payload.name, payload.name),
       payload.name,
+      payload.creator_user_id,
       payload.series_id,
+      payload.series_name,
       payload.crowdfund_goal,
       payload.crowdfund_deadline,
       payload.price,
@@ -212,55 +383,74 @@ async function updateGroup(req, res) {
       payload.product_image_url,
       payload.description,
       payload.story,
+      payload.personality,
       payload.designer,
       payload.material,
+      payload.nfc_type,
       payload.size_label,
       payload.rarity_label,
       payload.external_purchase_url,
-      payload.display_tags,
+      stringifyJson(payload.display_tags ? payload.display_tags.split(',').map(tag => tag.trim()).filter(Boolean) : []),
       payload.theme_color,
+      normalizeStatus(payload.status, ['active', 'draft', 'archived'], 'active'),
       req.params.id,
     ]
   );
+  syncPrimaryApplicationLink(db, req.params.id, applicationId);
+  ensureOfficialIpInstance(db, req.params.id, applicationId);
   saveDb();
   res.json({ id: req.params.id, ...payload });
 }
 
 async function deleteGroup(req, res) {
   const db = await getDb();
-  db.run('DELETE FROM groups WHERE id = ?', [req.params.id]);
+  db.run('DELETE FROM ip_definitions WHERE id = ?', [req.params.id]);
   saveDb();
   res.json({ success: true });
 }
 
 async function setOfficialDefault(req, res) {
-  const video_id = normalizeVideoId(req.body?.video_id);
-  if (!video_id) return res.status(400).json({ error: 'video_id is required' });
+  const contentId = normalizeVideoId(req.body?.content_id);
+  if (!contentId) return res.status(400).json({ error: 'content_id is required' });
 
   const db = await getDb();
-  const videoResults = db.exec(
-    'SELECT id, group_id, status FROM videos WHERE id = ?',
-    [video_id]
+  const contentResults = db.exec(
+    `SELECT c.id, c.ip_definition_id as group_id, c.status
+     FROM content_instances c
+     WHERE c.id = ?`,
+    [contentId]
   );
-  const videos = resultToObjects(videoResults);
-  if (videos.length === 0) {
+  const contentRows = resultToObjects(contentResults);
+  if (contentRows.length === 0) {
     return res.status(404).json({ error: serverMessages.routes.common.contentDefaultMissing });
   }
-  if (videos[0].group_id !== req.params.id) {
+  if (contentRows[0].group_id !== req.params.id) {
     return res.status(400).json({ error: serverMessages.routes.common.contentNotInIp });
   }
-  if (videos[0].status !== 'ready') {
+  if (!['ready', 'published'].includes(contentRows[0].status)) {
     return res.status(400).json({ error: serverMessages.routes.common.readyContentOnly });
   }
 
-  db.run('UPDATE groups SET official_default_video_id = ? WHERE id = ?', [video_id, req.params.id]);
+  const application = getPrimaryApplicationForIpDefinition(db, req.params.id);
+  const officialInstance = ensureOfficialIpInstance(db, req.params.id, application?.id || null);
+  upsertIpInstanceContentLink(db, {
+    id: `official-default-${req.params.id}-${contentId}`,
+    ipInstanceId: officialInstance.id,
+    contentInstanceId: contentId,
+    relationRole: 'official_default',
+    isPrimary: true,
+    metadata: { setBy: req.user?.id || null },
+  });
   saveDb();
-  res.json({ success: true, group_id: req.params.id, official_default_video_id: video_id });
+  res.json({ success: true, group_id: req.params.id, official_default_content_id: contentId });
 }
 
 registerRoutes(router, [
+  publicRoute('get', '/:id/relations', listGroupRelations),
   adminRoute('post', '/', createGroup),
+  adminRoute('post', '/:id/relations', upsertGroupRelation),
   adminRoute('put', '/:id', updateGroup),
+  adminRoute('delete', '/:id/relations/:relationId', deleteGroupRelation),
   adminRoute('delete', '/:id', deleteGroup),
   adminRoute('put', '/:id/official-default', setOfficialDefault),
 ]);

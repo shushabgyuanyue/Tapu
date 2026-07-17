@@ -1,14 +1,9 @@
-import { v4 as uuidv4 } from 'uuid';
 import { resultToObjects } from '../services/tokens.js';
 import {
   ensureOfficialIpInstance,
   stringifyJson,
-  upsertIpInstanceContentLink,
 } from '../services/coreStore.js';
-import {
-  backfillCoreCreationContent,
-  ensureCoreContentDefinitions,
-} from '../services/coreCreationSync.js';
+import { ensureCoreContentDefinitions } from '../services/coreContentDefinitions.js';
 
 function tableExists(db, tableName) {
   const rows = resultToObjects(db.exec(
@@ -16,29 +11,6 @@ function tableExists(db, tableName) {
     [tableName]
   ));
   return rows.length > 0;
-}
-
-function getColumns(db, tableName) {
-  try {
-    return resultToObjects(db.exec(`PRAGMA table_info(${tableName})`)).map(row => row.name);
-  } catch {
-    return [];
-  }
-}
-
-function getLegacyVideoContentDefinitionId() {
-  return 'content-def-legacy-video';
-}
-
-function ensureLegacyVideoContentDefinition(db) {
-  const id = getLegacyVideoContentDefinitionId();
-  db.run(
-    `INSERT OR IGNORE INTO content_definitions
-     (id, code, name, description, content_kind, primary_modality, status)
-     VALUES (?, 'legacy-video', 'Legacy Video', 'Backfilled video content from the previous schema.', 'video', 'video', 'active')`,
-    [id]
-  );
-  return id;
 }
 
 function ensureApplicationBackfill(db) {
@@ -197,133 +169,6 @@ function ensureIpInstanceBackfill(db) {
   }
 }
 
-function ensureVideoBackfill(db) {
-  if (!tableExists(db, 'videos')) return;
-  const contentDefinitionId = ensureLegacyVideoContentDefinition(db);
-  const videoColumns = getColumns(db, 'videos');
-  const hasUpdatedAt = videoColumns.includes('updated_at');
-  const rows = resultToObjects(db.exec('SELECT * FROM videos'));
-
-  for (const row of rows) {
-    db.run(
-      `INSERT OR IGNORE INTO content_instances
-       (id, ip_definition_id, content_definition_id, application_definition_id, owner_user_id, creator_user_id,
-        origin_ip_instance_id, title, summary, content_kind, primary_modality, source_type, visibility, access_scope,
-        status, version_no, payload_json, published_at, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'video', 'video', ?, ?, ?, ?, 1, ?, ?, ?, ?)`,
-      [
-        row.id,
-        row.group_id || null,
-        contentDefinitionId,
-        null,
-        row.owner_user_id || null,
-        row.owner_user_id || null,
-        row.entity_id || null,
-        row.title || row.original_filename || 'Video Content',
-        row.original_filename || null,
-        row.entity_id ? 'user' : 'official',
-        Number(row.is_private || 0) === 1 ? 'private' : 'public',
-        Number(row.is_private || 0) === 1 ? 'owner' : 'public',
-        row.status === 'ready' ? 'published' : (row.status || 'draft'),
-        stringifyJson({
-          legacy_video_id: row.id,
-          group_id: row.group_id || null,
-          entity_id: row.entity_id || null,
-          poster_url: row.poster_url || null,
-        }),
-        row.status === 'ready' ? (row.created_at || null) : null,
-        row.created_at || null,
-        hasUpdatedAt ? row.updated_at : (row.created_at || null),
-      ]
-    );
-
-    db.run(
-      `INSERT OR IGNORE INTO resources
-       (id, owner_user_id, resource_type, mime_type, original_filename, storage_provider, storage_key, storage_url,
-        preview_url, file_size, duration, status, metadata_json, created_at, updated_at)
-       VALUES (?, ?, 'video', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        `resource-${row.id}`,
-        row.owner_user_id || null,
-        'video/mp4',
-        row.original_filename || null,
-        row.file_path?.startsWith('http') ? 'remote' : 'local',
-        row.file_path || null,
-        row.file_path || '',
-        row.poster_url || null,
-        row.file_size || null,
-        row.duration || null,
-        row.status === 'ready' ? 'ready' : (row.status || 'processing'),
-        stringifyJson({ legacy_video_id: row.id }),
-        row.created_at || null,
-        row.created_at || null,
-      ]
-    );
-
-    db.run(
-      `INSERT OR IGNORE INTO content_instance_resource_links
-       (id, content_instance_id, resource_id, relation_role, is_primary, sort_order, metadata_json)
-       VALUES (?, ?, ?, 'primary', 1, 0, ?)`,
-      [
-        `content-resource-${row.id}`,
-        row.id,
-        `resource-${row.id}`,
-        stringifyJson({ poster_url: row.poster_url || null }),
-      ]
-    );
-
-    let targetIpInstanceId = row.entity_id || null;
-    if (!targetIpInstanceId && row.group_id) {
-      const officialInstance = ensureOfficialIpInstance(db, row.group_id);
-      targetIpInstanceId = officialInstance?.id || null;
-    }
-    if (targetIpInstanceId) {
-      upsertIpInstanceContentLink(db, {
-        id: `content-link-${targetIpInstanceId}-${row.id}`,
-        ipInstanceId: targetIpInstanceId,
-        contentInstanceId: row.id,
-        relationRole: row.entity_id ? 'bound' : 'official_example',
-        isPrimary: Number(row.is_private || 0) === 0,
-        metadata: { legacy_video_id: row.id },
-      });
-    }
-  }
-
-  if (tableExists(db, 'groups')) {
-    const defaultRows = resultToObjects(db.exec(
-      'SELECT id as ip_definition_id, official_default_video_id FROM groups WHERE official_default_video_id IS NOT NULL'
-    ));
-    for (const row of defaultRows) {
-      const officialInstance = ensureOfficialIpInstance(db, row.ip_definition_id);
-      if (!officialInstance) continue;
-      upsertIpInstanceContentLink(db, {
-        id: `official-default-${row.ip_definition_id}-${row.official_default_video_id}`,
-        ipInstanceId: officialInstance.id,
-        contentInstanceId: row.official_default_video_id,
-        relationRole: 'official_default',
-        isPrimary: true,
-        metadata: { legacy_group_id: row.ip_definition_id },
-      });
-    }
-  }
-
-  if (tableExists(db, 'user_defaults')) {
-    const defaultRows = resultToObjects(db.exec(
-      'SELECT entity_id as ip_instance_id, video_id as content_instance_id, created_at FROM user_defaults'
-    ));
-    for (const row of defaultRows) {
-      upsertIpInstanceContentLink(db, {
-        id: `owner-default-${row.ip_instance_id}-${row.content_instance_id}`,
-        ipInstanceId: row.ip_instance_id,
-        contentInstanceId: row.content_instance_id,
-        relationRole: 'owner_default',
-        isPrimary: true,
-        metadata: { legacy_created_at: row.created_at || null },
-      });
-    }
-  }
-}
-
 function syncPrimaryApplicationReferences(db) {
   db.run(
     `UPDATE ip_instances
@@ -421,8 +266,6 @@ export function backfillCoreTables(db) {
   ensureIpDefinitionApplicationBackfill(db);
   ensureDefaultIpDefinitionApplicationBackfill(db);
   ensureIpInstanceBackfill(db);
-  ensureVideoBackfill(db);
   syncPrimaryApplicationReferences(db);
-  backfillCoreCreationContent(db);
   ensureEventBackfill(db);
 }

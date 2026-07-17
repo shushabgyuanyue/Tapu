@@ -183,6 +183,8 @@ export function transcodeVideo(inputPath, videoId) {
             console.error('Post-transcode error:', postErr.message);
             const db = await getDb();
             db.run('UPDATE videos SET status = ? WHERE id = ?', ['error', videoId]);
+            db.run('UPDATE content_instances SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', ['error', videoId]);
+            db.run('UPDATE resources SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', ['error', `resource-${videoId}`]);
             saveDb();
             reject(postErr);
           }
@@ -191,6 +193,8 @@ export function transcodeVideo(inputPath, videoId) {
           console.error('Transcode error:', err.message);
           const db = await getDb();
           db.run('UPDATE videos SET status = ? WHERE id = ?', ['error', videoId]);
+          db.run('UPDATE content_instances SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', ['error', videoId]);
+          db.run('UPDATE resources SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', ['error', `resource-${videoId}`]);
           saveDb();
           reject(err);
         })
@@ -199,6 +203,8 @@ export function transcodeVideo(inputPath, videoId) {
       console.error('Probe error:', probeErr.message);
       const db = await getDb();
       db.run('UPDATE videos SET status = ? WHERE id = ?', ['error', videoId]);
+      db.run('UPDATE content_instances SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', ['error', videoId]);
+      db.run('UPDATE resources SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', ['error', `resource-${videoId}`]);
       saveDb();
       reject(probeErr);
     }
@@ -229,6 +235,22 @@ async function finalizeVideo(videoId, outputPath, posterPath, posterFilename, ou
   db.run(
     'UPDATE videos SET status = ?, file_path = ?, poster_url = ?, duration = ?, file_size = ? WHERE id = ?',
     ['ready', filePath, posterUrl, duration, size, videoId]
+  );
+  db.run(
+    `UPDATE content_instances
+     SET status = 'published',
+         visibility = COALESCE(visibility, 'public'),
+         payload_json = json_set(COALESCE(payload_json, '{}'), '$.poster_url', ?, '$.file_path', ?),
+         published_at = COALESCE(published_at, CURRENT_TIMESTAMP),
+         updated_at = CURRENT_TIMESTAMP
+     WHERE id = ?`,
+    [posterUrl, filePath, videoId]
+  );
+  db.run(
+    `UPDATE resources
+     SET storage_url = ?, preview_url = ?, file_size = ?, duration = ?, status = 'ready', updated_at = CURRENT_TIMESTAMP
+     WHERE id = ?`,
+    [filePath, posterUrl, size, duration, `resource-${videoId}`]
   );
   saveDb();
 

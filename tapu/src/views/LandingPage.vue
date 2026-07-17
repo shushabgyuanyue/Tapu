@@ -62,7 +62,7 @@ onMounted(async () => {
           </div>
         </div>
 
-        <div class="hero-object" aria-label="WhatMint 触碰体验示意">
+        <div class="hero-object" :aria-label="homeCopy.demo.heroAriaLabel">
           <div class="tap-orbit">
             <span class="orbit-dot dot-a"></span>
             <span class="orbit-dot dot-b"></span>

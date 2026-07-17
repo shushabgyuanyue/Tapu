@@ -5,7 +5,6 @@ import {
   buildRuntimeContextForObject,
   deriveMeaningfulStatesFromObjectEvent,
 } from './contentOperation.js';
-import { assembleDailyStickerExperience } from './dailyStickerExperience.js';
 import { normalizeEntityToken, resultToObjects } from './tokens.js';
 
 function passthroughExperience(payload = {}) {
@@ -68,9 +67,7 @@ export const APP_ADAPTERS = Object.freeze({
   'emotion-ip': createBaseAdapter('emotion-ip', {
     resolveObject: resolveEmotionIpEntity,
   }),
-  'daily-sticker': createBaseAdapter('daily-sticker', {
-    assembleExperience: ({ blocks = [], runtimeContext = {} }) => assembleDailyStickerExperience(blocks, runtimeContext),
-  }),
+  'earphone-girl': createBaseAdapter('earphone-girl'),
   'answer-book': createBaseAdapter('answer-book'),
   moment: createBaseAdapter('moment'),
   'travel-trail': createBaseAdapter('travel-trail'),

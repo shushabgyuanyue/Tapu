@@ -1,116 +1,116 @@
 <script setup lang="ts">
-import { computed, inject, onMounted, ref } from 'vue';
+import { computed, inject, onMounted, onUnmounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { batchInteractions, fetchVideo, interact, isLoggedIn, setEntityDefaultByToken } from '../api';
+import {
+  fetchContentInstance,
+  isLoggedIn,
+  setIpInstanceContentByToken,
+  setOfficialDefaultContent,
+} from '../api';
+import ContentRenderer from '../components/content/ContentRenderer.vue';
 import NavBar from '../components/NavBar.vue';
 import { contentCopy } from '../copy';
+import { AUTH_CHANGED_EVENT, CONTENT_CHANGED_EVENT, emitContentChanged } from '../events/appEvents';
 
 const route = useRoute();
 const router = useRouter();
 const toast = inject<{ show: (text: string, duration?: number, type?: string) => void }>('toast');
 
-const video = ref<any>(null);
+const content = ref<any>(null);
 const loading = ref(true);
-const interactions = ref<any>({});
-const isLiked = ref(false);
-const isFaved = ref(false);
-const videoEl = ref<HTMLVideoElement | null>(null);
-const showRemixPanel = ref(false);
-const promptCopied = ref(false);
+const failed = ref(false);
 const tokenKey = ref('');
 const tokenBinding = ref(false);
 const tokenBindMsg = ref('');
 const tokenBindError = ref(false);
+const officialBinding = ref(false);
+const officialBindMsg = ref('');
+const officialBindError = ref(false);
+const officialDefaultSet = ref(false);
 
 const formatContentId = (id?: string) => id ? id.replace(/-/g, '').toUpperCase() : '-';
 
-onMounted(async () => {
-  const id = route.params.id as string;
-  loading.value = true;
-  video.value = await fetchVideo(id);
-  loading.value = false;
+const blocks = computed(() => Array.isArray(content.value?.blocks) ? content.value.blocks : []);
+const canBindToEntity = computed(() => !!content.value?.ip_definition_id);
+const canEditContent = computed(() => !!content.value?.viewer_can_edit);
+const canSetOfficialDefault = computed(() => !!content.value?.viewer_can_set_official_default);
+const draftVersions = computed(() => Array.isArray(content.value?.draft_versions) ? content.value.draft_versions : []);
+const themeColor = computed(() => (
+  content.value?.payload?.themeColor
+  || content.value?.payload?.theme_color
+  || '#2f6f5e'
+));
 
-  if (video.value?.id) {
-    const batch = await batchInteractions([video.value.id]);
-    interactions.value = batch[video.value.id] || {};
-    isLiked.value = !!interactions.value.liked;
-    isFaved.value = !!interactions.value.favorited;
+async function loadContent() {
+  loading.value = true;
+  failed.value = false;
+  const id = route.params.id as string;
+  const result = await fetchContentInstance(id);
+  if (result?.error) {
+    failed.value = true;
+    content.value = null;
+  } else {
+    content.value = result;
   }
+  loading.value = false;
+}
+
+function handleRuntimeContentChange(event: Event) {
+  const changedId = (event as CustomEvent<{ contentId?: string }>).detail?.contentId;
+  if (!changedId || changedId === content.value?.id || changedId === route.params.id) {
+    loadContent();
+  }
+}
+
+onMounted(() => {
+  loadContent();
+  window.addEventListener(AUTH_CHANGED_EVENT, loadContent);
+  window.addEventListener(CONTENT_CHANGED_EVENT, handleRuntimeContentChange);
+  window.addEventListener('focus', loadContent);
 });
 
-const playFullscreen = () => {
-  const el = videoEl.value;
-  if (!el) return;
-  el.play();
-  if (el.requestFullscreen) {
-    el.requestFullscreen();
-  } else if ((el as any).webkitEnterFullscreen) {
-    (el as any).webkitEnterFullscreen();
-  }
+onUnmounted(() => {
+  window.removeEventListener(AUTH_CHANGED_EVENT, loadContent);
+  window.removeEventListener(CONTENT_CHANGED_EVENT, handleRuntimeContentChange);
+  window.removeEventListener('focus', loadContent);
+});
+
+const copyContentId = async () => {
+  if (!content.value?.id) return;
+  await navigator.clipboard.writeText(formatContentId(content.value.id));
+  toast?.show(contentCopy.detail.toasts.contentIdCopied, 1800, 'success');
 };
 
-const handleLike = async () => {
-  if (!video.value) return;
-  if (!isLoggedIn()) {
-    toast?.show(contentCopy.detail.toasts.likeLogin, 2400, 'error');
-    return;
-  }
-
-  const result = await interact(video.value.id, 'like');
-  if (result?.requires_login) {
-    toast?.show(result.error || contentCopy.detail.toasts.likeLogin, 2400, 'error');
-    return;
-  }
-
-  isLiked.value = !!result?.liked;
-  interactions.value = result;
-};
-
-const handleFavorite = async () => {
-  if (!video.value) return;
-  if (!isLoggedIn()) {
-    toast?.show(contentCopy.detail.toasts.favoriteLogin, 2400, 'error');
-    return;
-  }
-
-  const result = await interact(video.value.id, 'favorite');
-  if (result?.requires_login) {
-    toast?.show(result.error || contentCopy.detail.toasts.favoriteLogin, 2400, 'error');
-    return;
-  }
-
-  isFaved.value = !!result?.favorited;
-  interactions.value = result;
-};
-
-const handleShare = async () => {
-  if (!video.value) return;
-  const url = `${window.location.origin}/play/${video.value.id}`;
+const sharePreview = async () => {
+  if (!content.value?.id) return;
+  const url = `${window.location.origin}/content/${content.value.id}`;
   if (navigator.share) {
-    await navigator.share({ title: video.value.title, url });
+    await navigator.share({ title: content.value.title, url });
   } else {
     await navigator.clipboard.writeText(url);
     toast?.show(contentCopy.detail.toasts.previewCopied, 1800, 'success');
   }
-  await interact(video.value.id, 'share');
 };
 
 const handleBindEntity = () => {
-  if (!video.value?.id) return;
+  if (!content.value?.id) return;
   if (!isLoggedIn()) {
     toast?.show(contentCopy.detail.toasts.bindLogin, 3200, 'error');
   }
-  router.push({ path: '/assets', query: { defaultVideoId: video.value.id } });
+  router.push({ path: '/assets', query: { defaultContentId: content.value.id } });
 };
 
-const copyContentId = async () => {
-  if (!video.value?.id) return;
-  await navigator.clipboard.writeText(formatContentId(video.value.id));
-  toast?.show(contentCopy.detail.toasts.contentIdCopied, 1800, 'success');
+const openContentAuthoring = (mode: 'revise' | 'extend') => {
+  if (!content.value?.id) return;
+  if (!isLoggedIn()) {
+    toast?.show(contentCopy.detail.toasts.editLogin, 2400, 'error');
+    return;
+  }
+  router.push({ path: '/mint', query: { content_id: content.value.id, mode } });
 };
 
 const bindCurrentContentToToken = async () => {
-  if (!video.value?.id) return;
+  if (!content.value?.id) return;
   tokenBindMsg.value = '';
   tokenBindError.value = false;
 
@@ -122,12 +122,13 @@ const bindCurrentContentToToken = async () => {
   }
 
   tokenBinding.value = true;
-  const result = await setEntityDefaultByToken(key, video.value.id);
+  const result = await setIpInstanceContentByToken(key, content.value.id);
   tokenBinding.value = false;
 
   if (result?.success) {
     tokenBindMsg.value = contentCopy.detail.tokenBind.success;
     tokenKey.value = '';
+    emitContentChanged('bound', content.value.id);
     toast?.show(contentCopy.detail.toasts.defaultUpdated, 2200, 'success');
   } else {
     tokenBindMsg.value = result?.error || contentCopy.detail.tokenBind.failed;
@@ -135,31 +136,25 @@ const bindCurrentContentToToken = async () => {
   }
 };
 
-const remixPrompt = computed(() => {
-  if (!video.value) return '';
-  return contentCopy.detail.remix.prompt(video.value.title);
-});
+const bindAsOfficialDefault = async () => {
+  if (!content.value?.id || !content.value?.ip_definition_id) return;
+  officialBindMsg.value = '';
+  officialBindError.value = false;
+  officialBinding.value = true;
 
-const downloadVideo = () => {
-  if (!video.value?.file_path) return;
-  const link = document.createElement('a');
-  link.href = video.value.file_path;
-  link.download = `${video.value.title || 'video'}.mp4`;
-  link.click();
-  toast?.show(contentCopy.detail.toasts.downloading, 1800, 'success');
-};
+  const result = await setOfficialDefaultContent(content.value.ip_definition_id, content.value.id);
 
-const copyPrompt = () => {
-  navigator.clipboard.writeText(remixPrompt.value);
-  promptCopied.value = true;
-  toast?.show(contentCopy.detail.toasts.promptCopied, 1800, 'success');
-  setTimeout(() => {
-    promptCopied.value = false;
-  }, 2000);
-};
+  officialBinding.value = false;
+  if (result?.success) {
+    officialDefaultSet.value = true;
+    officialBindMsg.value = contentCopy.detail.officialDefault.successHint;
+    emitContentChanged('bound', content.value.id);
+    toast?.show(contentCopy.detail.officialDefault.successToast, 2200, 'success');
+    return;
+  }
 
-const openDoubao = () => {
-  window.open('https://www.doubao.com/chat/video', '_blank');
+  officialBindMsg.value = result?.error || contentCopy.detail.officialDefault.failed;
+  officialBindError.value = true;
 };
 
 const goBack = () => {
@@ -171,56 +166,80 @@ const goBack = () => {
   <div class="detail-page">
     <NavBar />
 
-    <main class="detail-content" v-if="!loading && video">
-      <section class="detail-video" @click="playFullscreen">
-        <video
-          ref="videoEl"
-          :src="video.file_path"
-          :poster="video.poster_url || undefined"
-          preload="metadata"
-          playsinline
-          webkit-playsinline
-          class="detail-player"
-        ></video>
-        <div class="play-overlay">
-          <svg viewBox="0 0 48 48" width="56" height="56" fill="rgba(255,255,255,0.92)"><polygon points="18,12 38,24 18,36"/></svg>
+    <main v-if="!loading && content" class="detail-shell">
+      <section class="hero">
+        <div class="hero-copy">
+          <p class="hero-kicker">{{ content.application_name || content.content_definition_name || 'Content' }}</p>
+          <h1>{{ content.title || 'Content' }}</h1>
+          <p v-if="content.summary" class="hero-summary">{{ content.summary }}</p>
         </div>
+        <div class="hero-meta">
+          <span>{{ content.content_kind || 'mixed' }}</span>
+          <span>{{ content.status || 'draft' }}</span>
+          <span>{{ contentCopy.detail.versions.current(content.version_no || 1) }}</span>
+          <button class="detail-id" @click="copyContentId">
+            {{ contentCopy.detail.meta.id(formatContentId(content.id)) }}
+          </button>
+        </div>
+        <p v-if="canEditContent" class="version-hint">
+          {{
+            draftVersions.length
+              ? contentCopy.detail.versions.draftCount(draftVersions.length)
+              : contentCopy.detail.versions.editHint
+          }}
+        </p>
       </section>
 
-      <section class="detail-info">
-        <h1>{{ video.title }}</h1>
-        <div class="detail-meta">
-          <span v-if="video.series_name">{{ contentCopy.detail.meta.series(video.series_name) }}</span>
-          <span v-if="video.group_name">{{ contentCopy.detail.meta.ip(video.group_name) }}</span>
-          <button class="detail-id" @click="copyContentId">{{ contentCopy.detail.meta.id(formatContentId(video.id)) }}</button>
-        </div>
+      <section class="content-card">
+        <ContentRenderer
+          :blocks="blocks"
+          :context="{ surface: 'detail', themeColor, appCode: content.application_code, controls: true }"
+        />
+        <p v-if="blocks.length === 0" class="empty">{{ contentCopy.detail.states.emptyRenderable }}</p>
       </section>
 
       <section class="detail-actions">
-        <button class="act-btn" :class="{ active: isLiked }" @click="handleLike">
-          <svg viewBox="0 0 24 24" width="20" height="20" :fill="isLiked ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="2"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>
-          <span>{{ interactions.likes || 0 }}</span>
-        </button>
-
-        <button class="act-btn" :class="{ active: isFaved }" @click="handleFavorite">
-          <svg viewBox="0 0 24 24" width="20" height="20" :fill="isFaved ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-          <span>{{ interactions.favorites || 0 }}</span>
-        </button>
-
-        <button class="act-btn" @click="handleShare">
-          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13"/><path d="M22 2L15 22L11 13L2 9L22 2Z"/></svg>
+        <button class="act-btn" @click="sharePreview">
           <span>{{ contentCopy.detail.actions.sharePreview }}</span>
         </button>
 
-        <button class="act-btn act-btn-bind" @click="handleBindEntity">
-          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+        <button v-if="canBindToEntity" class="act-btn act-btn-bind" @click="handleBindEntity">
           <span>{{ contentCopy.detail.actions.bindEntity }}</span>
+        </button>
+
+        <button v-if="canEditContent" class="act-btn act-btn-revise" @click="openContentAuthoring('revise')">
+          <span>{{ contentCopy.detail.actions.revise }}</span>
+        </button>
+
+        <button v-if="canEditContent" class="act-btn act-btn-extend" @click="openContentAuthoring('extend')">
+          <span>{{ contentCopy.detail.actions.extend }}</span>
+        </button>
+
+        <button
+          v-if="canSetOfficialDefault"
+          class="act-btn act-btn-official"
+          :disabled="officialBinding || officialDefaultSet"
+          @click="bindAsOfficialDefault"
+        >
+          <span>
+            {{
+              officialBinding
+                ? contentCopy.detail.officialDefault.setting
+                : (officialDefaultSet ? contentCopy.detail.officialDefault.setDone : contentCopy.detail.officialDefault.set)
+            }}
+          </span>
         </button>
       </section>
 
-      <p class="detail-action-hint">{{ contentCopy.detail.actions.bindHint }}</p>
+      <p v-if="canBindToEntity" class="detail-action-hint">{{ contentCopy.detail.actions.bindHint }}</p>
+      <p
+        v-if="canSetOfficialDefault && officialBindMsg"
+        :class="['detail-action-hint', { 'detail-action-hint--error': officialBindError }]"
+      >
+        {{ officialBindMsg }}
+      </p>
 
-      <section class="token-bind-panel">
+      <section v-if="canBindToEntity" class="token-bind-panel">
         <div>
           <span class="token-bind-kicker">{{ contentCopy.detail.tokenBind.kicker }}</span>
           <h2>{{ contentCopy.detail.tokenBind.title }}</h2>
@@ -235,56 +254,20 @@ const goBack = () => {
         <p v-if="tokenBindMsg" :class="['token-bind-msg', { error: tokenBindError }]">{{ tokenBindMsg }}</p>
       </section>
 
-      <section class="remix-section">
-        <button class="remix-toggle" @click="showRemixPanel = !showRemixPanel">
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>
-          <span>{{ contentCopy.detail.remix.title }}</span>
-          <span class="remix-arrow" :class="{ open: showRemixPanel }">▼</span>
-        </button>
-
-        <Transition name="slide">
-          <div v-if="showRemixPanel" class="remix-panel">
-            <p class="remix-desc">{{ contentCopy.detail.remix.desc }}</p>
-
-            <div class="remix-steps">
-              <div class="remix-step">
-                <span class="step-num">1</span>
-                <div class="step-content">
-                  <h4>{{ contentCopy.detail.remix.downloadTitle }}</h4>
-                  <p>{{ contentCopy.detail.remix.downloadBody }}</p>
-                  <button class="step-btn" @click="downloadVideo">{{ contentCopy.detail.remix.downloadAction }}</button>
-                </div>
-              </div>
-
-              <div class="remix-step">
-                <span class="step-num">2</span>
-                <div class="step-content">
-                  <h4>{{ contentCopy.detail.remix.promptTitle }}</h4>
-                  <p>{{ contentCopy.detail.remix.promptBody }}</p>
-                  <div class="prompt-box">{{ remixPrompt }}</div>
-                  <button class="step-btn" @click="copyPrompt">{{ promptCopied ? contentCopy.detail.remix.copied : contentCopy.detail.remix.promptAction }}</button>
-                </div>
-              </div>
-
-              <div class="remix-step">
-                <span class="step-num">3</span>
-                <div class="step-content">
-                  <h4>{{ contentCopy.detail.remix.toolTitle }}</h4>
-                  <p>{{ contentCopy.detail.remix.toolBody }}</p>
-                  <button class="step-btn step-btn-primary" @click="openDoubao">{{ contentCopy.detail.remix.toolAction }}</button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </Transition>
-      </section>
-
       <button class="back-btn" @click="goBack">{{ contentCopy.detail.actions.back }}</button>
     </main>
 
-    <div class="detail-loading" v-if="loading">
+    <div v-else-if="loading" class="detail-loading">
       <div class="spinner"></div>
     </div>
+
+    <main v-else class="detail-shell">
+      <section class="error-card">
+        <h1>{{ contentCopy.detail.error.title }}</h1>
+        <p>{{ contentCopy.detail.error.hint }}</p>
+        <button class="back-btn" @click="goBack">{{ contentCopy.detail.error.back }}</button>
+      </section>
+    </main>
   </div>
 </template>
 
@@ -292,384 +275,250 @@ const goBack = () => {
 .detail-page {
   min-height: 100vh;
   background:
-    radial-gradient(circle at 16% 8%, rgba(124, 77, 255, 0.16), transparent 28%),
-    radial-gradient(circle at 88% 18%, rgba(255, 77, 106, 0.14), transparent 26%),
-    linear-gradient(180deg, #100f16 0%, #191622 38%, #fff8fb 38%, #fff 100%);
-  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif;
+    radial-gradient(circle at 16% 10%, rgba(217, 143, 183, 0.16), transparent 30%),
+    radial-gradient(circle at 84% 18%, rgba(47, 111, 94, 0.16), transparent 26%),
+    linear-gradient(180deg, #f7f0e8 0%, #fffdf8 48%, #ffffff 100%);
 }
 
-.detail-content {
-  max-width: 640px;
+.detail-shell {
+  width: min(920px, calc(100vw - 32px));
   margin: 0 auto;
-  padding: 24px;
+  padding: 28px 0 48px;
+  display: grid;
+  gap: 18px;
 }
 
-.detail-video {
-  position: relative;
-  max-height: 480px;
-  overflow: hidden;
-  border-radius: 18px;
-  aspect-ratio: 9 / 16;
-  background: #000;
-  cursor: pointer;
+.hero,
+.content-card,
+.token-bind-panel,
+.error-card {
+  border: 1px solid rgba(32, 27, 34, 0.08);
+  background: rgba(255, 255, 255, 0.88);
+  border-radius: 28px;
+  box-shadow: 0 18px 40px rgba(32, 27, 34, 0.06);
 }
 
-.detail-player {
-  width: 100%;
-  height: 100%;
-  display: block;
-  object-fit: cover;
+.hero {
+  display: grid;
+  gap: 16px;
+  padding: 28px;
 }
 
-.play-overlay {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(0, 0, 0, 0.18);
-  transition: background 0.2s;
+.hero-kicker {
+  margin: 0;
+  color: #8d5b3b;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
 }
 
-.detail-video:hover .play-overlay {
-  background: rgba(0, 0, 0, 0.34);
+h1 {
+  margin: 6px 0 0;
+  color: #241814;
+  font-size: clamp(32px, 6vw, 52px);
+  line-height: 1.08;
+  font-family: Georgia, "Times New Roman", "Noto Serif SC", serif;
 }
 
-.detail-info {
-  padding: 18px 0 14px;
+.hero-summary {
+  margin: 12px 0 0;
+  max-width: 720px;
+  color: rgba(36, 24, 20, 0.76);
+  font-size: 16px;
+  line-height: 1.85;
 }
 
-.detail-info h1 {
-  margin: 0 0 8px;
-  color: #fff;
-  font-size: 20px;
-  font-weight: 850;
-}
-
-.detail-meta {
+.hero-meta {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 10px;
   align-items: center;
 }
 
-.detail-meta span {
-  padding: 4px 10px;
+.hero-meta span,
+.detail-id {
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.12);
-  color: #f4eaff;
+  padding: 8px 12px;
+  background: rgba(47, 111, 94, 0.08);
+  color: #2f6f5e;
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 800;
 }
 
 .detail-id {
-  padding: 4px 10px;
-  border: none;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.9);
-  color: #7c4dff;
+  border: 0;
   cursor: pointer;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 11px;
+}
+
+.content-card {
+  padding: 24px;
+}
+
+.empty {
+  margin: 0;
+  color: rgba(36, 24, 20, 0.56);
 }
 
 .detail-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
-  padding: 14px 0;
-  border-top: 1px solid rgba(255, 255, 255, 0.14);
 }
 
-.act-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 10px 14px;
-  border: 1px solid rgba(124, 77, 255, 0.14);
-  border-radius: 999px;
-  background: #fff;
-  color: #666;
+.act-btn,
+.token-bind-box button,
+.back-btn {
+  border: 0;
+  border-radius: 14px;
+  padding: 12px 16px;
   cursor: pointer;
-  font-size: 13px;
-  transition: border-color 0.15s, color 0.15s, background 0.15s;
+  font-size: 14px;
+  font-weight: 900;
 }
 
-.act-btn:hover {
-  border-color: #ddd;
-  color: #333;
-}
-
-.act-btn.active {
-  border-color: #ffe0e6;
-  background: #fff8f9;
-  color: #ff4d6a;
+.act-btn,
+.back-btn {
+  background: #241814;
+  color: #fff;
 }
 
 .act-btn-bind {
-  border-color: rgba(255, 77, 106, 0.28);
-  background: linear-gradient(135deg, #7c4dff, #ff4d6a);
-  color: #fff;
-  font-weight: 800;
+  background: linear-gradient(135deg, #2f6f5e, #4c9a81);
+}
+
+.act-btn-official {
+  background: linear-gradient(135deg, #8d5b3b, #c48a52);
+}
+
+.act-btn-revise {
+  background: linear-gradient(135deg, #4b5f8f, #7b8fc1);
+}
+
+.act-btn-extend {
+  background: linear-gradient(135deg, #9a6a2f, #d1a36a);
+}
+
+.act-btn:disabled {
+  opacity: 0.7;
+  cursor: default;
+}
+
+.version-hint {
+  margin: 2px 0 0;
+  color: rgba(36, 24, 20, 0.6);
+  font-size: 13px;
+  line-height: 1.7;
 }
 
 .detail-action-hint {
-  margin: 0 0 18px;
-  color: rgba(255, 255, 255, 0.72);
-  font-size: 12px;
-  line-height: 1.6;
+  margin: -4px 0 0;
+  color: rgba(36, 24, 20, 0.58);
+  font-size: 13px;
+}
+
+.detail-action-hint--error {
+  color: #c0395f;
 }
 
 .token-bind-panel {
   display: grid;
-  gap: 12px;
-  margin: 0 0 18px;
-  padding: 18px;
-  border: 1px solid rgba(124, 77, 255, 0.14);
-  border-radius: 18px;
-  background:
-    radial-gradient(circle at 96% 0%, rgba(255, 77, 106, 0.16), transparent 36%),
-    #fff;
-  box-shadow: 0 18px 42px rgba(20, 15, 30, 0.08);
+  gap: 14px;
+  padding: 22px 24px;
 }
 
 .token-bind-kicker {
-  color: #ff4d6a;
-  font-size: 11px;
+  color: #2f6f5e;
+  font-size: 12px;
   font-weight: 900;
-  letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
 .token-bind-panel h2 {
-  margin: 4px 0;
-  color: #15131f;
-  font-size: 18px;
-  font-weight: 900;
+  margin: 6px 0 0;
+  color: #241814;
+  font-size: 22px;
 }
 
 .token-bind-panel p {
-  margin: 0;
-  color: #776f85;
-  font-size: 12px;
-  line-height: 1.6;
+  margin: 8px 0 0;
+  color: rgba(36, 24, 20, 0.72);
+  line-height: 1.75;
 }
 
 .token-bind-box {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 10px;
 }
 
 .token-bind-box input {
   min-width: 0;
-  flex: 1;
-  padding: 11px 13px;
-  border: 1px solid #eee8ff;
+  border: 1px solid rgba(36, 24, 20, 0.14);
   border-radius: 14px;
-  color: #15131f;
-  font-size: 13px;
-  outline: none;
-}
-
-.token-bind-box input:focus {
-  border-color: #7c4dff;
-  box-shadow: 0 0 0 3px rgba(124, 77, 255, 0.12);
+  padding: 12px 14px;
+  font-size: 14px;
 }
 
 .token-bind-box button {
-  padding: 0 18px;
-  border: none;
-  border-radius: 14px;
-  background: #15131f;
+  background: #2f6f5e;
   color: #fff;
-  cursor: pointer;
-  font-size: 13px;
-  font-weight: 900;
-}
-
-.token-bind-box button:disabled {
-  cursor: not-allowed;
-  opacity: 0.55;
 }
 
 .token-bind-msg {
-  color: #2e7d32;
+  margin: 0;
+  color: #13723a;
+  font-size: 13px;
+  font-weight: 700;
 }
 
 .token-bind-msg.error {
-  color: #d9295f;
+  color: #c0395f;
 }
 
-.remix-section {
-  margin-top: 18px;
+.error-card {
+  padding: 28px;
+  text-align: center;
 }
 
-.remix-toggle {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 14px 16px;
-  border: 1px solid #f0f0f0;
-  border-radius: 14px;
-  background: linear-gradient(135deg, #faf7ff, #fff0f5);
-  color: #7c4dff;
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: 800;
-}
-
-.remix-arrow {
-  margin-left: auto;
-  font-size: 10px;
-  transition: transform 0.2s;
-}
-
-.remix-arrow.open {
-  transform: rotate(180deg);
-}
-
-.remix-panel {
-  padding: 16px 0 0;
-}
-
-.remix-desc {
-  margin: 0 0 16px;
-  color: #888;
-  font-size: 13px;
-  line-height: 1.6;
-}
-
-.remix-steps {
-  display: grid;
-  gap: 14px;
-}
-
-.remix-step {
-  display: flex;
-  gap: 12px;
-  padding: 14px 16px;
-  border-radius: 14px;
-  background: #f9f9f9;
-}
-
-.step-num {
-  width: 24px;
-  height: 24px;
-  display: inline-flex;
-  flex-shrink: 0;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  background: #7c4dff;
-  color: #fff;
-  font-size: 12px;
-  font-weight: 800;
-}
-
-.step-content {
-  min-width: 0;
-  flex: 1;
-}
-
-.step-content h4 {
-  margin: 0 0 4px;
-  font-size: 14px;
-}
-
-.step-content p {
-  margin: 0 0 10px;
-  color: #999;
-  font-size: 12px;
-}
-
-.prompt-box {
-  margin-bottom: 10px;
-  padding: 10px 12px;
-  border: 1px solid #eee;
-  border-radius: 10px;
-  background: #fff;
-  color: #555;
-  font-size: 12px;
-  line-height: 1.55;
-  word-break: break-all;
-}
-
-.step-btn {
-  padding: 8px 16px;
-  border: 1px solid #e0d4ff;
-  border-radius: 10px;
-  background: #fff;
-  color: #7c4dff;
-  cursor: pointer;
-  font-size: 12px;
-  font-weight: 800;
-}
-
-.step-btn-primary {
-  border-color: #7c4dff;
-  background: #7c4dff;
-  color: #fff;
-}
-
-.back-btn {
-  margin-top: 20px;
-  padding: 10px 18px;
-  border: 1px solid #eee;
-  border-radius: 10px;
-  background: #fff;
-  color: #666;
-  cursor: pointer;
+.error-card p {
+  color: rgba(36, 24, 20, 0.68);
 }
 
 .detail-loading {
-  display: flex;
-  justify-content: center;
-  padding: 80px;
+  min-height: 60vh;
+  display: grid;
+  place-items: center;
 }
 
 .spinner {
-  width: 24px;
-  height: 24px;
-  border: 2px solid #eee;
-  border-top-color: #7c4dff;
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
+  border: 4px solid rgba(47, 111, 94, 0.18);
+  border-top-color: #2f6f5e;
+  animation: spin 1s linear infinite;
 }
 
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
 
-.slide-enter-active {
-  transition: all 0.28s ease;
-}
-
-.slide-leave-active {
-  transition: all 0.18s ease;
-}
-
-.slide-enter-from,
-.slide-leave-to {
-  opacity: 0;
-  transform: translateY(-10px);
-}
-
-@media (max-width: 640px) {
-  .detail-content {
-    padding: 16px;
+@media (max-width: 720px) {
+  .detail-shell {
+    width: min(100vw - 20px, 920px);
+    padding-top: 18px;
   }
 
-  .detail-video {
-    max-height: 400px;
+  .hero,
+  .content-card,
+  .token-bind-panel,
+  .error-card {
+    border-radius: 22px;
   }
 
   .token-bind-box {
-    flex-direction: column;
-  }
-
-  .token-bind-box button {
-    min-height: 42px;
+    grid-template-columns: 1fr;
   }
 }
 </style>

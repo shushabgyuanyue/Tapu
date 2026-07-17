@@ -2,23 +2,21 @@
 import { computed, inject, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import {
-  bindDailyStickerToken,
   bindEntity,
-  getDailyStickerAssets,
+  fetchUserEvents,
   getEntities,
-  getEntityDefault,
+  getIpInstanceDefaultContent,
   getPurchases,
   isLoggedIn,
-  setEntityDefault,
+  setIpInstanceDefaultContent,
   transferEntity,
-  unbindDailyStickerToken,
   unbindEntity,
 } from '../api';
 import NavBar from '../components/NavBar.vue';
 import InfiniteScrollTrigger from '../components/InfiniteScrollTrigger.vue';
 import { userCopy } from '../copy';
 
-type AssetTab = 'gallery' | 'entities' | 'stickers' | 'purchases';
+type AssetTab = 'gallery' | 'entities' | 'purchases' | 'events';
 
 const route = useRoute();
 const router = useRouter();
@@ -28,31 +26,33 @@ const loading = ref(true);
 const loginRequired = ref(false);
 const assetTab = ref<AssetTab>('gallery');
 const entities = ref<any[]>([]);
-const stickers = ref<any[]>([]);
 const purchases = ref<any[]>([]);
+const events = ref<any[]>([]);
 const entityPage = ref(1);
-const stickerPage = ref(1);
 const purchasePage = ref(1);
+const eventPage = ref(1);
+const eventTotalPages = ref(1);
+const eventLoadingMore = ref(false);
 const chunkSize = 8;
+const eventPageSize = 12;
 
 const bindKey = ref('');
 const bindMsg = ref('');
 const bindError = ref(false);
 const bindCardRef = ref<HTMLElement | null>(null);
 const bindInputRef = ref<HTMLInputElement | null>(null);
-const suggestedDefaultVideoId = ref('');
+const suggestedDefaultContentId = ref('');
 
 const transferTargets = ref<Record<string, string>>({});
-const entityDefaults = ref<Record<string, { video_id: string | null; video_title: string | null }>>({});
+const entityDefaults = ref<Record<string, { content_id: string | null; content_title: string | null }>>({});
 const editingDefault = ref('');
 const editDefaultInput = ref('');
 
 const visibleEntities = computed(() => entities.value.slice(0, entityPage.value * chunkSize));
-const visibleStickers = computed(() => stickers.value.slice(0, stickerPage.value * chunkSize));
 const visiblePurchases = computed(() => purchases.value.slice(0, purchasePage.value * chunkSize));
 const entityHasMore = computed(() => visibleEntities.value.length < entities.value.length);
-const stickerHasMore = computed(() => visibleStickers.value.length < stickers.value.length);
 const purchaseHasMore = computed(() => visiblePurchases.value.length < purchases.value.length);
+const eventHasMore = computed(() => eventPage.value < eventTotalPages.value);
 
 const galleryItems = computed(() => [
   ...entities.value.map(entity => ({
@@ -62,16 +62,7 @@ const galleryItems = computed(() => [
     subtitle: entity.series_name || userCopy.assets.entityAsset,
     image: entityImage(entity),
     action: () => assetTab.value = 'entities',
-    meta: entityDefaults.value[entity.id]?.video_title || userCopy.assets.officialDefault,
-  })),
-  ...stickers.value.map(sticker => ({
-    id: `sticker-${sticker.id}`,
-    type: userCopy.assets.galleryTypeSticker,
-    title: sticker.world_name || sticker.persona_name || sticker.persona?.name || userCopy.assets.stickerTitle,
-    subtitle: sticker.story_arc_title || sticker.story_arc?.title || userCopy.assets.stickerSubtitle,
-    image: stickerImage(sticker),
-    action: () => openSticker(sticker),
-    meta: sticker.current_entry?.title ? `Day ${sticker.current_day || sticker.current_entry?.day_index || '?'} · ${sticker.current_entry.title}` : userCopy.assets.waitingContent,
+    meta: entityDefaults.value[entity.id]?.content_title || userCopy.assets.officialDefault,
   })),
 ]);
 
@@ -82,29 +73,72 @@ function entityImage(entity: any) {
     return entity.product_image_url || entity.cover_url || entity.official_default_video_poster;
   }
   const name = `${entity.group_name || ''}${entity.application_code || ''}`.toLowerCase();
-  if (name.includes('贴纸') || name.includes('sticker')) return '/shop/figures/daily-sticker.svg';
+  if (name.includes('贴纸') || name.includes('sticker')) return '/shop/figures/nfc-sticker.svg';
   if (name.includes('狗') || name.includes('puppy') || name.includes('纸巾')) return '/shop/figures/tissue-puppy.svg';
   return '/shop/figures/designer-toy-default.svg';
-}
-
-function stickerImage(sticker: any) {
-  const imageAsset = sticker.current_entry?.assets?.find((asset: any) => asset.asset_type === 'image');
-  return imageAsset?.url
-    || sticker.current_entry?.image_url
-    || sticker.world_cover_url
-    || sticker.persona_cover_url
-    || sticker.world?.cover_url
-    || sticker.persona?.cover_url
-    || '/shop/figures/daily-sticker.svg';
 }
 
 function displayToken(raw?: string) {
   return raw ? `${raw.slice(0, 16)}...${raw.slice(-4)}` : userCopy.assets.tokenMissing;
 }
 
+function applyUserEventPage(result: any, append = false) {
+  const items = Array.isArray(result?.items) ? result.items : Array.isArray(result) ? result : [];
+  events.value = append ? [...events.value, ...items] : items;
+  eventTotalPages.value = Number(result?.totalPages || 1);
+}
+
+function formatEventType(type?: string) {
+  if (!type) return userCopy.assets.events.system;
+  return userCopy.assets.events.labels[type] || type.replace(/[._]/g, ' ');
+}
+
+function eventSource(event: any) {
+  return event.ip_definition_name
+    || event.content_title
+    || event.application_name
+    || event.token
+    || 'whatmint runtime';
+}
+
+function eventSummary(event: any) {
+  if (event.from_username || event.to_username) {
+    return `${event.from_username || 'system'} → ${event.to_username || 'system'}`;
+  }
+  if (event.actor_username) {
+    return userCopy.assets.events.actor(event.actor_username);
+  }
+  if (event.note) {
+    return event.note;
+  }
+  if (event.application_name) {
+    return userCopy.assets.events.application(event.application_name);
+  }
+  return userCopy.assets.events.generic;
+}
+
+function eventMeta(event: any) {
+  const parts = [
+    event.content_title ? userCopy.assets.events.content(event.content_title) : '',
+    event.order_id ? userCopy.assets.events.order(event.order_id) : '',
+    event.token ? userCopy.assets.events.token(displayToken(event.token)) : '',
+  ].filter(Boolean);
+  return parts.join('  ·  ');
+}
+
+const loadUserEvents = async (append = false) => {
+  const result = await fetchUserEvents({
+    page: eventPage.value,
+    pageSize: eventPageSize,
+  });
+  applyUserEventPage(result, append);
+};
+
 onMounted(async () => {
   const keyFromUrl = typeof route.query.key === 'string' ? route.query.key : '';
-  suggestedDefaultVideoId.value = typeof route.query.defaultVideoId === 'string' ? route.query.defaultVideoId : '';
+  suggestedDefaultContentId.value = typeof route.query.defaultContentId === 'string'
+    ? route.query.defaultContentId
+    : '';
   if (keyFromUrl) bindKey.value = keyFromUrl;
 
   if (!isLoggedIn()) {
@@ -118,29 +152,30 @@ onMounted(async () => {
   if (keyFromUrl) {
     await handleSmartBind(keyFromUrl);
     const query: Record<string, string> = {};
-    if (suggestedDefaultVideoId.value) query.defaultVideoId = suggestedDefaultVideoId.value;
+    if (suggestedDefaultContentId.value) query.defaultContentId = suggestedDefaultContentId.value;
     router.replace({ path: '/assets', query });
   }
 });
 
 const loadAssets = async () => {
   loading.value = true;
-  const [entityRows, stickerRows, purchaseRows] = await Promise.all([
+  eventPage.value = 1;
+  const [entityRows, purchaseRows, eventResult] = await Promise.all([
     getEntities(),
-    getDailyStickerAssets(),
     getPurchases(),
+    fetchUserEvents({ page: 1, pageSize: eventPageSize }),
   ]);
   entities.value = Array.isArray(entityRows) ? entityRows : [];
-  stickers.value = Array.isArray(stickerRows) ? stickerRows : [];
   purchases.value = Array.isArray(purchaseRows) ? purchaseRows : [];
+  applyUserEventPage(eventResult);
   await loadEntityDefaults();
   loading.value = false;
 };
 
 const loadEntityDefaults = async () => {
-  const defaults: Record<string, { video_id: string | null; video_title: string | null }> = {};
+  const defaults: Record<string, { content_id: string | null; content_title: string | null }> = {};
   await Promise.all(entities.value.map(async (entity) => {
-    defaults[entity.id] = await getEntityDefault(entity.id);
+    defaults[entity.id] = await getIpInstanceDefaultContent(entity.id);
   }));
   entityDefaults.value = defaults;
 };
@@ -151,9 +186,20 @@ const refreshEntities = async () => {
   await loadEntityDefaults();
 };
 
-const refreshStickers = async () => {
-  const rows = await getDailyStickerAssets();
-  stickers.value = Array.isArray(rows) ? rows : [];
+const refreshEvents = async () => {
+  eventPage.value = 1;
+  await loadUserEvents(false);
+};
+
+const loadMoreEvents = async () => {
+  if (!eventHasMore.value || eventLoadingMore.value) return;
+  eventLoadingMore.value = true;
+  eventPage.value += 1;
+  try {
+    await loadUserEvents(true);
+  } finally {
+    eventLoadingMore.value = false;
+  }
 };
 
 const focusBindEntrance = () => {
@@ -162,8 +208,8 @@ const focusBindEntrance = () => {
 };
 
 const applySuggestedDefault = async (entityId?: string) => {
-  if (!entityId || !suggestedDefaultVideoId.value) return;
-  const result = await setEntityDefault(entityId, suggestedDefaultVideoId.value);
+  if (!entityId || !suggestedDefaultContentId.value) return;
+  const result = await setIpInstanceDefaultContent(entityId, suggestedDefaultContentId.value);
   if (result?.success) {
     toast?.show(userCopy.assets.toasts.entityBoundDefaultSet, 2600, 'success');
   } else {
@@ -174,16 +220,9 @@ const applySuggestedDefault = async (entityId?: string) => {
 const bindEntityToken = async (key: string) => {
   const data = await bindEntity(key);
   if (data.success) {
-    await refreshEntities();
     await applySuggestedDefault(data.entity_id);
-    await refreshEntities();
+    await Promise.all([refreshEntities(), refreshEvents()]);
   }
-  return data;
-};
-
-const bindStickerToken = async (key: string) => {
-  const data = await bindDailyStickerToken(key);
-  if (data.success) await refreshStickers();
   return data;
 };
 
@@ -205,15 +244,7 @@ const handleSmartBind = async (rawKey = bindKey.value) => {
     return;
   }
 
-  const stickerResult = await bindStickerToken(key);
-  if (stickerResult.success) {
-    bindMsg.value = stickerResult.already_bound ? userCopy.assets.bind.stickerAlreadyMuseum : userCopy.assets.bind.stickerSuccessMuseum;
-    bindKey.value = '';
-    assetTab.value = 'gallery';
-    return;
-  }
-
-  bindMsg.value = stickerResult.error || entityResult.error || userCopy.assets.bind.failed;
+  bindMsg.value = entityResult.error || userCopy.assets.bind.failed;
   bindError.value = true;
 };
 
@@ -236,42 +267,14 @@ const handleBindEntity = async () => {
   }
 };
 
-const handleBindSticker = async () => {
-  bindMsg.value = '';
-  bindError.value = false;
-  if (!bindKey.value.trim()) {
-    bindMsg.value = userCopy.assets.bind.stickerEmpty;
-    bindError.value = true;
-    return;
-  }
-  const data = await bindStickerToken(bindKey.value.trim());
-  if (data.success) {
-    bindMsg.value = data.already_bound ? userCopy.assets.bind.stickerAlready : userCopy.assets.bind.stickerSuccess;
-    bindKey.value = '';
-    assetTab.value = 'stickers';
-  } else {
-    bindMsg.value = data.error || userCopy.assets.bind.failed;
-    bindError.value = true;
-  }
-};
-
 const handleUnbind = async (entityId: string) => {
   const data = await unbindEntity(entityId);
   if (data.success) {
     await refreshEntities();
+    await refreshEvents();
     toast?.show(userCopy.assets.toasts.unbound, 2600, 'success');
   } else {
     toast?.show(data.error || userCopy.assets.toasts.unbindFailed, 2200, 'error');
-  }
-};
-
-const handleUnbindSticker = async (tokenId: string) => {
-  const data = await unbindDailyStickerToken(tokenId);
-  if (data.success) {
-    await refreshStickers();
-    toast?.show(userCopy.assets.toasts.stickerRemoved, 2600, 'success');
-  } else {
-    toast?.show(data.error || userCopy.assets.toasts.stickerRemoveFailed, 2200, 'error');
   }
 };
 
@@ -279,12 +282,6 @@ const copyToken = async (token?: string) => {
   if (!token) return;
   await navigator.clipboard.writeText(token);
   toast?.show(userCopy.assets.toasts.tokenCopied, 1800, 'success');
-};
-
-const openSticker = (sticker: any) => {
-  const token = sticker.token;
-  if (!token) return;
-  window.open(`/sticker?key=${encodeURIComponent(token)}`, '_blank', 'noopener,noreferrer');
 };
 
 const handleTransfer = async (entityId: string) => {
@@ -299,6 +296,7 @@ const handleTransfer = async (entityId: string) => {
     toast?.show(userCopy.assets.toasts.transferSuccess, 2200, 'success');
     transferTargets.value[entityId] = '';
     await refreshEntities();
+    await refreshEvents();
   } else {
     toast?.show(data.error || userCopy.assets.toasts.transferFailed, 2200, 'error');
   }
@@ -306,20 +304,21 @@ const handleTransfer = async (entityId: string) => {
 
 const startEditDefault = (entityId: string) => {
   editingDefault.value = entityId;
-  editDefaultInput.value = suggestedDefaultVideoId.value || entityDefaults.value[entityId]?.video_id || '';
+  editDefaultInput.value = suggestedDefaultContentId.value || entityDefaults.value[entityId]?.content_id || '';
 };
 
-const saveDefault = async (entityId: string, videoId = editDefaultInput.value) => {
-  if (!videoId.trim()) {
+const saveDefault = async (entityId: string, contentId = editDefaultInput.value) => {
+  if (!contentId.trim()) {
     toast?.show(userCopy.assets.toasts.contentIdRequired, 2200, 'error');
     return;
   }
 
-  const data = await setEntityDefault(entityId, videoId.trim());
+  const data = await setIpInstanceDefaultContent(entityId, contentId.trim());
   if (data.success) {
     toast?.show(userCopy.assets.toasts.defaultUpdated, 2200, 'success');
-    entityDefaults.value[entityId] = await getEntityDefault(entityId);
+    entityDefaults.value[entityId] = await getIpInstanceDefaultContent(entityId);
     editingDefault.value = '';
+    await refreshEvents();
   } else {
     toast?.show(data.error || userCopy.assets.toasts.updateFailed, 2200, 'error');
   }
@@ -342,9 +341,9 @@ const saveDefault = async (entityId: string, videoId = editDefaultInput.value) =
           </div>
         </div>
         <div class="hero-stats">
-          <strong>{{ entities.length + stickers.length }}</strong>
+          <strong>{{ entities.length }}</strong>
           <span>{{ userCopy.assets.hero.countLabel }}</span>
-          <small>{{ userCopy.assets.hero.countDetail(entities.length, stickers.length) }}</small>
+          <small>{{ userCopy.assets.hero.countDetail(entities.length) }}</small>
         </div>
       </section>
 
@@ -370,15 +369,14 @@ const saveDefault = async (entityId: string, videoId = editDefaultInput.value) =
           </div>
           <div class="bind-sub-actions">
             <button @click="handleBindEntity">{{ userCopy.assets.bindCard.entityOnly }}</button>
-            <button @click="handleBindSticker">{{ userCopy.assets.bindCard.stickerOnly }}</button>
           </div>
           <p v-if="bindMsg" :class="['bind-msg', { error: bindError }]">{{ bindMsg }}</p>
         </section>
 
-        <div v-if="suggestedDefaultVideoId" class="default-hint">
+        <div v-if="suggestedDefaultContentId" class="default-hint">
           <div>
             <strong>{{ userCopy.assets.defaultHint.title }}</strong>
-            <span>{{ formatContentId(suggestedDefaultVideoId) }}</span>
+            <span>{{ formatContentId(suggestedDefaultContentId) }}</span>
           </div>
           <p>{{ userCopy.assets.defaultHint.body }}</p>
         </div>
@@ -386,8 +384,8 @@ const saveDefault = async (entityId: string, videoId = editDefaultInput.value) =
         <nav class="assets-tabs">
           <button :class="{ active: assetTab === 'gallery' }" @click="assetTab = 'gallery'">{{ userCopy.assets.tabs.gallery }}</button>
           <button :class="{ active: assetTab === 'entities' }" @click="assetTab = 'entities'">{{ userCopy.assets.tabs.entities }}</button>
-          <button :class="{ active: assetTab === 'stickers' }" @click="assetTab = 'stickers'">{{ userCopy.assets.tabs.stickers }}</button>
           <button :class="{ active: assetTab === 'purchases' }" @click="assetTab = 'purchases'">{{ userCopy.assets.tabs.purchases }}</button>
+          <button :class="{ active: assetTab === 'events' }" @click="assetTab = 'events'">{{ userCopy.assets.tabs.events }}</button>
         </nav>
 
         <section v-if="assetTab === 'gallery'" class="gallery-section">
@@ -442,10 +440,10 @@ const saveDefault = async (entityId: string, videoId = editDefaultInput.value) =
                   <button class="small-ghost" @click="editingDefault = ''">{{ userCopy.assets.entities.cancel }}</button>
                 </template>
                 <template v-else>
-                  <span class="default-value" v-if="entityDefaults[entity.id]?.video_title">{{ entityDefaults[entity.id].video_title }}</span>
-                  <span class="default-value muted" v-else-if="entityDefaults[entity.id]?.video_id">ID: {{ formatContentId(entityDefaults[entity.id].video_id || '').slice(0, 12) }}...</span>
+                  <span class="default-value" v-if="entityDefaults[entity.id]?.content_title">{{ entityDefaults[entity.id].content_title }}</span>
+                  <span class="default-value muted" v-else-if="entityDefaults[entity.id]?.content_id">ID: {{ formatContentId(entityDefaults[entity.id].content_id || '').slice(0, 12) }}...</span>
                   <span class="default-value muted" v-else>{{ userCopy.assets.officialDefault }}</span>
-                  <button v-if="suggestedDefaultVideoId" class="small-primary" @click="saveDefault(entity.id, suggestedDefaultVideoId)">{{ userCopy.assets.entities.setSuggested }}</button>
+                  <button v-if="suggestedDefaultContentId" class="small-primary" @click="saveDefault(entity.id, suggestedDefaultContentId)">{{ userCopy.assets.entities.setSuggested }}</button>
                   <button class="small-ghost" @click="startEditDefault(entity.id)">{{ userCopy.assets.entities.edit }}</button>
                 </template>
               </div>
@@ -463,37 +461,6 @@ const saveDefault = async (entityId: string, videoId = editDefaultInput.value) =
             :loading="false"
             :has-more="entityHasMore"
             @load-more="entityPage++"
-          />
-        </section>
-
-        <section v-if="assetTab === 'stickers'" class="assets-section sticker-grid">
-          <div v-if="stickers.length === 0" class="assets-empty">{{ userCopy.assets.stickers.empty }}</div>
-
-          <article v-for="sticker in visibleStickers" :key="sticker.id" class="sticker-card">
-            <div class="sticker-art">
-              <img :src="stickerImage(sticker)" :alt="sticker.world_name || sticker.persona_name" />
-            </div>
-            <div class="sticker-body">
-              <span class="asset-type">{{ userCopy.assets.stickers.type }}</span>
-              <h3>{{ sticker.world_name || sticker.persona_name || sticker.persona?.name }}</h3>
-              <p>{{ sticker.story_arc_title || sticker.story_arc?.title || userCopy.assets.stickerSubtitle }}</p>
-              <div class="sticker-current" v-if="sticker.current_entry">
-                <strong>Day {{ sticker.current_day || sticker.current_entry.day_index || '?' }} · {{ sticker.current_entry.title }}</strong>
-                <small>{{ sticker.current_entry.mood || userCopy.assets.stickers.todayContent }}</small>
-              </div>
-              <div class="sticker-actions">
-                <button class="small-primary" @click="openSticker(sticker)">{{ userCopy.assets.stickers.preview }}</button>
-                <button class="small-ghost" @click="copyToken(sticker.token)">{{ userCopy.assets.stickers.copyToken }}</button>
-                <button class="small-ghost danger" @click="handleUnbindSticker(sticker.id)">{{ userCopy.assets.stickers.remove }}</button>
-              </div>
-            </div>
-          </article>
-
-          <InfiniteScrollTrigger
-            v-if="stickers.length > 0"
-            :loading="false"
-            :has-more="stickerHasMore"
-            @load-more="stickerPage++"
           />
         </section>
 
@@ -520,6 +487,39 @@ const saveDefault = async (entityId: string, videoId = editDefaultInput.value) =
             :loading="false"
             :has-more="purchaseHasMore"
             @load-more="purchasePage++"
+          />
+        </section>
+
+        <section v-if="assetTab === 'events'" class="assets-section">
+          <div class="purchase-note">
+            <h2>{{ userCopy.assets.events.title }}</h2>
+            <p>{{ userCopy.assets.events.intro }}</p>
+          </div>
+
+          <div v-if="events.length === 0" class="assets-empty">{{ userCopy.assets.events.empty }}</div>
+
+          <article v-for="event in events" :key="event.id" class="event-card">
+            <div class="event-card-top">
+              <div>
+                <span class="asset-type">{{ formatEventType(event.event_type) }}</span>
+                <h3>{{ eventSource(event) }}</h3>
+                <p>{{ eventSummary(event) }}</p>
+              </div>
+              <span class="event-time">{{ event.occurred_at?.slice(0, 16)?.replace('T', ' ') || event.created_at?.slice(0, 16) }}</span>
+            </div>
+
+            <div class="event-meta-row" v-if="eventMeta(event)">{{ eventMeta(event) }}</div>
+
+            <div class="event-actions" v-if="event.token">
+              <button class="small-ghost" @click="copyToken(event.token)">{{ userCopy.assets.events.copyToken }}</button>
+            </div>
+          </article>
+
+          <InfiniteScrollTrigger
+            v-if="events.length > 0"
+            :loading="eventLoadingMore"
+            :has-more="eventHasMore"
+            @load-more="loadMoreEvents"
           />
         </section>
       </template>
@@ -562,8 +562,8 @@ const saveDefault = async (entityId: string, videoId = editDefaultInput.value) =
 .purchase-note,
 .asset-card,
 .purchase-card,
-.sticker-card,
-.gallery-card {
+.gallery-card,
+.event-card {
   border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: 30px;
   box-shadow: 0 24px 66px rgba(18, 7, 28, 0.16);
@@ -722,8 +722,8 @@ const saveDefault = async (entityId: string, videoId = editDefaultInput.value) =
 .purchase-note,
 .asset-card,
 .purchase-card,
-.sticker-card,
-.gallery-card {
+.gallery-card,
+.event-card {
   background: rgba(255, 255, 255, 0.92);
 }
 
@@ -973,8 +973,7 @@ const saveDefault = async (entityId: string, videoId = editDefaultInput.value) =
 
 .gallery-card h3,
 .asset-card h3,
-.purchase-card h3,
-.sticker-card h3 {
+.purchase-card h3 {
   margin: 0;
   font-size: 21px;
   letter-spacing: -0.03em;
@@ -982,8 +981,7 @@ const saveDefault = async (entityId: string, videoId = editDefaultInput.value) =
 
 .gallery-card p,
 .asset-card p,
-.purchase-card p,
-.sticker-card p {
+.purchase-card p {
   margin: 0;
   color: #887e96;
   font-size: 13px;
@@ -1091,71 +1089,38 @@ const saveDefault = async (entityId: string, videoId = editDefaultInput.value) =
   padding: 8px 12px;
 }
 
-.sticker-grid {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.sticker-card {
-  overflow: hidden;
-}
-
-.sticker-art {
-  position: relative;
-  display: grid;
-  place-items: center;
-  min-height: 250px;
-  padding: 18px;
-  background:
-    linear-gradient(90deg, rgba(255, 255, 255, 0.055) 0 1px, transparent 1px 34px),
-    linear-gradient(0deg, rgba(255, 255, 255, 0.045) 0 1px, transparent 1px 34px),
-    radial-gradient(circle at 48% 24%, rgba(255, 255, 255, 0.26), transparent 31%),
-    radial-gradient(circle at 12% 88%, rgba(255, 79, 216, 0.18), transparent 34%),
-    linear-gradient(145deg, #24102e, #0f0915);
-}
-
-.sticker-art img {
-  width: min(72%, 220px);
-  max-height: 210px;
-  object-fit: contain;
-  border-radius: 20px;
-  filter: drop-shadow(0 24px 30px rgba(0, 0, 0, 0.28));
-}
-
-.sticker-body {
-  display: grid;
-  gap: 10px;
-  padding: 16px;
-}
-
-.sticker-current {
-  display: grid;
-  gap: 3px;
-  padding: 12px;
-  border-radius: 16px;
-  background:
-    radial-gradient(circle at 100% 0%, rgba(255, 79, 216, 0.10), transparent 32%),
-    #fff4fb;
-}
-
-.sticker-current strong {
-  color: #2b1b32;
-  font-size: 13px;
-}
-
-.sticker-current small {
-  color: #b93198;
-  font-size: 12px;
-  font-weight: 850;
-}
-
-.sticker-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
 .purchase-card {
   padding: 18px;
+}
+
+.event-card {
+  display: grid;
+  gap: 10px;
+  padding: 18px;
+}
+
+.event-card-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.event-time {
+  color: #887e96;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.event-meta-row {
+  color: #5a5060;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.event-actions {
+  display: flex;
+  justify-content: flex-start;
 }
 
 .purchase-card span {
@@ -1173,8 +1138,7 @@ const saveDefault = async (entityId: string, videoId = editDefaultInput.value) =
 
 @media (max-width: 920px) {
   .assets-hero,
-  .gallery-section,
-  .sticker-grid {
+  .gallery-section {
     grid-template-columns: 1fr;
   }
 
@@ -1196,8 +1160,8 @@ const saveDefault = async (entityId: string, videoId = editDefaultInput.value) =
   .purchase-note,
   .asset-card,
   .purchase-card,
-  .sticker-card,
-  .gallery-card {
+  .gallery-card,
+  .event-card {
     border-radius: 24px;
   }
 
@@ -1217,7 +1181,8 @@ const saveDefault = async (entityId: string, videoId = editDefaultInput.value) =
 
   .bind-box,
   .asset-card-top,
-  .purchase-card {
+  .purchase-card,
+  .event-card-top {
     align-items: stretch;
     flex-direction: column;
   }
@@ -1226,8 +1191,7 @@ const saveDefault = async (entityId: string, videoId = editDefaultInput.value) =
     min-height: 44px;
   }
 
-  .gallery-art,
-  .sticker-art {
+  .gallery-art {
     min-height: 210px;
   }
 }

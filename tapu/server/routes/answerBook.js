@@ -5,8 +5,10 @@ import { adminRoute, registerRoutes } from '../services/routePermissions.js';
 import { createUniqueToken, normalizeEntityToken, resultToObjects } from '../services/tokens.js';
 import { recordObjectEvent } from '../services/objectEvents.js';
 import { resolveObjectByToken } from '../services/objectRegistry.js';
+import { buildAppRuntimeContext } from '../services/appAdapters.js';
 import { buildContentBlocksForAnswerCard, buildTapResponse } from '../services/tapRuntime.js';
 import { serverMessages } from '../copy/messages.js';
+import { syncAnswerBookDeckContent } from '../services/coreCreationSync.js';
 
 const router = Router();
 
@@ -89,6 +91,10 @@ router.get('/resolve', async (req, res) => {
       },
     });
     saveDb();
+    const runtimeContext = buildAppRuntimeContext(db, resolvedObject, {
+      userId: req.user?.id || tokenRow.user_id || null,
+      token: tokenRow.token,
+    });
 
     const tapResponse = buildTapResponse({
       object: resolvedObject.object,
@@ -127,6 +133,7 @@ router.get('/resolve', async (req, res) => {
         theme_color: tokenRow.theme_color,
       },
       card,
+      runtime_context: runtimeContext,
     });
   } catch (error) {
     console.error('Resolve answer book error:', error);
@@ -175,6 +182,7 @@ async function createDeck(req, res) {
         cleanString(req.body.status) || 'active',
       ]
     );
+    syncAnswerBookDeckContent(db, id);
     saveDb();
     res.json({ success: true, id });
   } catch (error) {
@@ -189,6 +197,10 @@ async function updateDeck(req, res) {
     if (!name) return res.status(400).json({ error: '请填写牌组名称' });
 
     const db = await getDb();
+    const existing = resultToObjects(db.exec(
+      'SELECT deck_id FROM answer_book_cards WHERE id = ? LIMIT 1',
+      [req.params.id]
+    ))[0] || null;
     db.run(
       `UPDATE answer_book_decks
        SET name = ?, subtitle = ?, description = ?, tone_notes = ?, theme_color = ?, status = ?
@@ -203,6 +215,7 @@ async function updateDeck(req, res) {
         req.params.id,
       ]
     );
+    syncAnswerBookDeckContent(db, req.params.id);
     saveDb();
     res.json({ success: true });
   } catch (error) {
@@ -258,6 +271,8 @@ async function createCard(req, res) {
         Number(req.body.sort_order) || 0,
       ]
     );
+    if (existing?.deck_id && existing.deck_id !== deckId) syncAnswerBookDeckContent(db, existing.deck_id);
+    syncAnswerBookDeckContent(db, deckId);
     saveDb();
     res.json({ success: true, id });
   } catch (error) {
@@ -288,6 +303,7 @@ async function updateCard(req, res) {
         req.params.id,
       ]
     );
+    syncAnswerBookDeckContent(db, deckId);
     saveDb();
     res.json({ success: true });
   } catch (error) {
@@ -299,7 +315,12 @@ async function updateCard(req, res) {
 async function deleteCard(req, res) {
   try {
     const db = await getDb();
+    const row = resultToObjects(db.exec(
+      'SELECT deck_id FROM answer_book_cards WHERE id = ? LIMIT 1',
+      [req.params.id]
+    ))[0] || null;
     db.run('DELETE FROM answer_book_cards WHERE id = ?', [req.params.id]);
+    if (row?.deck_id) syncAnswerBookDeckContent(db, row.deck_id);
     saveDb();
     res.json({ success: true });
   } catch (error) {
@@ -367,6 +388,7 @@ async function createTokens(req, res) {
       );
       tokens.push({ id, token, label: finalLabel });
     }
+    syncAnswerBookDeckContent(db, deckId);
     saveDb();
     res.json({ success: true, tokens });
   } catch (error) {
@@ -381,7 +403,12 @@ async function createTokens(req, res) {
 async function deleteToken(req, res) {
   try {
     const db = await getDb();
+    const row = resultToObjects(db.exec(
+      'SELECT deck_id FROM answer_book_tokens WHERE id = ? LIMIT 1',
+      [req.params.id]
+    ))[0] || null;
     db.run('DELETE FROM answer_book_tokens WHERE id = ?', [req.params.id]);
+    if (row?.deck_id) syncAnswerBookDeckContent(db, row.deck_id);
     saveDb();
     res.json({ success: true });
   } catch (error) {

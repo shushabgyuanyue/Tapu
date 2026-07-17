@@ -18,10 +18,10 @@ export function recordCoreEvent(db, params = {}) {
   const id = params.id || uuidv4();
   db.run(
     `INSERT INTO events
-      (id, event_type, dedupe_key, actor_user_id, user_id, ip_definition_id, application_definition_id,
-       content_definition_id, ip_instance_id, content_instance_id, resource_id, source_event_id,
+     (id, event_type, dedupe_key, actor_user_id, user_id, ip_definition_id, application_definition_id,
+       content_definition_id, ip_instance_id, content_instance_id, resource_id, source_operation_id, source_event_id,
        payload_json, context_snapshot_json, processing_status, processing_attempts, processed_at, occurred_at, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
     [
       id,
       eventType,
@@ -34,6 +34,7 @@ export function recordCoreEvent(db, params = {}) {
       params.ipInstanceId || null,
       params.contentInstanceId || null,
       params.resourceId || null,
+      params.sourceOperationId || null,
       params.sourceEventId || null,
       stringifyJson(params.payload),
       stringifyJson(params.contextSnapshot),

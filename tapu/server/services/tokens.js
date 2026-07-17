@@ -20,7 +20,7 @@ export function resultToObjects(results) {
 }
 
 export function createUniqueEntityToken(db) {
-  return createUniqueToken(db, 'entities', 'token', 'entity token');
+  return createUniqueToken(db, 'ip_instances', 'token', 'ip instance token');
 }
 
 export function createUniqueToken(db, table, column = 'token', label = 'token') {
@@ -39,6 +39,6 @@ export function createUniqueToken(db, table, column = 'token', label = 'token') 
 export function getEntityByToken(db, token) {
   const normalized = normalizeEntityToken(token);
   if (!normalized) return null;
-  const results = db.exec('SELECT * FROM entities WHERE token = ? OR entity_key = ? LIMIT 1', [normalized, normalized]);
+  const results = db.exec('SELECT * FROM ip_instances WHERE token = ? OR entity_key = ? LIMIT 1', [normalized, normalized]);
   return resultToObjects(results)[0] || null;
 }

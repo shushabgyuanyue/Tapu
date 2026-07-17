@@ -3,7 +3,7 @@ import { ref, onMounted, computed, watch } from 'vue';
 import {
   fetchGroups, createGroup, updateGroup, deleteGroup,
   fetchSeries, createSeries, deleteSeries,
-  fetchVideos, setOfficialDefault, fetchGroupsPaged,
+  fetchGroupsPaged,
   fetchEntitiesByGroup, createEntity, fetchApplications
 } from '../../api';
 import AdminPagination from '../../components/AdminPagination.vue';
@@ -39,11 +39,6 @@ const formThemeColor = ref('#ff4fd8');
 const showSeriesForm = ref(false);
 const seriesFormName = ref('');
 const seriesFormApplicationId = ref('');
-
-// Official default state
-const showDefaultPicker = ref('');
-const defaultVideos = ref<any[]>([]);
-const loadingDefault = ref(false);
 
 // Entity management state
 const showEntityPanel = ref('');
@@ -179,24 +174,8 @@ const handleDeleteSeries = async (id: string) => {
   loadData();
 };
 
-const openDefaultPicker = async (groupId: string) => {
-  showDefaultPicker.value = groupId;
-  loadingDefault.value = true;
-  const vids = await fetchVideos(groupId);
-  defaultVideos.value = vids.filter((v: any) => v.status === 'ready');
-  loadingDefault.value = false;
-};
-
-const selectOfficialDefault = async (groupId: string, videoId: string) => {
-  const result = await setOfficialDefault(groupId, videoId);
-  if (result?.error) {
-    alert(result.error);
-    return;
-  }
-  const g = groups.value.find(x => x.id === groupId);
-  if (g) g.official_default_video_id = videoId;
-  showDefaultPicker.value = '';
-  await loadData();
+const openOfficialStudio = (groupId: string) => {
+  window.open(`/mint?official_ip_definition_id=${encodeURIComponent(groupId)}`, '_blank', 'noopener,noreferrer');
 };
 
 const openEntityPanel = async (groupId: string) => {
@@ -289,7 +268,7 @@ onMounted(loadData);
           </div>
           <div class="gm-item-actions">
             <button class="gm-act" @click="openEntityPanel(g.id)">查看已售</button>
-            <button class="gm-act" @click="openDefaultPicker(g.id)">设默认</button>
+            <button class="gm-act" @click="openOfficialStudio(g.id)">官方创作</button>
             <button class="gm-act" @click="openEdit(g)">编辑</button>
             <button class="gm-act gm-act--del" @click="handleDelete(g.id)">删除</button>
           </div>
@@ -305,31 +284,13 @@ onMounted(loadData);
               <div v-for="ent in entityList" :key="ent.id" class="gm-entity-item">
                 <button class="gm-entity-key" @click="copyEntityToken(ent.token || ent.entity_key)">{{ (ent.token || ent.entity_key || ent.id).slice(0, 16) }}...</button>
                 <span class="gm-entity-order" v-if="ent.external_order_no">{{ ent.external_order_no }}</span>
-                <span class="gm-entity-status" v-if="ent.user_id">已绑定</span>
+                <span class="gm-entity-status" v-if="ent.owner_user_id">已绑定</span>
                 <span class="gm-entity-status gm-entity-free" v-else>未绑定</span>
               </div>
             </div>
             <p v-else class="gm-entity-empty">暂无已售实体</p>
           </div>
 
-          <div v-if="showDefaultPicker === g.id" class="gm-default-picker">
-            <p class="gm-picker-title">选择官方默认视频</p>
-            <div class="gm-picker-loading" v-if="loadingDefault">加载中...</div>
-            <div class="gm-picker-grid" v-else-if="defaultVideos.length > 0">
-              <div
-                v-for="vid in defaultVideos" :key="vid.id"
-                class="gm-picker-item"
-                :class="{ active: g.official_default_video_id === vid.id }"
-                @click="selectOfficialDefault(g.id, vid.id)"
-              >
-                <img v-if="vid.poster_url" :src="vid.poster_url" alt="" />
-                <div v-else class="gm-picker-placeholder"></div>
-                <span class="gm-picker-label">{{ vid.title }}</span>
-              </div>
-            </div>
-            <p v-else class="gm-picker-empty">该分组暂无视频</p>
-            <button class="gm-cancel" @click="showDefaultPicker = ''">关闭</button>
-          </div>
         </div>
         <div v-if="groups.length === 0" class="gm-empty">暂无分组</div>
       </div>

@@ -3,13 +3,13 @@ import { serverMessages } from '../copy/messages.js';
 
 export function canManageBoundEntity(user, entity) {
   if (!entity) return false;
-  if (!entity.user_id) return true;
-  return user?.username === 'admin' || entity.user_id === user?.id;
+  if (!entity.owner_user_id) return true;
+  return user?.username === 'admin' || entity.owner_user_id === user?.id;
 }
 
 export function canManageEntity(user, entity) {
   if (!entity) return false;
-  return user?.username === 'admin' || entity.user_id === user?.id;
+  return user?.username === 'admin' || entity.owner_user_id === user?.id;
 }
 
 export function assertEntityOwner(user, entity, message = serverMessages.objectPermissions.entityOwnerRequired) {
@@ -28,7 +28,7 @@ export function assertEntityClaimable(user, entity) {
     error.code = 'ENTITY_NOT_FOUND';
     throw error;
   }
-  if (!entity.user_id || entity.user_id === user?.id) return entity;
+  if (!entity.owner_user_id || entity.owner_user_id === user?.id) return entity;
 
   const error = new Error(serverMessages.objectPermissions.entityAlreadyBound);
   error.status = 409;
@@ -43,7 +43,8 @@ export function assertAccountBoundObjectClaimable(user, object, label = serverMe
     error.code = 'ACCOUNT_OBJECT_NOT_FOUND';
     throw error;
   }
-  if (!object.user_id || object.user_id === user?.id) return object;
+  if (!object.user_id && !object.owner_user_id) return object;
+  if ((object.user_id || object.owner_user_id) === user?.id) return object;
 
   const error = new Error(serverMessages.objectPermissions.accountObjectAlreadyBound(label));
   error.status = 409;
@@ -52,7 +53,7 @@ export function assertAccountBoundObjectClaimable(user, object, label = serverMe
 }
 
 export function assertAccountBoundObjectOwner(user, object, label = serverMessages.objectPermissions.assetLabel) {
-  if (object?.user_id === user?.id || user?.username === 'admin') return object;
+  if ((object?.user_id || object?.owner_user_id) === user?.id || user?.username === 'admin') return object;
 
   const error = new Error(serverMessages.objectPermissions.accountObjectOwnerRequired(label));
   error.status = 403;
@@ -81,7 +82,7 @@ export function canManageVideo(db, user, video) {
   if (user?.username === 'admin') return true;
   if (video.owner_user_id && video.owner_user_id === user?.id) return true;
   if (!video.entity_id || !user?.id) return false;
-  return resultToObjects(db.exec('SELECT id FROM entities WHERE id = ? AND user_id = ?', [video.entity_id, user.id])).length > 0;
+  return resultToObjects(db.exec('SELECT id FROM ip_instances WHERE id = ? AND owner_user_id = ?', [video.entity_id, user.id])).length > 0;
 }
 
 export function assertVideoManageable(db, user, video) {
@@ -126,20 +127,20 @@ export function videoListPrivacyScope(req, alias = '') {
   const verifiedEntityId = req.verifiedEntityId || null;
   if (verifiedEntityId && canViewPrivateEntityContent(req, verifiedEntityId, req.verifiedEntityOwnerId)) {
     return {
-      sql: `(${prefix}is_private = 0 OR ${prefix}entity_id = ?)`,
+      sql: `(COALESCE(${prefix}visibility, 'public') != 'private' OR ${prefix}origin_ip_instance_id = ?)`,
       params: [verifiedEntityId],
       operation: 'view:token_private',
     };
   }
   if (req.user?.id) {
     return {
-      sql: `(${prefix}is_private = 0 OR ${prefix}owner_user_id = ? OR ${prefix}entity_id IN (SELECT id FROM entities WHERE user_id = ?))`,
+      sql: `(COALESCE(${prefix}visibility, 'public') != 'private' OR ${prefix}owner_user_id = ? OR ${prefix}origin_ip_instance_id IN (SELECT id FROM ip_instances WHERE owner_user_id = ?))`,
       params: [req.user.id, req.user.id],
       operation: 'view:owner_private',
     };
   }
   return {
-    sql: `${prefix}is_private = 0`,
+    sql: `COALESCE(${prefix}visibility, 'public') != 'private'`,
     params: [],
     operation: 'view:public',
   };
@@ -153,7 +154,7 @@ export function assertTokenContentEditable(db, req, token) {
     error.code = 'ENTITY_NOT_FOUND';
     throw error;
   }
-  if (!entity.user_id) return entity;
+  if (!entity.owner_user_id) return entity;
   if (!req.user?.id) {
     const error = new Error(serverMessages.objectPermissions.objectBoundLogin);
     error.status = 401;

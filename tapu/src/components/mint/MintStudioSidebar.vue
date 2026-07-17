@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue';
 import { studioCopy } from '../../copy';
 import {
+  canManageMintedContent,
   mintedStatusText,
   type MintedItem,
 } from '../../composables/useMintStudioLibrary';
@@ -16,17 +17,17 @@ const emit = defineEmits<{
   (event: 'update:open', value: boolean): void;
   (event: 'new-mint'): void;
   (event: 'open-item', item: MintedItem): void;
+  (event: 'delete-item', item: MintedItem): void;
 }>();
 
 const query = ref('');
-const filter = ref<'all' | 'work' | 'video' | 'asset'>('all');
+const filter = ref<'all' | 'published' | 'draft'>('all');
 const listOpen = ref(true);
 
 const filteredItems = computed(() => {
   const q = query.value.trim().toLowerCase();
   return props.items.filter(item => {
-    const source = item.source || item.status;
-    const matchesFilter = filter.value === 'all' || source === filter.value || item.status === filter.value;
+    const matchesFilter = filter.value === 'all' || item.status === filter.value;
     const text = `${item.title} ${item.appName} ${item.subtitle || ''} ${item.token || ''}`.toLowerCase();
     return matchesFilter && (!q || text.includes(q));
   });
@@ -68,19 +69,21 @@ const hiddenCount = computed(() => Math.max(0, filteredItems.value.length - visi
         <input v-model="query" :placeholder="studioCopy.sidebar.search" />
         <div class="library-filters">
           <button type="button" :class="{ active: filter === 'all' }" @click="filter = 'all'">{{ studioCopy.sidebar.filterAll }}</button>
-          <button type="button" :class="{ active: filter === 'work' }" @click="filter = 'work'">{{ studioCopy.libraryStatus.work }}</button>
-          <button type="button" :class="{ active: filter === 'video' }" @click="filter = 'video'">{{ studioCopy.libraryStatus.video }}</button>
-          <button type="button" :class="{ active: filter === 'asset' }" @click="filter = 'asset'">{{ studioCopy.libraryStatus.asset }}</button>
+          <button type="button" :class="{ active: filter === 'published' }" @click="filter = 'published'">{{ studioCopy.libraryStatus.published }}</button>
+          <button type="button" :class="{ active: filter === 'draft' }" @click="filter = 'draft'">{{ studioCopy.libraryStatus.draft }}</button>
         </div>
       </div>
       <p v-if="listOpen && loading && !items.length" class="sidebar-empty">{{ studioCopy.sidebar.loading }}</p>
       <div v-if="listOpen && visibleItems.length" class="minted-list">
-        <button
+        <div
           v-for="item in visibleItems"
           :key="item.id"
-          type="button"
           class="minted-item"
+          role="button"
+          tabindex="0"
           @click="emit('open-item', item)"
+          @keydown.enter.prevent="emit('open-item', item)"
+          @keydown.space.prevent="emit('open-item', item)"
         >
           <span class="minted-icon">
             <img v-if="item.thumb && !item.thumb.startsWith('blob:')" :src="item.thumb" :alt="item.title" />
@@ -90,7 +93,16 @@ const hiddenCount = computed(() => Math.max(0, filteredItems.value.length - visi
             <strong>{{ item.title }}</strong>
             <small>{{ item.appName }} · {{ mintedStatusText(item) }}</small>
           </span>
-        </button>
+          <button
+            v-if="canManageMintedContent(item)"
+            type="button"
+            class="minted-delete"
+            :title="studioCopy.actions.deleteContent"
+            @click.stop="emit('delete-item', item)"
+          >
+            ×
+          </button>
+        </div>
       </div>
       <p v-if="listOpen && hiddenCount && open" class="sidebar-empty">{{ studioCopy.sidebar.moreCount(hiddenCount) }}</p>
       <p v-if="listOpen && !loading && items.length && !visibleItems.length" class="sidebar-empty">{{ studioCopy.sidebar.noResults }}</p>
@@ -330,6 +342,27 @@ const hiddenCount = computed(() => Math.max(0, filteredItems.value.length - visi
   gap: 2px;
 }
 
+.minted-delete {
+  width: 24px;
+  height: 24px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(192, 57, 95, 0.18);
+  border-radius: 999px;
+  background: rgba(192, 57, 95, 0.06);
+  color: #a93457;
+  cursor: pointer;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.minted-delete:hover {
+  border-color: rgba(192, 57, 95, 0.36);
+  background: rgba(192, 57, 95, 0.12);
+}
+
 .minted-copy strong,
 .minted-copy small {
   overflow: hidden;
@@ -368,6 +401,7 @@ const hiddenCount = computed(() => Math.max(0, filteredItems.value.length - visi
 .studio-sidebar--collapsed .new-mint-button strong,
 .studio-sidebar--collapsed .sidebar-title,
 .studio-sidebar--collapsed .minted-copy,
+.studio-sidebar--collapsed .minted-delete,
 .studio-sidebar--collapsed .sidebar-empty {
   display: none;
 }

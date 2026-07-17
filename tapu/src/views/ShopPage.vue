@@ -51,7 +51,7 @@ const productImage = (group: any) => {
     return group.product_image_url || group.cover_url || group.official_default_video_poster;
   }
   const name = `${group.name || ''}${group.application_code || ''}`.toLowerCase();
-  if (name.includes('贴纸') || name.includes('sticker')) return '/shop/figures/daily-sticker.svg';
+  if (name.includes('贴纸') || name.includes('sticker')) return '/shop/figures/nfc-sticker.svg';
   if (name.includes('狗') || name.includes('puppy') || name.includes('纸巾')) return '/shop/figures/tissue-puppy.svg';
   return '/shop/figures/designer-toy-default.svg';
 };

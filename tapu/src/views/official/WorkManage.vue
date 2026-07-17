@@ -69,13 +69,13 @@ onMounted(loadData);
       <div class="toolbar">
         <div>
           <h3>统一作品对象</h3>
-          <p>现在先让纪念瞬间进入 Work 模型；后面答案之书、手账贴纸、情绪 IP 都可以迁移进来。</p>
+          <p>现在先让纪念瞬间进入 Work 模型；后面答案之书、耳机小姐、情绪 IP 都可以迁移进来。</p>
         </div>
         <div class="filters">
           <select v-model="filters.appCode" @change="loadData">
             <option value="">全部应用</option>
             <option value="moment">纪念瞬间</option>
-            <option value="daily-sticker">手账贴纸</option>
+            <option value="earphone-girl">耳机小姐</option>
             <option value="answer-book">答案之书</option>
             <option value="emotion-ip">情绪 IP</option>
           </select>

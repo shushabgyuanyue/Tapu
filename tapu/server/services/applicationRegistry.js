@@ -8,11 +8,11 @@ const BUILT_IN_APPLICATIONS = [
     status: 'active',
   },
   {
-    name: '手账慢故事贴纸',
-    code: 'daily-sticker',
-    app_type: 'state',
-    interaction_type: 'tap_to_slow_story',
-    description: '一枚贴纸进入一个连续更新的小世界。',
+    name: '耳机小姐',
+    code: 'earphone-girl',
+    app_type: 'meaning',
+    interaction_type: 'audio_story_gateway',
+    description: '一枚耳机贴纸打开会旅行、会倾听、会带回故事的朋友。',
     status: 'active',
   },
   {

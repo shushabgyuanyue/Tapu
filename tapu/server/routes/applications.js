@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { getDb, saveDb } from '../db/index.js';
 import { adminRoute, registerRoutes } from '../services/routePermissions.js';
+import { cleanString, normalizeStatus, stringifyJson } from '../services/coreStore.js';
 
 const router = Router();
 
@@ -14,7 +15,6 @@ function resultToObjects(results) {
     return obj;
   });
 }
-
 
 function normalizeCode(code, name) {
   const source = (code || name || '').trim().toLowerCase();
@@ -33,11 +33,14 @@ async function listApplications(_req, res) {
   try {
     const db = await getDb();
     const rows = resultToObjects(db.exec(
-      `SELECT a.*, COUNT(s.id) as series_count
-       FROM applications a
-       LEFT JOIN series s ON s.application_id = a.id
+      `SELECT a.*,
+              COUNT(DISTINCT l.ip_definition_id) as ip_definition_count,
+              COUNT(DISTINCT i.id) as ip_instance_count
+       FROM application_definitions a
+       LEFT JOIN ip_definition_application_links l ON l.application_definition_id = a.id
+       LEFT JOIN ip_instances i ON i.application_definition_id = a.id AND i.instance_type != 'official_demo'
        GROUP BY a.id
-       ORDER BY a.created_at DESC`
+       ORDER BY a.created_at DESC, a.name ASC`
     ));
     res.json(rows);
   } catch (error) {
@@ -59,9 +62,32 @@ async function createApplication(req, res) {
     if (!appCode) return res.status(400).json({ error: 'code is invalid' });
 
     db.run(
-      `INSERT INTO applications (id, name, code, app_type, interaction_type, description, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [id, name.trim(), appCode, normalizeAppType(app_type), interaction_type.trim(), description || '', status || 'active']
+      `INSERT INTO application_definitions
+       (id, name, code, version_no, app_type, interaction_type, description, object_principle, behavior,
+        meaning_question, experience_flow_json, skill_config_json, content_template_json, event_subscription_json,
+        key_action_schema_json, route_config_json, permission_policy_json, extra_json, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        id,
+        cleanString(name),
+        appCode,
+        cleanString(req.body.version_no) || '1.0.0',
+        normalizeAppType(app_type),
+        cleanString(interaction_type),
+        cleanString(description) || null,
+        cleanString(req.body.object_principle) || null,
+        cleanString(req.body.behavior) || null,
+        cleanString(req.body.meaning_question) || null,
+        stringifyJson(req.body.experience_flow ?? req.body.experience_flow_json),
+        stringifyJson(req.body.skills ?? req.body.skill_config_json),
+        stringifyJson(req.body.content_templates ?? req.body.content_template_json),
+        stringifyJson(req.body.event_subscriptions ?? req.body.event_subscription_json),
+        stringifyJson(req.body.key_actions ?? req.body.key_action_schema_json),
+        stringifyJson(req.body.route_config),
+        stringifyJson(req.body.permission_policy),
+        stringifyJson(req.body.extra),
+        normalizeStatus(status, ['active', 'draft', 'archived'], 'active'),
+      ]
     );
     saveDb();
     res.json({ success: true, id, name: name.trim(), code: appCode });
@@ -86,10 +112,34 @@ async function updateApplication(req, res) {
 
     const db = await getDb();
     db.run(
-      `UPDATE applications
-       SET name = ?, code = ?, app_type = ?, interaction_type = ?, description = ?, status = ?
+      `UPDATE application_definitions
+       SET name = ?, code = ?, version_no = ?, app_type = ?, interaction_type = ?, description = ?,
+           object_principle = ?, behavior = ?, meaning_question = ?, experience_flow_json = ?,
+           skill_config_json = ?, content_template_json = ?, event_subscription_json = ?,
+           key_action_schema_json = ?, route_config_json = ?, permission_policy_json = ?,
+           extra_json = ?, status = ?, updated_at = CURRENT_TIMESTAMP
        WHERE id = ?`,
-      [name.trim(), appCode, normalizeAppType(app_type), interaction_type.trim(), description || '', status || 'active', req.params.id]
+      [
+        cleanString(name),
+        appCode,
+        cleanString(req.body.version_no) || '1.0.0',
+        normalizeAppType(app_type),
+        cleanString(interaction_type),
+        cleanString(description) || null,
+        cleanString(req.body.object_principle) || null,
+        cleanString(req.body.behavior) || null,
+        cleanString(req.body.meaning_question) || null,
+        stringifyJson(req.body.experience_flow ?? req.body.experience_flow_json),
+        stringifyJson(req.body.skills ?? req.body.skill_config_json),
+        stringifyJson(req.body.content_templates ?? req.body.content_template_json),
+        stringifyJson(req.body.event_subscriptions ?? req.body.event_subscription_json),
+        stringifyJson(req.body.key_actions ?? req.body.key_action_schema_json),
+        stringifyJson(req.body.route_config),
+        stringifyJson(req.body.permission_policy),
+        stringifyJson(req.body.extra),
+        normalizeStatus(status, ['active', 'draft', 'archived'], 'active'),
+        req.params.id,
+      ]
     );
     saveDb();
     res.json({ success: true });
@@ -105,8 +155,10 @@ async function updateApplication(req, res) {
 async function deleteApplication(req, res) {
   try {
     const db = await getDb();
-    db.run('UPDATE series SET application_id = NULL WHERE application_id = ?', [req.params.id]);
-    db.run('DELETE FROM applications WHERE id = ?', [req.params.id]);
+    db.run('UPDATE ip_instances SET application_definition_id = NULL WHERE application_definition_id = ?', [req.params.id]);
+    db.run('DELETE FROM ip_definition_application_links WHERE application_definition_id = ?', [req.params.id]);
+    db.run('DELETE FROM application_content_definition_links WHERE application_definition_id = ?', [req.params.id]);
+    db.run('DELETE FROM application_definitions WHERE id = ?', [req.params.id]);
     saveDb();
     res.json({ success: true });
   } catch (error) {

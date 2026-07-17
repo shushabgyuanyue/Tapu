@@ -1,4 +1,34 @@
 export const appCopy = {
+  earphoneGirl: {
+    fallbackTitle: '耳机小姐',
+    fallbackSubtitle: '她正在把路上听见的小事带回来。',
+    missingToken: '缺少耳机小姐链接，请确认写入地址是否完整。',
+    mark: 'WhatMint Earphone Girl',
+    objectFallback: '耳机贴纸',
+    loading: {
+      title: '她正在调好声音',
+      body: '故事还在路上，等一下就会抵达。',
+    },
+    error: {
+      title: '这次没有听清',
+    },
+    progress: {
+      prefix: '故事',
+      exhausted: '她已经讲完一轮，正在从第一段重新出发。',
+    },
+    actions: {
+      completed: '我听完了',
+      completing: '记录中...',
+      completedMessage: '她记住了这一次，下次会从下一段继续。',
+      completedFallback: '已经记住这次故事。',
+      nextReady: '下一段已经在路上。',
+    },
+    empty: {
+      title: '她还没有带回第一段故事',
+      body: '官方内容创建后，这枚耳机贴纸会按自己的队列一点点讲下去。',
+    },
+    footer: ['按实例推进', '声音和插画', '关系入口'],
+  },
   answerBook: {
     fallbackTitle: '答案之书',
     fallbackTag: '当下',
@@ -41,39 +71,6 @@ export const appCopy = {
       recipient: (name: string) => `送给：${name}`,
       touchHint: '碰一下，回到那一刻',
     },
-  },
-  dailySticker: {
-    fallbackTitle: '一枚日常贴纸',
-    fallbackTagline: '碰一下，回到这个物品的小世界。',
-    missingToken: '缺少贴纸链接，请确认写入地址是否完整。',
-    mark: 'WhatMint Daily Sticker',
-    modalityLabels: {
-      text: '文字',
-      audio: '语音',
-      animation: '动画',
-      video: '动画',
-      image: '图像',
-      mixed: '混合',
-    } as Record<string, string>,
-    today: '今日',
-    loading: {
-      title: '正在推开这扇门',
-      body: '这个小世界在整理今天想让你看见的片段。',
-    },
-    error: {
-      title: '这枚贴纸暂时没说上话',
-    },
-    objectPersonality: '物品人格',
-    coverAlt: '贴纸内容配图',
-    emptyStory: {
-      voice: '这个物品还在等第一段故事。',
-      body: '官方内容配置后，同一小世界的贴纸会按节奏看到连续内容。',
-    },
-    experience: {
-      crossoverKicker: '关系被点亮',
-      crossoverNotice: (title: string) => `${title}。今天的小世界多了一位来访者。`,
-    },
-    footer: ['不需要 App', '不需要登录', '慢慢讲完一个小世界'],
   },
   travelTrail: {
     fallbackTitle: '旅行轨迹',
