@@ -41,7 +41,7 @@ export async function authOptional(req, res, next) {
 
 function findUserBySession(db, token) {
   const stmt = db.prepare(
-    `SELECT u.id, u.username, u.is_creator
+    `SELECT u.id, u.username, u.is_creator, u.role
      FROM auth_sessions s
      JOIN users u ON s.user_id = u.id
      WHERE s.token = ? AND (s.expires_at IS NULL OR s.expires_at > CURRENT_TIMESTAMP)`
@@ -54,7 +54,7 @@ function findUserBySession(db, token) {
 }
 
 function findUserByLegacyToken(db, token) {
-  const stmt = db.prepare('SELECT id, username, is_creator FROM users WHERE id = ?');
+  const stmt = db.prepare('SELECT id, username, is_creator, role FROM users WHERE id = ?');
   stmt.bind([token]);
   let user = null;
   if (stmt.step()) user = stmt.getAsObject();
@@ -77,11 +77,11 @@ export function verifyEntityKey(key, db) {
     const entity = getEntityByToken(db, key);
     if (!entity) return null;
     return {
-      user_id: entity.user_id || null,
-      group_id: entity.group_id,
+      user_id: entity.owner_user_id || null,
+      group_id: entity.ip_definition_id,
       entity_id: entity.id,
       token: entity.token || entity.entity_key,
-      bound: !!entity.user_id,
+      bound: !!entity.owner_user_id,
     };
   }
 

@@ -12,114 +12,75 @@ export type MintedItem = {
   title: string;
   appName: string;
   appCode?: string;
-  token: string;
+  ipDefinitionId?: string | null;
+  ipInstanceId?: string | null;
+  contentDefinitionId?: string | null;
+  applicationDefinitionId?: string | null;
   previewRoute: string;
+  detailRoute: string;
   thumb?: string;
-  status: 'done' | 'collected' | 'work' | 'video' | 'asset' | 'collection' | string;
-  source?: string;
+  status: 'draft' | 'published' | 'processing' | string;
+  source: 'content';
   subtitle?: string;
   createdAt: string;
 };
-
-type RememberMintInput = {
-  id: string;
-  title: string;
-  appName: string;
-  token: string;
-  previewRoute: string;
-  thumb?: string;
-  status?: MintedItem['status'];
-};
-
-const MINT_HISTORY_KEY = 'whatmint_mint_studio_history';
 
 function mergeMintedItems(items: MintedItem[]) {
   const seen = new Set<string>();
   return items
     .filter(item => {
-      const key = item.token ? `${item.appName}:${item.token}` : item.id;
-      if (seen.has(key)) return false;
-      seen.add(key);
+      if (seen.has(item.id)) return false;
+      seen.add(item.id);
       return true;
     })
     .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
-    .slice(0, 80);
+    .slice(0, 100);
 }
 
 function libraryItemToMintedItem(item: MintStudioLibraryItem): MintedItem {
-  const [sourcePrefix, ...idParts] = String(item.id || '').split(':');
+  const [, ...idParts] = String(item.id || '').split(':');
   return {
     id: item.id,
-    rawId: idParts.join(':') || item.id,
-    title: item.title || item.appName || 'Untitled',
+    rawId: item.contentInstanceId || idParts.join(':') || item.id,
+    title: item.title || item.appName || studioCopy.defaultTitle,
     appName: item.appName || item.appCode || 'WhatMint',
     appCode: item.appCode,
-    token: item.tokenCompact || item.token || '',
+    ipDefinitionId: item.ipDefinitionId || null,
+    ipInstanceId: item.ipInstanceId || null,
+    contentDefinitionId: item.contentDefinitionId || null,
+    applicationDefinitionId: item.applicationDefinitionId || null,
     previewRoute: item.previewRoute || '',
+    detailRoute: item.detailRoute || `/content/${idParts.join(':') || item.id}`,
     thumb: item.thumb || undefined,
-    status: item.source || item.status || 'work',
-    source: item.source || sourcePrefix,
+    status: item.status || 'draft',
+    source: 'content',
     subtitle: item.subtitle || item.status || '',
     createdAt: item.updatedAt || item.createdAt || new Date().toISOString(),
   };
 }
 
 export function mintedStatusText(item: MintedItem) {
-  if (item.source === 'work' || item.status === 'work') return studioCopy.libraryStatus.work;
-  if (item.source === 'video' || item.status === 'video') return studioCopy.libraryStatus.video;
-  if (item.source === 'asset' || item.status === 'asset' || item.status === 'collected') return studioCopy.libraryStatus.asset;
-  if (item.source === 'collection' || item.status === 'collection') return studioCopy.libraryStatus.collection;
-  return studioCopy.libraryStatus.minted;
+  if (item.status === 'published') return studioCopy.libraryStatus.published;
+  if (item.status === 'draft') return studioCopy.libraryStatus.draft;
+  if (item.status === 'processing') return studioCopy.libraryStatus.processing;
+  return studioCopy.libraryStatus.content;
 }
 
-export function openMintedItem(item: MintedItem) {
-  if (!item.previewRoute) return;
-  window.open(item.previewRoute, '_blank', 'noopener,noreferrer');
+export function canManageMintedContent(item: MintedItem | null | undefined) {
+  return !!item?.rawId;
 }
 
 export function useMintStudioLibrary() {
-  const localMintedItems = ref<MintedItem[]>([]);
   const serverMintedItems = ref<MintedItem[]>([]);
+  const loggedIn = ref(isLoggedIn());
   const libraryLoading = ref(false);
-  const mintedItems = computed(() => mergeMintedItems([...localMintedItems.value, ...serverMintedItems.value]));
-
-  function loadMintHistory() {
-    try {
-      const parsed = JSON.parse(localStorage.getItem(MINT_HISTORY_KEY) || '[]');
-      localMintedItems.value = Array.isArray(parsed) ? parsed.slice(0, 30) : [];
-    } catch {
-      localMintedItems.value = [];
-    }
-  }
-
-  function saveMintHistory() {
-    localStorage.setItem(MINT_HISTORY_KEY, JSON.stringify(localMintedItems.value.slice(0, 30)));
-  }
-
-  function rememberMint(input: RememberMintInput) {
-    const item: MintedItem = {
-      id: input.id,
-      rawId: input.id,
-      title: input.title,
-      appName: input.appName,
-      token: input.token,
-      previewRoute: input.previewRoute,
-      thumb: input.thumb && !input.thumb.startsWith('blob:') ? input.thumb : undefined,
-      status: input.status || 'done',
-      source: 'local',
-      createdAt: new Date().toISOString(),
-    };
-    localMintedItems.value = [item, ...localMintedItems.value.filter(existing => existing.id !== item.id)].slice(0, 30);
-    saveMintHistory();
-  }
-
-  function removeMint(item: MintedItem) {
-    localMintedItems.value = localMintedItems.value.filter(existing => existing.id !== item.id);
-    saveMintHistory();
-  }
+  const mintedItems = computed(() => (
+    loggedIn.value ? mergeMintedItems(serverMintedItems.value) : []
+  ));
 
   async function loadStudioLibrary() {
-    if (!isLoggedIn()) {
+    loggedIn.value = isLoggedIn();
+    if (!loggedIn.value) {
       serverMintedItems.value = [];
       return;
     }
@@ -136,12 +97,14 @@ export function useMintStudioLibrary() {
     }
   }
 
+  function removeContentItem(item: MintedItem) {
+    serverMintedItems.value = serverMintedItems.value.filter(existing => existing.id !== item.id);
+  }
+
   return {
     libraryLoading,
     mintedItems,
-    loadMintHistory,
     loadStudioLibrary,
-    rememberMint,
-    removeMint,
+    removeContentItem,
   };
 }

@@ -35,13 +35,13 @@ Example:
 ```js
 {
   method: 'put',
-  path: '/entity-default-by-token',
+  path: '/content-default-by-token',
   permission: 'token_unbound_or_owner',
   operation: 'content:token_update',
-  body: { key: 'string', video_id: 'string' },
+  body: { key: 'string', content_id: 'string' },
   response: { success: 'boolean' },
   errors: ['TOKEN_REQUIRED', 'ENTITY_NOT_FOUND', 'LOGIN_REQUIRED'],
-  handler: setEntityDefaultByTokenHandler,
+  handler: setContentDefaultByTokenHandler,
 }
 ```
 

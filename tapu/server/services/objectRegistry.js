@@ -1,189 +1,157 @@
 import { normalizeEntityToken, resultToObjects } from './tokens.js';
 
-function findAnswerBookByToken(db, rawToken) {
-  const token = normalizeEntityToken(rawToken);
-  if (!token) return null;
-
-  return resultToObjects(db.exec(
-    `SELECT t.*, d.name as deck_name, d.subtitle, d.description, d.tone_notes,
-            d.theme_color, d.status as deck_status
-     FROM answer_book_tokens t
-     JOIN answer_book_decks d ON d.id = t.deck_id
-     WHERE t.token = ? LIMIT 1`,
-    [token]
-  ))[0] || null;
+function firstRow(db, sql, params = []) {
+  return resultToObjects(db.exec(sql, params))[0] || null;
 }
 
-function findDailyStickerByToken(db, rawToken) {
-  const token = normalizeEntityToken(rawToken);
-  if (!token) return null;
-
-  return resultToObjects(db.exec(
-    `SELECT t.*, p.name as persona_name, p.object_type, p.tagline,
-            p.theme_color as persona_theme_color, p.status as persona_status,
-            w.name as world_name, w.premise as world_premise,
-            w.theme_color as world_theme_color, w.status as world_status
-     FROM daily_sticker_tokens t
-     JOIN daily_sticker_personas p ON p.id = t.persona_id
-     LEFT JOIN daily_sticker_worlds w ON w.id = t.world_id
-     WHERE t.token = ? LIMIT 1`,
-    [token]
-  ))[0] || null;
+function normalizeToken(rawToken) {
+  return normalizeEntityToken(rawToken);
 }
 
-function findMomentByToken(db, rawToken) {
-  const token = normalizeEntityToken(rawToken);
-  if (!token) return null;
+function resolveCoreIpInstance(db, token) {
+  const row = firstRow(db, `
+    SELECT i.*, d.name as ip_definition_name, d.theme_color, d.cover_url, d.product_image_url,
+           a.code as application_code, a.name as application_name, a.interaction_type, a.app_type
+    FROM ip_instances i
+    LEFT JOIN ip_definitions d ON d.id = i.ip_definition_id
+    LEFT JOIN application_definitions a ON a.id = i.application_definition_id
+    WHERE (i.token = ? OR i.entity_key = ?)
+    LIMIT 1
+  `, [token, token]);
+  if (!row) return null;
 
-  return resultToObjects(db.exec(
-    `SELECT m.*, c.name as collection_name, c.slug as collection_slug,
-            c.description as collection_description, c.status as collection_status,
-            c.theme_color as collection_theme_color
-     FROM moment_tokens m
-     JOIN content_collections c ON c.id = m.collection_id
-     WHERE m.token = ? LIMIT 1`,
-    [token]
-  ))[0] || null;
+  return {
+    object: {
+      type: row.instance_type === 'official_demo' ? 'official-demo' : 'mint-entity',
+      id: row.id,
+      tokenId: row.id,
+      token: row.token,
+      label: row.label || row.ip_definition_name || row.token,
+      status: row.status,
+      displayName: row.label || row.ip_definition_name || row.token,
+      themeColor: row.theme_color || '#ff4fd8',
+    },
+    app: {
+      code: row.application_code || 'emotion-ip',
+      name: row.application_name || 'Emotion IP',
+      interactionType: row.interaction_type || 'tap_to_receive_emotional_content',
+    },
+    raw: {
+      ...row,
+      user_id: row.owner_user_id || null,
+      group_id: row.ip_definition_id,
+      object_type: 'mint-entity',
+      cover_url: row.cover_url || row.product_image_url || null,
+    },
+  };
 }
 
-function findTravelTrailByToken(db, rawToken) {
-  const token = normalizeEntityToken(rawToken);
-  if (!token) return null;
-
-  return resultToObjects(db.exec(
-    `SELECT t.*, w.intent, w.status as work_status
-     FROM travel_trails t
-     LEFT JOIN works w ON w.id = t.work_id
-     WHERE t.token = ? LIMIT 1`,
-    [token]
-  ))[0] || null;
+function buildObject(row, resolver) {
+  return {
+    type: resolver.objectType || 'nfc-sticker',
+    id: row.id,
+    tokenId: row.id,
+    token: row.token,
+    label: resolver.label(row),
+    status: row.status,
+    displayName: resolver.displayName(row),
+    themeColor: resolver.themeColor(row),
+    ...(resolver.extraObject?.(row) || {}),
+  };
 }
 
-function findChecklistByToken(db, rawToken) {
-  const token = normalizeEntityToken(rawToken);
-  if (!token) return null;
+function buildApp(resolver) {
+  return {
+    code: resolver.appCode,
+    name: resolver.appName,
+    interactionType: resolver.interactionType,
+  };
+}
 
-  return resultToObjects(db.exec(
-    `SELECT c.*, w.intent, w.status as work_status,
-            t.name as template_name, t.scenario as template_scenario
-     FROM checklists c
-     LEFT JOIN works w ON w.id = c.work_id
-     LEFT JOIN check_templates t ON t.id = c.template_id
-     WHERE c.token = ? LIMIT 1`,
-    [token]
-  ))[0] || null;
+const OBJECT_RESOLVERS = [
+  {
+    appCode: 'answer-book',
+    appName: '答案之书',
+    interactionType: 'tap_to_mindful_answer',
+    query: `
+      SELECT t.*, d.name as deck_name, d.subtitle, d.description, d.tone_notes,
+             d.theme_color, d.status as deck_status
+      FROM answer_book_tokens t
+      JOIN answer_book_decks d ON d.id = t.deck_id
+      WHERE t.token = ? LIMIT 1
+    `,
+    label: row => row.label,
+    displayName: row => row.label || row.deck_name || '答案之书',
+    themeColor: row => row.theme_color || '#2f6f5e',
+  },
+  {
+    appCode: 'moment',
+    appName: '纪念瞬间',
+    interactionType: 'tap_to_saved_moment',
+    query: `
+      SELECT m.*, c.name as collection_name, c.slug as collection_slug,
+             c.description as collection_description, c.status as collection_status,
+             c.theme_color as collection_theme_color
+      FROM moment_tokens m
+      JOIN content_collections c ON c.id = m.collection_id
+      WHERE m.token = ? LIMIT 1
+    `,
+    label: row => row.object_label || row.title,
+    displayName: row => row.title || row.collection_name || '纪念瞬间',
+    themeColor: row => row.theme_color || row.collection_theme_color || '#9a6a2f',
+  },
+  {
+    appCode: 'travel-trail',
+    appName: '旅行轨迹',
+    interactionType: 'tap_to_travel_trace',
+    query: `
+      SELECT t.*, w.intent, w.status as work_status
+      FROM travel_trails t
+      LEFT JOIN works w ON w.id = t.work_id
+      WHERE t.token = ? LIMIT 1
+    `,
+    label: row => row.object_label || row.title,
+    displayName: row => row.title || '旅行轨迹',
+    themeColor: row => row.theme_color || '#2f6f5e',
+  },
+  {
+    appCode: 'check',
+    appName: 'Check 检查',
+    interactionType: 'tap_to_object_check',
+    query: `
+      SELECT c.*, w.intent, w.status as work_status,
+             t.name as template_name, t.scenario as template_scenario
+      FROM checklists c
+      LEFT JOIN works w ON w.id = c.work_id
+      LEFT JOIN check_templates t ON t.id = c.template_id
+      WHERE c.token = ? LIMIT 1
+    `,
+    label: row => row.object_label || row.title,
+    displayName: row => row.title || 'Check 检查',
+    themeColor: row => row.theme_color || '#2f6f5e',
+  },
+];
+
+export function getObjectResolvers() {
+  return OBJECT_RESOLVERS;
 }
 
 export function resolveObjectByToken(db, rawToken) {
-  const answerBook = findAnswerBookByToken(db, rawToken);
-  if (answerBook) {
-    return {
-      object: {
-        type: 'nfc-sticker',
-        id: answerBook.id,
-        tokenId: answerBook.id,
-        token: answerBook.token,
-        label: answerBook.label,
-        status: answerBook.status,
-        displayName: answerBook.label || answerBook.deck_name || '答案之书',
-        themeColor: answerBook.theme_color || '#2f6f5e',
-      },
-      app: {
-        code: 'answer-book',
-        name: '答案之书',
-        interactionType: 'tap_to_mindful_answer',
-      },
-      raw: answerBook,
-    };
-  }
+  const token = normalizeToken(rawToken);
+  if (!token) return null;
 
-  const dailySticker = findDailyStickerByToken(db, rawToken);
-  if (dailySticker) {
-    return {
-      object: {
-        type: 'nfc-sticker',
-        id: dailySticker.id,
-        tokenId: dailySticker.id,
-        token: dailySticker.token,
-        label: dailySticker.label,
-        status: dailySticker.status,
-        displayName: dailySticker.world_name || dailySticker.persona_name || dailySticker.label || '日常贴纸',
-        themeColor: dailySticker.world_theme_color || dailySticker.persona_theme_color || '#ff4fd8',
-        objectType: dailySticker.object_type || null,
-      },
-      app: {
-        code: 'daily-sticker',
-        name: '日常贴纸',
-        interactionType: 'tap_to_slow_story',
-      },
-      raw: dailySticker,
-    };
-  }
+  const coreIpInstance = resolveCoreIpInstance(db, token);
+  if (coreIpInstance) return coreIpInstance;
 
-  const moment = findMomentByToken(db, rawToken);
-  if (moment) {
-    return {
-      object: {
-        type: 'nfc-sticker',
-        id: moment.id,
-        tokenId: moment.id,
-        token: moment.token,
-        label: moment.object_label || moment.title,
-        status: moment.status,
-        displayName: moment.title || moment.collection_name || '纪念瞬间',
-        themeColor: moment.theme_color || moment.collection_theme_color || '#9a6a2f',
-      },
-      app: {
-        code: 'moment',
-        name: '纪念瞬间',
-        interactionType: 'tap_to_saved_moment',
-      },
-      raw: moment,
-    };
-  }
-
-  const travelTrail = findTravelTrailByToken(db, rawToken);
-  if (travelTrail) {
-    return {
-      object: {
-        type: 'nfc-sticker',
-        id: travelTrail.id,
-        tokenId: travelTrail.id,
-        token: travelTrail.token,
-        label: travelTrail.object_label || travelTrail.title,
-        status: travelTrail.status,
-        displayName: travelTrail.title || '旅行轨迹',
-        themeColor: travelTrail.theme_color || '#2f6f5e',
-      },
-      app: {
-        code: 'travel-trail',
-        name: '旅行轨迹',
-        interactionType: 'tap_to_travel_trace',
-      },
-      raw: travelTrail,
-    };
-  }
-
-  const checklist = findChecklistByToken(db, rawToken);
-  if (checklist) {
-    return {
-      object: {
-        type: 'nfc-sticker',
-        id: checklist.id,
-        tokenId: checklist.id,
-        token: checklist.token,
-        label: checklist.object_label || checklist.title,
-        status: checklist.status,
-        displayName: checklist.title || 'Check 检查',
-        themeColor: checklist.theme_color || '#2f6f5e',
-      },
-      app: {
-        code: 'check',
-        name: 'Check 检查',
-        interactionType: 'tap_to_object_check',
-      },
-      raw: checklist,
-    };
+  for (const resolver of OBJECT_RESOLVERS) {
+    const row = firstRow(db, resolver.query, [token]);
+    if (row) {
+      return {
+        object: buildObject(row, resolver),
+        app: buildApp(resolver),
+        raw: row,
+      };
+    }
   }
 
   return null;

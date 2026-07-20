@@ -13,9 +13,11 @@
     "check:permissions": "node scripts/check-route-permissions.mjs",
     "check:db": "node scripts/check-db-governance.mjs",
     "check:manifests": "node scripts/check-app-manifests.mjs",
+    "check:os": "node scripts/check-os-capabilities.mjs",
+    "check:copy": "node scripts/check-copy-governance.mjs",
     "check:size": "node scripts/check-file-size.mjs",
     "check:server": "node scripts/check-server-syntax.mjs",
-    "check:quality": "npm run check:encoding && npm run check:server && npm run check:permissions && npm run check:db && npm run check:manifests && npm run test:contracts && npm run check:size",
+    "check:quality": "npm run check:encoding && npm run check:server && npm run check:permissions && npm run check:db && npm run check:manifests && npm run check:os && npm run check:copy && npm run test:contracts && npm run check:size",
     "test:contracts": "node --test tests/contracts/*.test.mjs",
     "preview": "vite preview",
     "start": "node server/index.js"

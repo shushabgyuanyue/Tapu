@@ -13,6 +13,7 @@ import {
   replaceCollectionBlocks,
   stringifyJson,
 } from '../services/contentCollections.js';
+import { archiveAppContentInstance } from '../services/coreCreationSync.js';
 
 const router = Router();
 
@@ -242,6 +243,7 @@ async function deleteCollection(req, res) {
   try {
     const db = await getDb();
     db.run('DELETE FROM content_collections WHERE id = ?', [req.params.id]);
+    archiveAppContentInstance(db, 'content_collections', req.params.id);
     saveDb();
     res.json({ success: true });
   } catch (error) {

@@ -8,12 +8,31 @@ function parsePositiveInt(value, fallback) {
   return Number.isFinite(num) && num > 0 ? num : fallback;
 }
 
-function buildVideoFilterParts({ group_id, from, to }, videoAlias = 'v', playAlias = 'p') {
-  const conditions = [];
+function resultToObjects(results) {
+  if (!results || results.length === 0) return [];
+  const { columns, values } = results[0];
+  return values.map(row => {
+    const obj = {};
+    columns.forEach((col, i) => { obj[col] = row[i]; });
+    return obj;
+  });
+}
+
+function buildContentFilterParts({ group_id, from, to }, contentAlias = 'v', playAlias = 'p') {
+  const conditions = [`${contentAlias}.content_kind = 'video'`];
   const params = [];
-  if (group_id) { conditions.push(`${videoAlias}.group_id = ?`); params.push(group_id); }
-  if (from) { conditions.push(`${playAlias}.played_at >= ?`); params.push(from); }
-  if (to) { conditions.push(`${playAlias}.played_at <= ?`); params.push(to + ' 23:59:59'); }
+  if (group_id) {
+    conditions.push(`${contentAlias}.ip_definition_id = ?`);
+    params.push(group_id);
+  }
+  if (from) {
+    conditions.push(`${playAlias}.played_at >= ?`);
+    params.push(from);
+  }
+  if (to) {
+    conditions.push(`${playAlias}.played_at <= ?`);
+    params.push(`${to} 23:59:59`);
+  }
   return { conditions, params };
 }
 
@@ -27,7 +46,6 @@ function buildPagedResponse(items, total, page, pageSize) {
   };
 }
 
-// Record play event
 router.post('/play', async (req, res) => {
   const { video_id } = req.body;
   if (!video_id) return res.status(400).json({ error: 'video_id is required' });
@@ -42,49 +60,47 @@ router.post('/play', async (req, res) => {
   res.json({ success: true });
 });
 
-// Overview stats with optional filters
 router.get('/overview', async (req, res) => {
   const { group_id, from, to } = req.query;
   const db = await getDb();
 
-  // Total plays (filtered)
-  let totalPlaysSql = 'SELECT COUNT(*) as count FROM play_events p JOIN videos v ON p.video_id = v.id';
-  const playConditions = [];
-  const playParams = [];
-  if (group_id) { playConditions.push('v.group_id = ?'); playParams.push(group_id); }
-  if (from) { playConditions.push('p.played_at >= ?'); playParams.push(from); }
-  if (to) { playConditions.push('p.played_at <= ?'); playParams.push(to + ' 23:59:59'); }
-  if (playConditions.length) totalPlaysSql += ' WHERE ' + playConditions.join(' AND ');
-
+  let totalPlaysSql = 'SELECT COUNT(*) as count FROM play_events p JOIN content_instances v ON p.video_id = v.id';
+  const { conditions: playConditions, params: playParams } = buildContentFilterParts({ group_id, from, to });
+  if (playConditions.length) totalPlaysSql += ` WHERE ${playConditions.join(' AND ')}`;
   const totalResult = db.exec(totalPlaysSql, playParams);
   const totalPlays = totalResult.length > 0 ? totalResult[0].values[0][0] : 0;
 
-  // Total videos
-  let totalVideosSql = 'SELECT COUNT(*) as count FROM videos';
+  let totalVideosSql = `SELECT COUNT(*) as count FROM content_instances v WHERE v.content_kind = 'video'`;
+  const videoParams = [];
   if (group_id) {
-    totalVideosSql += ' WHERE group_id = ?';
-    var videosResult = db.exec(totalVideosSql, [group_id]);
-  } else {
-    var videosResult = db.exec(totalVideosSql);
+    totalVideosSql += ' AND v.ip_definition_id = ?';
+    videoParams.push(group_id);
   }
+  const videosResult = db.exec(totalVideosSql, videoParams);
   const totalVideos = videosResult.length > 0 ? videosResult[0].values[0][0] : 0;
 
-  // Top videos by play count
   let topSql = `
     SELECT v.id, v.title, COUNT(p.id) as play_count
-    FROM videos v
+    FROM content_instances v
     LEFT JOIN play_events p ON v.id = p.video_id
   `;
-  const { conditions: topConditions, params: topParams } = buildVideoFilterParts({ group_id, from, to });
-  if (topConditions.length) topSql += ' WHERE ' + topConditions.join(' AND ');
-  topSql += ' GROUP BY v.id ORDER BY play_count DESC LIMIT 10';
+  const { conditions: topConditions, params: topParams } = buildContentFilterParts({ group_id, from, to });
+  if (topConditions.length) topSql += ` WHERE ${topConditions.join(' AND ')}`;
+  topSql += ' GROUP BY v.id ORDER BY play_count DESC, v.created_at DESC LIMIT 10';
+  const topVideos = resultToObjects(db.exec(topSql, topParams));
 
-  const topResult = db.exec(topSql, topParams);
-  const topVideos = resultToObjects(topResult);
-
-  // Default count (how many times defaults have been set)
-  let defaultCountSql = 'SELECT COUNT(*) as count FROM user_defaults';
-  const defaultResult = db.exec(defaultCountSql);
+  let defaultCountSql = `
+    SELECT COUNT(*) as count
+    FROM ip_instance_content_instance_links l
+    JOIN ip_instances i ON i.id = l.ip_instance_id
+    WHERE l.relation_role IN ('owner_default', 'official_default')
+  `;
+  const defaultParams = [];
+  if (group_id) {
+    defaultCountSql += ' AND i.ip_definition_id = ?';
+    defaultParams.push(group_id);
+  }
+  const defaultResult = db.exec(defaultCountSql, defaultParams);
   const defaultCount = defaultResult.length > 0 ? defaultResult[0].values[0][0] : 0;
 
   res.json({ totalPlays, totalVideos, topVideos, defaultCount });
@@ -97,10 +113,10 @@ router.get('/top-videos', async (req, res) => {
     const pageSize = parsePositiveInt(req.query.page_size, 10);
     const db = await getDb();
 
-    let countSql = 'SELECT COUNT(*) as total FROM videos v';
+    let countSql = `SELECT COUNT(*) as total FROM content_instances v WHERE v.content_kind = 'video'`;
     const countParams = [];
     if (group_id) {
-      countSql += ' WHERE v.group_id = ?';
+      countSql += ' AND v.ip_definition_id = ?';
       countParams.push(group_id);
     }
     const countResult = db.exec(countSql, countParams);
@@ -108,11 +124,11 @@ router.get('/top-videos', async (req, res) => {
 
     let sql = `
       SELECT v.id, v.title, COUNT(p.id) as play_count
-      FROM videos v
+      FROM content_instances v
       LEFT JOIN play_events p ON v.id = p.video_id
     `;
-    const { conditions, params } = buildVideoFilterParts({ group_id, from, to });
-    if (conditions.length) sql += ' WHERE ' + conditions.join(' AND ');
+    const { conditions, params } = buildContentFilterParts({ group_id, from, to });
+    if (conditions.length) sql += ` WHERE ${conditions.join(' AND ')}`;
     sql += ' GROUP BY v.id ORDER BY play_count DESC, v.created_at DESC LIMIT ? OFFSET ?';
 
     const result = db.exec(sql, [...params, pageSize, (page - 1) * pageSize]);
@@ -123,7 +139,6 @@ router.get('/top-videos', async (req, res) => {
   }
 });
 
-// Daily aggregated stats
 router.get('/daily', async (req, res) => {
   const { group_id, from, to } = req.query;
   const db = await getDb();
@@ -131,61 +146,53 @@ router.get('/daily', async (req, res) => {
   let sql = `
     SELECT DATE(p.played_at) as date, COUNT(*) as count
     FROM play_events p
-    JOIN videos v ON p.video_id = v.id
+    JOIN content_instances v ON p.video_id = v.id
   `;
-  const conditions = [];
-  const params = [];
-  if (group_id) { conditions.push('v.group_id = ?'); params.push(group_id); }
-  if (from) { conditions.push('p.played_at >= ?'); params.push(from); }
-  if (to) { conditions.push('p.played_at <= ?'); params.push(to + ' 23:59:59'); }
-  if (conditions.length) sql += ' WHERE ' + conditions.join(' AND ');
+  const { conditions, params } = buildContentFilterParts({ group_id, from, to });
+  if (conditions.length) sql += ` WHERE ${conditions.join(' AND ')}`;
   sql += ' GROUP BY DATE(p.played_at) ORDER BY date ASC';
 
   const result = db.exec(sql, params);
-  const daily = resultToObjects(result);
-  res.json(daily);
+  res.json(resultToObjects(result));
 });
 
-// Default video ranking
-router.get('/default-ranking', async (req, res) => {
+router.get('/default-ranking', async (_req, res) => {
   try {
     const db = await getDb();
-    let sql = `
-      SELECT v.id as video_id, v.title, COUNT(ud.id) as default_count
-      FROM videos v
-      JOIN user_defaults ud ON v.id = ud.video_id
+    const sql = `
+      SELECT v.id as video_id, v.title, COUNT(l.id) as default_count
+      FROM content_instances v
+      JOIN ip_instance_content_instance_links l ON v.id = l.content_instance_id
+      WHERE l.relation_role IN ('owner_default', 'official_default')
       GROUP BY v.id
-      ORDER BY default_count DESC
+      ORDER BY default_count DESC, v.created_at DESC
       LIMIT 20
     `;
     const result = db.exec(sql);
-    const ranking = resultToObjects(result);
-    res.json(ranking);
+    res.json(resultToObjects(result));
   } catch (error) {
     console.error('Error fetching default ranking:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// Community leaderboard - top groups by engagement
 router.get('/leaderboard', async (req, res) => {
   try {
     const db = await getDb();
     const page = parsePositiveInt(req.query.page, 1);
     const pageSize = parsePositiveInt(req.query.page_size, 10);
-    const countResult = db.exec('SELECT COUNT(*) as total FROM groups');
+    const countResult = db.exec('SELECT COUNT(*) as total FROM ip_definitions');
     const total = countResult.length > 0 ? countResult[0].values[0][0] : 0;
     const sql = `
-      SELECT g.id, g.name, g.series_id, s.name as series_name,
-        COUNT(DISTINCT p.id) as play_count,
-        COUNT(DISTINCT pr.id) as purchase_count
-      FROM groups g
-      LEFT JOIN videos v ON v.group_id = g.id
+      SELECT g.id, g.name, g.primary_series_key as series_id, g.primary_series_name as series_name,
+             COUNT(DISTINCT p.id) as play_count,
+             COUNT(DISTINCT o.id) as purchase_count
+      FROM ip_definitions g
+      LEFT JOIN content_instances v ON v.ip_definition_id = g.id AND v.content_kind = 'video'
       LEFT JOIN play_events p ON p.video_id = v.id
-      LEFT JOIN purchases pr ON pr.group_id = g.id
-      LEFT JOIN series s ON g.series_id = s.id
+      LEFT JOIN orders o ON o.group_id = g.id
       GROUP BY g.id
-      ORDER BY play_count DESC
+      ORDER BY play_count DESC, purchase_count DESC, g.created_at DESC
       LIMIT ? OFFSET ?
     `;
     const result = db.exec(sql, [pageSize, (page - 1) * pageSize]);
@@ -195,15 +202,5 @@ router.get('/leaderboard', async (req, res) => {
     res.status(500).json({ error: 'Internal server error' });
   }
 });
-
-function resultToObjects(results) {
-  if (!results || results.length === 0) return [];
-  const { columns, values } = results[0];
-  return values.map(row => {
-    const obj = {};
-    columns.forEach((col, i) => { obj[col] = row[i]; });
-    return obj;
-  });
-}
 
 export default router;

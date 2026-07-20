@@ -8,11 +8,19 @@ const BUILT_IN_APPLICATIONS = [
     status: 'active',
   },
   {
-    name: '手账慢故事贴纸',
-    code: 'daily-sticker',
-    app_type: 'state',
-    interaction_type: 'tap_to_slow_story',
-    description: '一枚贴纸进入一个连续更新的小世界。',
+    name: '纸巾小狗',
+    code: 'tissue-puppy',
+    app_type: 'meaning',
+    interaction_type: 'tap_to_comfort_video',
+    description: '触碰纸巾小狗，打开一段温柔、克制、可被收藏和替换的视频内容。',
+    status: 'active',
+  },
+  {
+    name: '耳机小姐',
+    code: 'earphone-girl',
+    app_type: 'meaning',
+    interaction_type: 'audio_story_gateway',
+    description: '一枚耳机贴纸打开会旅行、会倾听、会带回故事的朋友。',
     status: 'active',
   },
   {
@@ -56,14 +64,17 @@ export function getBuiltInApplications() {
 export function ensureApplicationRegistry(db) {
   for (const app of BUILT_IN_APPLICATIONS) {
     db.run(
-      `INSERT INTO applications (id, name, code, app_type, interaction_type, description, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?)
+      `INSERT INTO application_definitions
+       (id, name, code, version_no, app_type, interaction_type, description, status)
+       VALUES (?, ?, ?, '1.0.0', ?, ?, ?, ?)
        ON CONFLICT(code) DO UPDATE SET
          name = excluded.name,
+         version_no = excluded.version_no,
          app_type = excluded.app_type,
          interaction_type = excluded.interaction_type,
          description = excluded.description,
-         status = excluded.status`,
+         status = excluded.status,
+         updated_at = CURRENT_TIMESTAMP`,
       [
         app.code,
         app.name,

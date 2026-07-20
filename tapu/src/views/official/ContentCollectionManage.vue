@@ -31,7 +31,7 @@ const collectionForm = ref<ContentCollectionInput>({
 });
 
 const bindingForm = ref<AppBindingInput>({
-  app_code: 'daily-sticker',
+  app_code: 'earphone-girl',
   collection_id: '',
   scope_type: 'app',
   scope_id: '',

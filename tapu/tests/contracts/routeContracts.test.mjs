@@ -48,3 +48,21 @@ test('contracted critical routes declare response shape', () => {
     }
   }
 });
+
+test('light app open routes declare standard runtime context', () => {
+  const openRoutes = [
+    'POST /api/videos/resolve',
+    'GET /api/earphone-girl/resolve',
+    'GET /api/answer-book/resolve',
+    'GET /api/moments/resolve',
+    'GET /api/travel-trails/resolve',
+    'GET /api/checks/resolve',
+  ];
+
+  for (const key of openRoutes) {
+    const route = routeIndex.get(key);
+    assert.ok(route, `missing light app open route ${key}`);
+    assert.equal(route.operation, 'view:open', `${key} should be a view:open operation`);
+    assert.equal(route.response?.runtime_context, 'object', `${key} should declare runtime_context`);
+  }
+});

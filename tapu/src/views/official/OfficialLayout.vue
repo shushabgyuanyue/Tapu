@@ -25,7 +25,6 @@ const navModules = [
     description: '每个已实现场景应用都有独立工作台。',
     accent: '#d98fb7',
     items: [
-      { path: '/official/daily-stickers', label: '手账慢故事贴纸' },
       { path: '/official/answer-book', label: '答案之书' },
       { path: '/official/moments', label: '纪念瞬间' },
       { path: '/official/travel-trails', label: '旅行轨迹' },
@@ -49,6 +48,7 @@ const navModules = [
     accent: '#26324a',
     items: [
       { path: '/official/applications', label: '应用目录' },
+      { path: '/official/app-intake', label: '接入清单' },
       { path: '/official/stats', label: '数据观察' },
       { path: '/official/settings', label: '全局开关' },
     ],

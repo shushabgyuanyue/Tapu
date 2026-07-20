@@ -1,665 +1,448 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import {
-  fetchVideo,
-  fetchSiblings,
-  recordPlay,
-  setDefault,
+  fetchContentInstance,
   resolveByKey,
-  getConfig,
-  setEntityDefault,
-  setEntityDefaultByToken,
-  isLoggedIn,
 } from '../api';
 import { contentCopy } from '../copy';
+import '../styles/player.css';
 
 const route = useRoute();
 const router = useRouter();
 
-// Feed state
-const feed = ref<any[]>([]);
-const currentIndex = ref(0);
+type ResourceType = 'video' | 'image';
+type Renderer = 'video.fullscreen' | 'ar.camera-overlay' | string;
+type PlayableContent = {
+  id: string;
+  title: string;
+  summary?: string;
+  renderer: Renderer;
+  resourceType: ResourceType;
+  url: string;
+  poster?: string;
+  playback: {
+    autoplay: boolean;
+    mutedByDefault: boolean;
+    tapToUnmute: boolean;
+    loop: boolean;
+    replayMode: 'loop' | 'manual';
+    objectFit: 'cover' | 'contain';
+  };
+  ar: {
+    mode: string;
+    placement: string;
+    scale: number;
+    cameraFacingMode: 'environment' | 'user';
+  };
+};
+
+const mediaRef = ref<HTMLVideoElement | null>(null);
+const cameraRef = ref<HTMLVideoElement | null>(null);
+const content = ref<PlayableContent | null>(null);
 const isLoaded = ref(false);
 const loadFailed = ref(false);
-const showTapHint = ref(true); // Show unmute hint by default (autoplay is muted)
-const userHasUnmuted = ref(false); // Track if user explicitly unmuted
+const showTapHint = ref(true);
+const userHasUnmuted = ref(false);
+const videoEnded = ref(false);
+const cameraUnavailable = ref(false);
 
-// Swipe state
-const translateY = ref(0);
-const isSwiping = ref(false);
-const startY = ref(0);
-const startTime = ref(0);
-const isAnimating = ref(false);
-const noTransition = ref(false);
+let autoplayAttempted = false;
+let cameraStream: MediaStream | null = null;
 
-// Video refs - we render multiple video elements for smooth transition
-const videoRefs = ref<Record<number, HTMLVideoElement>>({});
-
-// Double-tap state
-const showHeartAnim = ref(false);
-const showDefaultSet = ref(false);
-const defaultToastText = ref(contentCopy.player.defaultSet);
-let tapTimeout: number | null = null;
-let heartAnimTimeout: number | null = null;
-let defaultToastTimeout: number | null = null;
-
-// Ad state
-const adEnabled = ref(false);
-const adInterval = ref(5);
-const swipeCount = ref(0);
-const showAdCard = ref(false);
-const communityEnabled = ref(false);
-const activeEntityKey = ref('');
-const resolvedEntityId = ref('');
-const resolvedOwnerId = ref('');
-
-// Viewport height
-const viewportHeight = ref(window.innerHeight);
-
-const trackStyle = computed(() => {
-  const base = -(currentIndex.value * viewportHeight.value);
-  const offset = base + translateY.value;
+const title = computed(() => content.value?.title || contentCopy.detail.renderer.videoFullscreen);
+const isArRenderer = computed(() => content.value?.renderer === 'ar.camera-overlay');
+const shouldLoop = computed(() => content.value?.playback.loop && content.value.playback.replayMode !== 'manual');
+const showReplay = computed(() => (
+  !!content.value
+  && content.value.resourceType === 'video'
+  && videoEnded.value
+  && !shouldLoop.value
+));
+const mediaObjectFit = computed(() => content.value?.playback.objectFit || 'cover');
+const arOverlayStyle = computed(() => {
+  const scale = Math.max(0.36, Math.min(1.1, Number(content.value?.ar.scale || 0.72)));
   return {
-    transform: `translateY(${offset}px)`,
-    transition: (isSwiping.value || noTransition.value) ? 'none' : 'transform 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
+    width: `${Math.round(scale * 100)}vmin`,
+    maxWidth: '86vw',
+    maxHeight: '72vh',
   };
 });
 
-onMounted(async () => {
-  const loadingEl = document.getElementById('app-loading');
-  if (loadingEl) loadingEl.style.display = 'none';
+function normalizePlayback(raw: any = {}) {
+  const playback = raw?.playback || raw?.payload?.playback || {};
+  const replayMode = playback.replayMode === 'manual' || playback.replay_mode === 'manual' ? 'manual' : 'loop';
+  return {
+    autoplay: playback.autoplay !== false,
+    mutedByDefault: playback.mutedByDefault !== false && playback.muted_by_default !== false,
+    tapToUnmute: playback.tapToUnmute !== false && playback.tap_to_unmute !== false,
+    loop: playback.loop !== false && replayMode !== 'manual',
+    replayMode,
+    objectFit: playback.objectFit === 'contain' || playback.object_fit === 'contain' ? 'contain' : 'cover',
+  };
+}
 
-  viewportHeight.value = window.innerHeight;
-  window.addEventListener('resize', onResize);
+function normalizeAr(raw: any = {}) {
+  const ar = raw?.ar || raw?.payload?.ar || {};
+  return {
+    mode: ar.mode || 'camera_overlay',
+    placement: ar.placement || 'screen_center',
+    scale: Number(ar.scale || 0.72),
+    cameraFacingMode: ar.cameraFacingMode === 'user' || ar.camera_facing_mode === 'user' ? 'user' : 'environment',
+  };
+}
 
-  // Register first-interaction listeners for WeChat/restricted browsers
-  document.addEventListener('touchstart', onFirstInteraction, { once: true });
-  document.addEventListener('click', onFirstInteraction, { once: true });
+function inferRenderer(contentPayload: any): Renderer {
+  return contentPayload?.renderer
+    || contentPayload?.content_definition_template?.renderer
+    || contentPayload?.payload?.renderer
+    || (contentPayload?.content_kind === 'video' ? 'video.fullscreen' : 'content.blocks');
+}
 
-  // WeChat WeixinJSBridge: auto-play on ready
-  if ((window as any).WeixinJSBridge) {
-    (window as any).WeixinJSBridge.invoke('getNetworkType', {}, () => { tryAutoplay(); });
-  } else {
-    document.addEventListener('WeixinJSBridgeReady', () => {
-      tryAutoplay();
-    }, { once: true });
+function findRenderableResource(contentPayload: any, renderer: Renderer) {
+  const blocks = Array.isArray(contentPayload?.blocks) ? contentPayload.blocks : [];
+  const resources = Array.isArray(contentPayload?.resources) ? contentPayload.resources : [];
+  const mediaKinds = renderer === 'ar.camera-overlay' ? ['video', 'image'] : ['video'];
+
+  const block = blocks.find((item: any) => mediaKinds.includes(item?.kind) && item?.url);
+  if (block) {
+    return {
+      resourceType: block.kind,
+      url: block.url,
+      poster: block.poster || '',
+      title: block.title,
+      caption: block.caption,
+    };
   }
 
-  // Load ad config
-  try {
-    const [enabledRes, intervalRes, communityRes] = await Promise.all([
-      getConfig('ad_enabled'),
-      getConfig('ad_interval'),
-      getConfig('community_enabled'),
-    ]);
-    communityEnabled.value = communityRes.value === 'true' || communityRes.value === true;
-    if (enabledRes.value !== null) adEnabled.value = (enabledRes.value === 'true') && communityEnabled.value;
-    if (intervalRes.value !== null) adInterval.value = parseInt(intervalRes.value) || 5;
-  } catch { /* defaults */ }
+  const preferredRelation = renderer === 'ar.camera-overlay' ? 'ar_overlay' : 'primary_video';
+  const preferred = resources.find((item: any) => (
+    mediaKinds.includes(item?.resource_type)
+    && item?.storage_url
+    && item?.relation_role === preferredRelation
+  ));
+  const fallback = resources.find((item: any) => mediaKinds.includes(item?.resource_type) && item?.storage_url);
+  const resource = preferred || fallback;
+  if (!resource) return null;
 
+  return {
+    resourceType: resource.resource_type,
+    url: resource.storage_url,
+    poster: resource.preview_url || '',
+    title: resource.original_filename,
+    caption: contentPayload.summary || '',
+  };
+}
+
+function playableFromPayload(payload: any): PlayableContent | null {
+  const contentPayload = payload?.content || payload;
+  const renderer = inferRenderer(contentPayload);
+  const resource = findRenderableResource(contentPayload, renderer);
+  if (!resource) return null;
+
+  return {
+    id: contentPayload.id,
+    title: contentPayload.title || resource.title || contentCopy.player.defaultTitle,
+    summary: contentPayload.summary || resource.caption || '',
+    renderer,
+    resourceType: resource.resourceType,
+    url: resource.url,
+    poster: resource.poster,
+    playback: normalizePlayback(contentPayload),
+    ar: normalizeAr(contentPayload),
+  };
+}
+
+async function loadByContentId(contentId: string) {
+  const payload = await fetchContentInstance(contentId);
+  if (payload?.error) throw new Error(payload.error);
+  const playable = playableFromPayload(payload);
+  if (!playable) throw new Error('NO_PLAYABLE_CONTENT');
+  resetPlaybackState();
+  content.value = playable;
+  await prepareRenderer();
+}
+
+async function loadByToken(key: string) {
+  const payload = await resolveByKey(key);
+  if (payload?.error) throw new Error(payload.error);
+  const playable = playableFromPayload(payload);
+  if (!playable) throw new Error('NO_PLAYABLE_CONTENT');
+  resetPlaybackState();
+  content.value = playable;
+  await prepareRenderer();
+}
+
+async function loadByDraft(draftId: string) {
+  const raw = window.sessionStorage.getItem(`whatmint:player-draft:${draftId}`);
+  if (!raw) throw new Error('NO_DRAFT_CONTENT');
+  const payload = JSON.parse(raw);
+  const playable = playableFromPayload(payload);
+  if (!playable) throw new Error('NO_PLAYABLE_CONTENT');
+  resetPlaybackState();
+  content.value = playable;
+  await prepareRenderer();
+}
+
+function resetPlaybackState() {
+  autoplayAttempted = false;
+  isLoaded.value = false;
+  loadFailed.value = false;
+  showTapHint.value = true;
+  userHasUnmuted.value = false;
+  videoEnded.value = false;
+  cameraUnavailable.value = false;
+  stopCamera();
+}
+
+async function prepareRenderer() {
+  if (content.value?.renderer === 'ar.camera-overlay') {
+    await nextTick();
+    await startCamera();
+    if (content.value.resourceType === 'image') isLoaded.value = true;
+    return;
+  }
+  if (content.value?.resourceType === 'image') isLoaded.value = true;
+}
+
+async function loadPlayableContent() {
   const id = typeof route.params.id === 'string' ? route.params.id : '';
   const key = typeof route.query.key === 'string' ? route.query.key : '';
-  activeEntityKey.value = key;
+  const draft = typeof route.query.draft === 'string' ? route.query.draft : '';
 
-  // Key-based entry: resolve via entity key (includes private content)
-  if (key && !id) {
-    try {
-      const data = await resolveByKey(key);
-      if (data.videos && data.videos.length > 0) {
-        feed.value = data.videos;
-        resolvedEntityId.value = data.entity_id || '';
-        resolvedOwnerId.value = data.user_id || '';
-        safeRecordPlay(data.videos[0].id);
-        return;
-      } else {
-        loadFailed.value = true;
-        return;
-      }
-    } catch (e) {
-      console.error('Key resolve failed:', e);
-      loadFailed.value = true;
+  try {
+    if (draft) {
+      await loadByDraft(draft);
       return;
     }
-  }
-
-  // Standard entry by video ID
-  if (id) {
-    try {
-      if (key) {
-        const resolved = await resolveByKey(key);
-        resolvedEntityId.value = resolved.entity_id || '';
-        resolvedOwnerId.value = resolved.user_id || '';
-      }
-      const video = await fetchVideo(id, key);
-      if (video && !video.error && video.file_path) {
-        feed.value = [video];
-        safeRecordPlay(id);
-        // Load siblings
-        const sibs = await fetchSiblings(id, key);
-        if (sibs && sibs.length > 0) {
-          feed.value = [video, ...sibs];
-        }
-      } else {
-        loadFailed.value = true;
-      }
-    } catch (e) {
-      console.error('Failed to load video:', e);
-      loadFailed.value = true;
+    if (id) {
+      await loadByContentId(id);
+      return;
     }
-  } else if (!key) {
+    if (key) {
+      await loadByToken(key);
+      return;
+    }
+    loadFailed.value = true;
+  } catch (error) {
+    console.error('OS content playback failed:', error);
     loadFailed.value = true;
   }
+}
+
+async function startCamera() {
+  if (!navigator.mediaDevices?.getUserMedia || !content.value) {
+    cameraUnavailable.value = true;
+    return;
+  }
+
+  try {
+    cameraStream = await navigator.mediaDevices.getUserMedia({
+      video: {
+        facingMode: { ideal: content.value.ar.cameraFacingMode },
+      },
+      audio: false,
+    });
+    if (cameraRef.value) {
+      cameraRef.value.srcObject = cameraStream;
+      await cameraRef.value.play();
+    }
+  } catch {
+    cameraUnavailable.value = true;
+  }
+}
+
+function stopCamera() {
+  if (!cameraStream) return;
+  for (const track of cameraStream.getTracks()) track.stop();
+  cameraStream = null;
+}
+
+async function tryAutoplay() {
+  const media = mediaRef.value;
+  if (!media || autoplayAttempted || content.value?.resourceType !== 'video') return;
+  autoplayAttempted = true;
+  if (!content.value?.playback.autoplay) return;
+  media.muted = content.value.playback.mutedByDefault;
+  try {
+    await media.play();
+    showTapHint.value = content.value.playback.mutedByDefault && content.value.playback.tapToUnmute;
+  } catch {
+    showTapHint.value = true;
+  }
+}
+
+function onLoaded() {
+  isLoaded.value = true;
+  tryAutoplay();
+}
+
+function onImageLoaded() {
+  isLoaded.value = true;
+}
+
+function onMediaError() {
+  loadFailed.value = true;
+}
+
+function onVideoEnded() {
+  videoEnded.value = true;
+}
+
+async function unmute() {
+  const media = mediaRef.value;
+  if (!media || !content.value?.playback.tapToUnmute || content.value.resourceType !== 'video') return;
+  userHasUnmuted.value = true;
+  showTapHint.value = false;
+  media.muted = false;
+  media.volume = 1;
+  try {
+    await media.play();
+  } catch {
+    showTapHint.value = true;
+  }
+}
+
+async function replay() {
+  const media = mediaRef.value;
+  if (!media) return;
+  videoEnded.value = false;
+  media.currentTime = 0;
+  try {
+    await media.play();
+  } catch {
+    showTapHint.value = true;
+  }
+}
+
+function onFirstInteraction() {
+  if (userHasUnmuted.value) return;
+  tryAutoplay();
+}
+
+function handleStageClick() {
+  if (showReplay.value) {
+    replay();
+    return;
+  }
+  if (!userHasUnmuted.value) unmute();
+}
+
+onMounted(() => {
+  const loadingEl = document.getElementById('app-loading');
+  if (loadingEl) loadingEl.style.display = 'none';
+  document.addEventListener('touchstart', onFirstInteraction, { once: true });
+  document.addEventListener('click', onFirstInteraction, { once: true });
+  loadPlayableContent();
 });
 
 onUnmounted(() => {
-  window.removeEventListener('resize', onResize);
   document.removeEventListener('touchstart', onFirstInteraction);
   document.removeEventListener('click', onFirstInteraction);
-  clearTimer(tapTimeout);
-  clearTimer(heartAnimTimeout);
-  clearTimer(defaultToastTimeout);
+  stopCamera();
 });
-
-const onResize = () => { viewportHeight.value = window.innerHeight; };
-
-const clearTimer = (timerId: number | null) => {
-  if (timerId !== null) {
-    window.clearTimeout(timerId);
-  }
-};
-
-const safeRecordPlay = (videoId: string) => {
-  recordPlay(videoId).catch((error) => {
-    console.warn('Record play failed:', error);
-  });
-};
-
-const onVideoCanPlay = (idx: number) => {
-  if (idx === currentIndex.value && !isLoaded.value) {
-    isLoaded.value = true;
-    tryAutoplay();
-  }
-};
-
-// Attempt autoplay; if blocked (WeChat/Safari), wait for user touch
-let autoplaySucceeded = false;
-const tryAutoplay = () => {
-  const v = videoRefs.value[currentIndex.value];
-  if (!v || autoplaySucceeded) return;
-  v.muted = true;
-  const p = v.play();
-  if (p) {
-    p.then(() => {
-      autoplaySucceeded = true;
-    }).catch(() => {
-      // Autoplay blocked — will play on first user interaction
-    });
-  }
-};
-
-// WeChat & restricted browsers: use first touch/click to kick off playback
-const onFirstInteraction = () => {
-  if (autoplaySucceeded) return;
-  const v = videoRefs.value[currentIndex.value];
-  if (v && v.paused) {
-    v.muted = true;
-    v.play().then(() => { autoplaySucceeded = true; }).catch(() => {});
-  }
-  document.removeEventListener('touchstart', onFirstInteraction);
-  document.removeEventListener('click', onFirstInteraction);
-};
-
-// Play current, pause others
-const syncPlayback = () => {
-  Object.entries(videoRefs.value).forEach(([idxStr, el]) => {
-    const idx = parseInt(idxStr);
-    if (idx === currentIndex.value) {
-      el.muted = !userHasUnmuted.value;
-      // Safari: ensure source is loaded before play
-      if (el.readyState < 2) {
-        el.load();
-      }
-      el.play().catch(() => {});
-    } else {
-      el.pause();
-      el.currentTime = 0;
-    }
-  });
-};
-
-const unmute = () => {
-  userHasUnmuted.value = true;
-  showTapHint.value = false;
-  const v = videoRefs.value[currentIndex.value];
-  if (v) {
-    v.muted = false;
-    v.volume = 1.0;
-  }
-};
-
-// --- Touch swipe ---
-const onTouchStart = (e: TouchEvent) => {
-  if (isAnimating.value || feed.value.length <= 1) return;
-  isSwiping.value = true;
-  startY.value = e.touches[0].clientY;
-  startTime.value = Date.now();
-  translateY.value = 0;
-};
-
-const onTouchMove = (e: TouchEvent) => {
-  if (!isSwiping.value) return;
-  e.preventDefault();
-  const diff = e.touches[0].clientY - startY.value;
-  translateY.value = diff;
-};
-
-const onTouchEnd = () => {
-  if (!isSwiping.value) return;
-  isSwiping.value = false;
-
-  const dist = translateY.value;
-  const elapsed = Date.now() - startTime.value;
-  const velocity = Math.abs(dist) / elapsed;
-  const threshold = viewportHeight.value * 0.2;
-
-  // Swipe up (next) or fast flick — infinite loop
-  if (dist < -threshold || (velocity > 0.5 && dist < -30)) {
-    const next = (currentIndex.value + 1) % feed.value.length;
-    goTo(next);
-  }
-  // Swipe down (prev) or fast flick — infinite loop
-  else if (dist > threshold || (velocity > 0.5 && dist > 30)) {
-    const prev = (currentIndex.value - 1 + feed.value.length) % feed.value.length;
-    goTo(prev);
-  }
-  // Snap back
-  else {
-    translateY.value = 0;
-  }
-};
-
-// --- Wheel (desktop) ---
-let wheelCooldown = false;
-const onWheel = (e: WheelEvent) => {
-  if (wheelCooldown || isAnimating.value || feed.value.length <= 1) return;
-  if (e.deltaY > 40) {
-    wheelCooldown = true;
-    const next = (currentIndex.value + 1) % feed.value.length;
-    goTo(next);
-    setTimeout(() => { wheelCooldown = false; }, 600);
-  } else if (e.deltaY < -40) {
-    wheelCooldown = true;
-    const prev = (currentIndex.value - 1 + feed.value.length) % feed.value.length;
-    goTo(prev);
-    setTimeout(() => { wheelCooldown = false; }, 600);
-  }
-};
-
-const goTo = (index: number) => {
-  isAnimating.value = true;
-  translateY.value = 0;
-
-  // Detect wrap-around (jump from last to first or first to last)
-  const isWrap = Math.abs(index - currentIndex.value) > 1;
-  if (isWrap) {
-    noTransition.value = true;
-    currentIndex.value = index;
-    // Force layout, then re-enable transition
-    requestAnimationFrame(() => {
-      noTransition.value = false;
-    });
-  } else {
-    currentIndex.value = index;
-  }
-
-  // Ad logic: show ad after completing a full cycle or reaching ad interval
-  swipeCount.value++;
-  const completedCycle = index === 0 && swipeCount.value > 1;
-  if (adEnabled.value && (completedCycle || swipeCount.value >= adInterval.value)) {
-    swipeCount.value = 0;
-    showAdCard.value = true;
-  }
-
-  const video = feed.value[index];
-  if (video?.id) {
-    router.replace({
-      path: `/play/${video.id}`,
-      query: activeEntityKey.value ? { key: activeEntityKey.value } : {},
-    });
-    safeRecordPlay(video.id);
-  }
-
-  // After transition completes
-  setTimeout(() => {
-    isAnimating.value = false;
-    syncPlayback();
-  }, isWrap ? 50 : 380);
-};
-
-const dismissAd = () => {
-  showAdCard.value = false;
-};
-
-const goToCommunity = () => {
-  router.push(communityEnabled.value ? '/community' : '/shop');
-};
-
-// --- Tap / Double-tap ---
-const onTap = () => {
-  if (tapTimeout !== null) {
-    clearTimeout(tapTimeout);
-    tapTimeout = null;
-    onDoubleTap();
-  } else {
-    tapTimeout = window.setTimeout(() => {
-      tapTimeout = null;
-      onSingleTap();
-    }, 250);
-  }
-};
-
-const onSingleTap = () => {
-  // If user hasn't unmuted yet, single tap unmutes
-  if (!userHasUnmuted.value) {
-    unmute();
-    return;
-  }
-  // Otherwise toggle play/pause
-  const v = videoRefs.value[currentIndex.value];
-  if (v) {
-    if (v.paused) {
-      v.play().catch(() => {});
-    } else {
-      v.pause();
-    }
-  }
-};
-
-const onDoubleTap = async () => {
-  const video = feed.value[currentIndex.value];
-  if (!video?.id) return;
-
-  try {
-    if (activeEntityKey.value) {
-      let result: any;
-      if (resolvedOwnerId.value) {
-        if (!isLoggedIn()) {
-          defaultToastText.value = contentCopy.player.ownerLoginRequired;
-          showDefaultSet.value = true;
-          clearTimer(defaultToastTimeout);
-          defaultToastTimeout = window.setTimeout(() => {
-            showDefaultSet.value = false;
-            defaultToastTimeout = null;
-          }, 2200);
-          return;
-        }
-        result = await setEntityDefault(resolvedEntityId.value, video.id);
-      } else {
-        result = await setEntityDefaultByToken(activeEntityKey.value, video.id);
-      }
-      if (result?.error) throw new Error(result.error);
-    } else {
-      await setDefault(video.id);
-    }
-  } catch (error) {
-    console.warn('Set default failed:', error);
-    defaultToastText.value = error instanceof Error ? error.message : contentCopy.player.defaultFailed;
-    showDefaultSet.value = true;
-    clearTimer(defaultToastTimeout);
-    defaultToastTimeout = window.setTimeout(() => {
-      showDefaultSet.value = false;
-      defaultToastTimeout = null;
-    }, 2200);
-    return;
-  }
-
-  if (video.group_id) {
-    localStorage.setItem(`whatmint_default_${video.group_id}`, video.id);
-  }
-
-  showHeartAnim.value = true;
-  defaultToastText.value = contentCopy.player.defaultSet;
-  showDefaultSet.value = true;
-  clearTimer(heartAnimTimeout);
-  clearTimer(defaultToastTimeout);
-  heartAnimTimeout = window.setTimeout(() => {
-    showHeartAnim.value = false;
-    heartAnimTimeout = null;
-  }, 800);
-  defaultToastTimeout = window.setTimeout(() => {
-    showDefaultSet.value = false;
-    defaultToastTimeout = null;
-  }, 2000);
-};
 </script>
 
 <template>
-  <div
-    ref="containerRef"
-    class="player-container"
-    @touchstart.passive="onTouchStart"
-    @touchmove="onTouchMove"
-    @touchend="onTouchEnd"
-    @wheel.prevent="onWheel"
-  >
-    <!-- Loading -->
+  <main class="player-container">
     <transition name="fade">
       <div v-if="!isLoaded && !loadFailed" class="loading-screen">
         <div class="breathing-circle"></div>
       </div>
     </transition>
 
-    <!-- Error state -->
-    <div v-if="loadFailed" class="error-screen">
+    <section v-if="loadFailed" class="error-screen">
       <p class="error-text">{{ contentCopy.player.error.title }}</p>
       <p class="error-hint">{{ contentCopy.player.error.hint }}</p>
-      <button class="error-btn" @click="router.push(communityEnabled ? '/community' : '/shop')">{{ communityEnabled ? contentCopy.player.error.community : contentCopy.player.error.shop }}</button>
-    </div>
+      <button class="error-btn" type="button" @click="router.push('/shop')">{{ contentCopy.player.error.shop }}</button>
+    </section>
 
-    <!-- Video feed stack -->
-    <div
-      class="feed-track"
-      :style="trackStyle"
+    <section
+      v-else-if="content && isArRenderer"
+      class="ar-stage"
+      :aria-label="title"
+      @click="handleStageClick"
     >
-      <div
-        v-for="(video, idx) in feed"
-        :key="video.id || idx"
-        class="feed-item"
-        @click="onTap"
-      >
-        <video
-          :ref="(el) => { if (el) videoRefs[idx] = el as HTMLVideoElement }"
-          class="emotion-video"
-          :src="video.file_path"
-          :poster="video.poster_url || undefined"
-          :preload="Math.abs(idx - currentIndex) <= 1 ? 'auto' : 'none'"
-          loop
-          muted
-          playsinline
-          webkit-playsinline
-          x5-video-player-type="h5"
-          x5-video-player-fullscreen="true"
-          x5-video-orientation="portrait"
-          @canplay="() => onVideoCanPlay(idx)"
-          @loadeddata="() => onVideoCanPlay(idx)"
-        ></video>
+      <video
+        ref="cameraRef"
+        class="camera-feed"
+        autoplay
+        muted
+        playsinline
+        webkit-playsinline
+      ></video>
+      <div v-if="cameraUnavailable" class="camera-fallback">
+        <span>{{ contentCopy.player.ar.cameraFallback }}</span>
       </div>
-    </div>
 
-    <!-- Tap hint (unmute) -->
-    <transition name="fade">
-      <div v-if="showTapHint && isLoaded" class="tap-hint" @click.stop="unmute">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
-          <line x1="23" y1="9" x2="17" y2="15"/>
-          <line x1="17" y1="9" x2="23" y2="15"/>
-        </svg>
-        <span>{{ contentCopy.player.sound }}</span>
-      </div>
-    </transition>
+      <div class="ar-reticle" aria-hidden="true"></div>
 
-    <!-- Heart animation on double tap -->
-    <transition name="heart-pop">
-      <div v-if="showHeartAnim" class="heart-anim">
-        <svg viewBox="0 0 24 24" width="80" height="80" fill="#ff4d6a" stroke="none">
-          <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/>
-        </svg>
-      </div>
-    </transition>
+      <video
+        v-if="content.resourceType === 'video'"
+        ref="mediaRef"
+        class="ar-overlay-media"
+        :style="arOverlayStyle"
+        :src="content.url"
+        :poster="content.poster || undefined"
+        autoplay
+        muted
+        :loop="shouldLoop"
+        playsinline
+        webkit-playsinline
+        preload="auto"
+        @canplay="onLoaded"
+        @loadeddata="onLoaded"
+        @ended="onVideoEnded"
+        @error="onMediaError"
+      ></video>
+      <img
+        v-else
+        class="ar-overlay-media"
+        :style="arOverlayStyle"
+        :src="content.url"
+        :alt="content.title"
+        @load="onImageLoaded"
+        @error="onMediaError"
+      />
 
-    <!-- Default set toast -->
-    <transition name="fade">
-      <div v-if="showDefaultSet" class="default-toast">{{ defaultToastText }}</div>
-    </transition>
+      <transition name="fade">
+        <button v-if="showTapHint && isLoaded && content.resourceType === 'video'" class="tap-hint" type="button" @click.stop="unmute">
+          <span>{{ contentCopy.player.sound }}</span>
+        </button>
+      </transition>
+    </section>
 
-    <!-- Ad card overlay -->
-    <transition name="fade">
-      <div v-if="showAdCard" class="ad-card" @click.stop>
-        <div class="ad-inner">
-          <div class="ad-brand">{{ contentCopy.player.ad.brand }}</div>
-          <h2 class="ad-title">{{ contentCopy.player.ad.title }}</h2>
-          <p class="ad-desc">{{ contentCopy.player.ad.desc }}</p>
-          <button class="ad-btn" @click="goToCommunity">{{ communityEnabled ? contentCopy.player.ad.community : contentCopy.player.ad.shop }}</button>
-          <button class="ad-dismiss" @click="dismissAd">{{ contentCopy.player.ad.dismiss }}</button>
-        </div>
-      </div>
-    </transition>
+    <section v-else-if="content" class="video-stage" :aria-label="title" @click="handleStageClick">
+      <video
+        v-if="content.resourceType === 'video'"
+        ref="mediaRef"
+        class="emotion-video"
+        :style="{ objectFit: mediaObjectFit }"
+        :src="content.url"
+        :poster="content.poster || undefined"
+        autoplay
+        muted
+        :loop="shouldLoop"
+        playsinline
+        webkit-playsinline
+        preload="auto"
+        @canplay="onLoaded"
+        @loadeddata="onLoaded"
+        @ended="onVideoEnded"
+        @error="onMediaError"
+      ></video>
 
+      <transition name="fade">
+        <button v-if="showTapHint && isLoaded" class="tap-hint" type="button" @click.stop="unmute">
+          <span>{{ contentCopy.player.sound }}</span>
+        </button>
+      </transition>
 
-  </div>
+      <transition name="fade">
+        <button v-if="showReplay" class="replay-btn" type="button" @click.stop="replay">
+          {{ contentCopy.player.replay }}
+        </button>
+      </transition>
+    </section>
+  </main>
 </template>
-
-<style scoped>
-.player-container {
-  position: fixed;
-  inset: 0;
-  width: 100vw;
-  height: 100vh;
-  height: 100dvh;
-  background-color: #000;
-  overflow: hidden;
-  z-index: 1000;
-  touch-action: none;
-  -webkit-user-select: none;
-  user-select: none;
-}
-
-.feed-track {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  will-change: transform;
-}
-
-.feed-item {
-  position: relative;
-  width: 100vw;
-  height: 100vh;
-  height: 100dvh;
-  overflow: hidden;
-}
-
-.emotion-video {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-  background: #000;
-}
-
-.loading-screen {
-  position: absolute; inset: 0;
-  background-color: #000;
-  display: flex; justify-content: center; align-items: center;
-  z-index: 10;
-}
-
-.breathing-circle {
-  width: 40px; height: 40px; border-radius: 50%;
-  background-color: rgba(255, 255, 255, 0.8);
-  animation: breathe 2s ease-in-out infinite;
-}
-
-@keyframes breathe {
-  0% { transform: scale(0.8); opacity: 0.5; }
-  50% { transform: scale(1.2); opacity: 1; }
-  100% { transform: scale(0.8); opacity: 0.5; }
-}
-
-.error-screen {
-  position: absolute; inset: 0;
-  background: #000;
-  display: flex; flex-direction: column; justify-content: center; align-items: center;
-  z-index: 10; color: #fff; text-align: center; padding: 24px;
-}
-.error-text { font-size: 18px; font-weight: 600; margin: 0 0 8px; }
-.error-hint { font-size: 14px; color: #999; margin: 0 0 24px; }
-.error-btn {
-  padding: 12px 28px; background: #7c4dff; color: #fff; border: none;
-  border-radius: 10px; font-size: 14px; font-weight: 600; cursor: pointer;
-}
-
-.tap-hint {
-  position: absolute; bottom: 80px; left: 50%; transform: translateX(-50%);
-  color: rgba(255, 255, 255, 0.9); font-size: 14px;
-  padding: 10px 20px; background: rgba(0, 0, 0, 0.6);
-  border-radius: 24px; z-index: 20; cursor: pointer;
-  display: flex; align-items: center; gap: 8px;
-  backdrop-filter: blur(4px);
-}
-
-.heart-anim {
-  position: absolute; top: 50%; left: 50%;
-  transform: translate(-50%, -50%);
-  z-index: 30; pointer-events: none;
-}
-.heart-pop-enter-active { animation: heart-in 0.4s ease-out; }
-.heart-pop-leave-active { animation: heart-out 0.4s ease-in; }
-@keyframes heart-in {
-  0% { transform: translate(-50%, -50%) scale(0); opacity: 0; }
-  50% { transform: translate(-50%, -50%) scale(1.3); opacity: 1; }
-  100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
-}
-@keyframes heart-out {
-  0% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
-  100% { transform: translate(-50%, -50%) scale(1.5); opacity: 0; }
-}
-
-.default-toast {
-  position: absolute; top: 60px; left: 50%; transform: translateX(-50%);
-  background: rgba(0, 0, 0, 0.7); color: #fff;
-  padding: 8px 20px; border-radius: 20px;
-  font-size: 13px; font-weight: 500; z-index: 25; pointer-events: none;
-}
-
-.fade-enter-active, .fade-leave-active { transition: opacity 0.3s ease; }
-.fade-enter-from, .fade-leave-to { opacity: 0; }
-
-.ad-card {
-  position: absolute; inset: 0; z-index: 50;
-  background: linear-gradient(160deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
-  display: flex; align-items: center; justify-content: center;
-  text-align: center; color: #fff;
-}
-.ad-inner { padding: 40px 24px; }
-.ad-brand {
-  font-size: 14px; font-weight: 800; color: rgba(255,255,255,0.5);
-  letter-spacing: 1px; margin-bottom: 24px;
-}
-.ad-title { font-size: 24px; font-weight: 800; margin: 0 0 12px; }
-.ad-desc { font-size: 14px; color: rgba(255,255,255,0.7); margin: 0 0 32px; }
-.ad-btn {
-  display: block; width: 200px; margin: 0 auto 16px;
-  padding: 14px 28px; border: none; border-radius: 12px;
-  background: #7c4dff; color: #fff; font-size: 15px; font-weight: 600;
-  cursor: pointer; transition: opacity 0.15s;
-}
-.ad-btn:hover { opacity: 0.9; }
-.ad-dismiss {
-  background: none; border: none; color: rgba(255,255,255,0.5);
-  font-size: 13px; cursor: pointer; padding: 8px 16px;
-}
-.ad-dismiss:hover { color: rgba(255,255,255,0.8); }
-</style>

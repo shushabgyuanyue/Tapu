@@ -135,17 +135,6 @@ CREATE TABLE IF NOT EXISTS user_defaults (
   FOREIGN KEY (group_id) REFERENCES groups(id) ON DELETE CASCADE
 );
 
-CREATE TABLE IF NOT EXISTS applications (
-  id TEXT PRIMARY KEY,
-  name TEXT NOT NULL,
-  code TEXT UNIQUE NOT NULL,
-  app_type TEXT DEFAULT 'meaning' CHECK(app_type IN ('meaning', 'behavior', 'state')),
-  interaction_type TEXT NOT NULL,
-  description TEXT,
-  status TEXT DEFAULT 'active',
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-
 CREATE TABLE IF NOT EXISTS orders (
   id TEXT PRIMARY KEY,
   buyer_user_id TEXT NOT NULL,
@@ -208,21 +197,6 @@ CREATE TABLE IF NOT EXISTS entity_ownership_events (
   FOREIGN KEY (from_user_id) REFERENCES users(id) ON DELETE SET NULL,
   FOREIGN KEY (to_user_id) REFERENCES users(id) ON DELETE SET NULL,
   FOREIGN KEY (actor_user_id) REFERENCES users(id) ON DELETE SET NULL
-);
-
-CREATE TABLE IF NOT EXISTS object_events (
-  id TEXT PRIMARY KEY,
-  object_type TEXT,
-  object_id TEXT,
-  token_id TEXT,
-  token TEXT,
-  app_code TEXT,
-  event_type TEXT NOT NULL,
-  content_id TEXT,
-  user_id TEXT,
-  user_agent TEXT,
-  metadata_json TEXT,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS meaningful_states (
@@ -446,203 +420,6 @@ CREATE TABLE IF NOT EXISTS site_config (
   value TEXT
 );
 
-CREATE TABLE IF NOT EXISTS daily_sticker_personas (
-  id TEXT PRIMARY KEY,
-  name TEXT NOT NULL,
-  object_type TEXT,
-  tagline TEXT,
-  voice TEXT,
-  world_summary TEXT,
-  worldview TEXT,
-  atmosphere TEXT,
-  expression_style TEXT,
-  cover_url TEXT,
-  theme_color TEXT DEFAULT '#ff4fd8',
-  status TEXT DEFAULT 'active',
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS daily_sticker_worlds (
-  id TEXT PRIMARY KEY,
-  persona_id TEXT NOT NULL,
-  name TEXT NOT NULL,
-  slug TEXT,
-  premise TEXT,
-  worldview TEXT,
-  atmosphere TEXT,
-  narrative_voice TEXT,
-  expression_style TEXT,
-  cover_url TEXT,
-  theme_color TEXT DEFAULT '#ff4fd8',
-  theme_tokens_json TEXT,
-  release_mode TEXT DEFAULT 'calendar_day',
-  status TEXT DEFAULT 'active',
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (persona_id) REFERENCES daily_sticker_personas(id) ON DELETE CASCADE,
-  UNIQUE(persona_id, slug)
-);
-
-CREATE TABLE IF NOT EXISTS daily_sticker_story_arcs (
-  id TEXT PRIMARY KEY,
-  world_id TEXT NOT NULL,
-  title TEXT NOT NULL,
-  summary TEXT,
-  source_format TEXT DEFAULT 'markdown',
-  markdown_source TEXT,
-  total_days INTEGER DEFAULT 30,
-  starts_on TEXT,
-  release_cron TEXT DEFAULT '*/1 * * * *',
-  release_timezone TEXT DEFAULT 'Asia/Shanghai',
-  status TEXT DEFAULT 'draft',
-  imported_at DATETIME,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (world_id) REFERENCES daily_sticker_worlds(id) ON DELETE CASCADE
-);
-
-CREATE TABLE IF NOT EXISTS daily_sticker_templates (
-  code TEXT PRIMARY KEY,
-  name TEXT NOT NULL,
-  renderer_type TEXT DEFAULT 'card',
-  description TEXT,
-  schema_json TEXT,
-  default_motion_preset TEXT DEFAULT 'float',
-  status TEXT DEFAULT 'active',
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS daily_sticker_visual_styles (
-  code TEXT PRIMARY KEY,
-  name TEXT NOT NULL,
-  style_layer TEXT,
-  description TEXT,
-  keywords TEXT,
-  avoid_keywords TEXT,
-  color_notes TEXT,
-  typography_notes TEXT,
-  composition_notes TEXT,
-  motion_notes TEXT,
-  brand_refs TEXT,
-  prompt_guidance_json TEXT,
-  status TEXT DEFAULT 'active',
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS daily_sticker_entries (
-  id TEXT PRIMARY KEY,
-  persona_id TEXT NOT NULL,
-  world_id TEXT,
-  story_arc_id TEXT,
-  day_index INTEGER,
-  entry_date TEXT NOT NULL,
-  title TEXT,
-  body TEXT,
-  markdown_source TEXT,
-  content_json TEXT,
-  template_code TEXT,
-  visual_style_code TEXT,
-  primary_modality TEXT DEFAULT 'text',
-  layout_hint TEXT,
-  mood TEXT,
-  quote TEXT,
-  quote_author TEXT,
-  image_url TEXT,
-  motion_preset TEXT DEFAULT 'float',
-  status TEXT DEFAULT 'published',
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (persona_id) REFERENCES daily_sticker_personas(id) ON DELETE CASCADE,
-  FOREIGN KEY (world_id) REFERENCES daily_sticker_worlds(id) ON DELETE SET NULL,
-  FOREIGN KEY (story_arc_id) REFERENCES daily_sticker_story_arcs(id) ON DELETE SET NULL,
-  FOREIGN KEY (template_code) REFERENCES daily_sticker_templates(code) ON DELETE SET NULL,
-  FOREIGN KEY (visual_style_code) REFERENCES daily_sticker_visual_styles(code) ON DELETE SET NULL,
-  UNIQUE(persona_id, entry_date)
-);
-
-CREATE TABLE IF NOT EXISTS daily_sticker_entry_assets (
-  id TEXT PRIMARY KEY,
-  entry_id TEXT NOT NULL,
-  asset_type TEXT NOT NULL,
-  role TEXT DEFAULT 'inline',
-  url TEXT NOT NULL,
-  alt_text TEXT,
-  metadata_json TEXT,
-  sort_order INTEGER DEFAULT 0,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (entry_id) REFERENCES daily_sticker_entries(id) ON DELETE CASCADE
-);
-
-CREATE TABLE IF NOT EXISTS daily_sticker_tokens (
-  id TEXT PRIMARY KEY,
-  persona_id TEXT NOT NULL,
-  world_id TEXT,
-  story_arc_id TEXT,
-  user_id TEXT,
-  token TEXT UNIQUE NOT NULL,
-  label TEXT,
-  progress_mode TEXT DEFAULT 'calendar_day',
-  story_start_date TEXT,
-  day_offset INTEGER DEFAULT 0,
-  status TEXT DEFAULT 'active',
-  bound_at DATETIME,
-  unbound_at DATETIME,
-  external_order_no TEXT,
-  issued_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (persona_id) REFERENCES daily_sticker_personas(id) ON DELETE CASCADE,
-  FOREIGN KEY (world_id) REFERENCES daily_sticker_worlds(id) ON DELETE SET NULL,
-  FOREIGN KEY (story_arc_id) REFERENCES daily_sticker_story_arcs(id) ON DELETE SET NULL,
-  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
-);
-
-CREATE TABLE IF NOT EXISTS daily_sticker_ownership_events (
-  id TEXT PRIMARY KEY,
-  token_id TEXT,
-  token TEXT,
-  event_type TEXT NOT NULL,
-  from_user_id TEXT,
-  to_user_id TEXT,
-  actor_user_id TEXT,
-  order_id TEXT,
-  note TEXT,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (token_id) REFERENCES daily_sticker_tokens(id) ON DELETE SET NULL,
-  FOREIGN KEY (from_user_id) REFERENCES users(id) ON DELETE SET NULL,
-  FOREIGN KEY (to_user_id) REFERENCES users(id) ON DELETE SET NULL,
-  FOREIGN KEY (actor_user_id) REFERENCES users(id) ON DELETE SET NULL
-);
-
-CREATE TABLE IF NOT EXISTS daily_sticker_tap_events (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  token_id TEXT,
-  persona_id TEXT,
-  entry_id TEXT,
-  user_agent TEXT,
-  tapped_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (token_id) REFERENCES daily_sticker_tokens(id) ON DELETE SET NULL,
-  FOREIGN KEY (persona_id) REFERENCES daily_sticker_personas(id) ON DELETE SET NULL,
-  FOREIGN KEY (entry_id) REFERENCES daily_sticker_entries(id) ON DELETE SET NULL
-);
-
-CREATE INDEX IF NOT EXISTS idx_daily_sticker_entries_persona_date
-ON daily_sticker_entries(persona_id, entry_date);
-
-CREATE INDEX IF NOT EXISTS idx_daily_sticker_entries_story_day
-ON daily_sticker_entries(story_arc_id, day_index);
-
-CREATE INDEX IF NOT EXISTS idx_daily_sticker_tap_events_token
-ON daily_sticker_tap_events(token_id);
-
-CREATE INDEX IF NOT EXISTS idx_daily_sticker_worlds_persona
-ON daily_sticker_worlds(persona_id);
-
-CREATE INDEX IF NOT EXISTS idx_daily_sticker_assets_entry
-ON daily_sticker_entry_assets(entry_id);
-
-CREATE INDEX IF NOT EXISTS idx_daily_sticker_tokens_user
-ON daily_sticker_tokens(user_id);
-
-CREATE INDEX IF NOT EXISTS idx_daily_sticker_ownership_events_token
-ON daily_sticker_ownership_events(token_id);
-
 CREATE TABLE IF NOT EXISTS answer_book_decks (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
@@ -698,18 +475,6 @@ ON answer_book_tokens(deck_id);
 
 CREATE INDEX IF NOT EXISTS idx_answer_book_draw_events_token
 ON answer_book_draw_events(token_id);
-
-CREATE INDEX IF NOT EXISTS idx_object_events_token
-ON object_events(token);
-
-CREATE INDEX IF NOT EXISTS idx_object_events_app
-ON object_events(app_code);
-
-CREATE INDEX IF NOT EXISTS idx_object_events_type
-ON object_events(event_type);
-
-CREATE INDEX IF NOT EXISTS idx_object_events_created
-ON object_events(created_at);
 
 CREATE INDEX IF NOT EXISTS idx_meaningful_states_subject
 ON meaningful_states(subject_type, subject_id);

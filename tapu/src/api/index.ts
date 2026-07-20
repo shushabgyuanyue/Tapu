@@ -1,4 +1,4 @@
-import { getToken, isLoggedIn, request, setToken, utf8ToBase64 } from './http';
+import { isLoggedIn, request, setToken } from './http';
 
 export { clearToken, isLoggedIn, setToken } from './http';
 export * from './mintStudio';
@@ -46,6 +46,16 @@ export async function changePassword(old_password: string, new_password: string)
 
 export async function getEntities() {
   return request('/auth/entities', { auth: true });
+}
+
+export async function fetchUserEvents(params?: { page?: number; pageSize?: number; q?: string; eventType?: string }) {
+  const query = new URLSearchParams();
+  if (params?.page) query.set('page', String(params.page));
+  if (params?.pageSize) query.set('page_size', String(params.pageSize));
+  if (params?.q) query.set('q', params.q);
+  if (params?.eventType) query.set('event_type', params.eventType);
+  const qs = query.toString();
+  return request(`/auth/events${qs ? `?${qs}` : ''}`, { auth: true });
 }
 
 // ===== Purchases =====
@@ -156,11 +166,11 @@ export async function deleteGroup(id: string) {
   });
 }
 
-export async function setOfficialDefault(groupId: string, videoId: string) {
-  return request(`/groups/${groupId}/official-default`, {
+export async function setIpDefinitionOfficialDefaultContent(ipDefinitionId: string, contentId: string) {
+  return request(`/groups/${ipDefinitionId}/official-default`, {
     method: 'PUT',
     auth: true,
-    jsonBody: { video_id: videoId },
+    jsonBody: { content_id: contentId },
   });
 }
 
@@ -185,35 +195,37 @@ export async function fetchVideos(
   if (limit) params.set('limit', String(limit));
   if (isPrivate !== '') params.set('is_private', isPrivate ? '1' : '0');
   const qs = params.toString();
-  return request(`/videos${qs ? '?' + qs : ''}`, { auth: !!all || isPrivate === true });
+  const data = await request(`/videos${qs ? '?' + qs : ''}`, { auth: !!all || isPrivate === true });
+  const simpleGroupLookup = !!groupId
+    && !sort
+    && !q
+    && !page
+    && !seriesId
+    && !all
+    && !limit
+    && typeof isPrivate === 'undefined';
+  return simpleGroupLookup ? (data?.videos || data || []) : data;
 }
 
 export async function fetchVideo(id: string, key?: string) {
   const query = key ? `?key=${encodeURIComponent(key)}` : '';
-  return request(`/videos/${id}${query}`, { auth: !!key });
+  return request(`/videos/${id}${query}`, { auth: !!key || isLoggedIn() });
+}
+
+export async function fetchContentInstance(id: string) {
+  return request(`/contents/${id}`, { auth: isLoggedIn() });
+}
+
+export async function deleteContentInstance(id: string) {
+  return request(`/contents/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+    auth: true,
+  });
 }
 
 export async function fetchSiblings(id: string, key?: string) {
   const query = key ? `?key=${encodeURIComponent(key)}` : '';
-  return request(`/videos/${id}/siblings${query}`, { auth: !!key });
-}
-
-export async function uploadVideo(
-  file: File,
-  title: string,
-  groupId?: string,
-  isPrivate?: boolean
-) {
-  const form = new FormData();
-  form.append('video', file);
-  form.append('title', title);
-  form.append('title_b64', utf8ToBase64(title));
-  if (groupId) form.append('group_id', groupId);
-  if (isPrivate) form.append('is_private', '1');
-  const token = getToken();
-  const headers: Record<string, string> = {};
-  if (token) headers['Authorization'] = `Bearer ${token}`;
-  return request('/videos/upload', { method: 'POST', headers, body: form });
+  return request(`/videos/${id}/siblings${query}`, { auth: !!key || isLoggedIn() });
 }
 
 export async function deleteVideo(id: string) {
@@ -225,11 +237,8 @@ export async function deleteVideo(id: string) {
 
 // Resolve playback by entity key (NFC touch flow)
 export async function resolveByKey(key: string) {
-  return request('/videos/resolve', {
-    method: 'POST',
-    auth: true,
-    jsonBody: { key },
-  });
+  const query = new URLSearchParams({ key });
+  return request(`/contents/resolve-by-token?${query.toString()}`, { auth: isLoggedIn() });
 }
 
 // ===== Applications (Official Technical Layer) =====
@@ -655,11 +664,11 @@ export async function transferEntity(entityId: string, toUsername: string) {
   });
 }
 
-export async function setEntityDefaultByToken(key: string, videoId: string) {
-  return request('/auth/entity-default-by-token', {
+export async function setIpInstanceContentByToken(key: string, contentId: string) {
+  return request('/auth/content-default-by-token', {
     method: 'PUT',
     auth: isLoggedIn(),
-    jsonBody: { key, video_id: videoId },
+    jsonBody: { key, content_id: contentId },
   });
 }
 
@@ -698,20 +707,14 @@ export async function fetchOwnershipEvents(params?: { page?: number; pageSize?: 
 }
 
 // ===== Entity Default Video =====
-export async function getEntityDefault(entityId: string) {
-  return request(`/auth/entity-default/${entityId}`, { auth: true });
+export async function getIpInstanceDefaultContent(entityId: string) {
+  return request(`/auth/content-default/${entityId}`, { auth: true });
 }
 
-export async function setEntityDefault(entityId: string, videoId: string) {
-  return request(`/auth/entity-default/${entityId}`, {
+export async function setIpInstanceDefaultContent(entityId: string, contentId: string) {
+  return request(`/auth/content-default/${entityId}`, {
     method: 'PUT',
     auth: true,
-    jsonBody: { video_id: videoId },
+    jsonBody: { content_id: contentId },
   });
 }
-
-
-
-
-
-

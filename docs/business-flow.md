@@ -9,21 +9,21 @@ WhatMint 不是单纯的 NFC 产品，而是给实体安装“情绪应用”的
 核心链路：
 
 ```text
-外部购买 -> 官方录入订单并生成 token -> token/NFC 链接写入实体 -> 用户上传或选择内容 -> 内容绑定到实体 -> 碰一下 NFC 播放
+外部购买 -> 官方录入订单并生成 token -> token/NFC 链接写入物件 -> 创作中心按内容定义创建内容实例 -> 内容绑定到物件实例 -> 触碰物件打开对应体验
 ```
 
 ## 2. 完整业务流程
 
 1. 用户在外部渠道购买实体 IP，获得订单号。
 2. 官方在 `/official/orders` 录入外部订单，选择 IP，可手填订单号/token，也可自动生成。
-3. 系统创建 `orders` 与 `entities`，生成 128-bit 随机 token，并记录 `nfc_written_at`、`token_delivered_at`。
+3. 系统创建 `orders` 与 `ip_instances`，生成 128-bit 随机 token，并记录 `nfc_written_at`、`token_delivered_at`。
 4. 官方将 `/play?key=<token>` 写入 NFC 芯片，并将 token 或 NFC 实体发放给购买用户。
 5. 用户进入内容详情 `/content/:id`，可以直接输入 token，把当前内容写入未绑定实体。
-6. 用户也可以去 `/assets` 登录后绑定 token；若 URL 带 `defaultVideoId`，绑定成功后会自动尝试写入默认内容。
-7. 用户通过实体 NFC 进入 `/play?key=<token>`，系统按实体默认内容、官方默认内容、最新公开内容顺序播放。
+6. 用户也可以去 `/assets` 登录后绑定 token；若 URL 带 `defaultContentId`，绑定成功后会自动尝试写入默认内容。
+7. 用户通过物件 NFC 进入对应轻应用，系统按物件默认内容、官方默认内容、内容定义规则组织体验。
 8. token 未绑定账号前，可凭 token 反复修改公开默认内容。
-9. token 绑定账号后，只能登录对应账号修改默认内容、上传私有内容、转赠或解绑。
-10. 转赠推荐使用账号一键转赠，token 不变，`entities.user_id` 变更并写入持有记录。
+9. token 绑定账号后，只能登录对应账号修改默认内容、创建私有内容、转赠或解绑。
+10. 转赠推荐使用账号一键转赠，token 不变，`ip_instances.owner_user_id` 变更并写入事件。
 11. 若运输中 token 泄露被抢绑，一个月内可用订单号提交申诉，官方审核后解绑。
 
 ## 3. 权限规则
@@ -34,9 +34,9 @@ WhatMint 不是单纯的 NFC 产品，而是给实体安装“情绪应用”的
 | 查看私有内容 | 是 | 必须是实体持有账号或 admin |
 | 未绑定 token 设置默认内容 | 否 | 凭 token，只允许公开 ready 内容 |
 | 已绑定实体设置默认内容 | 是 | 必须是实体持有账号或 admin |
-| 上传普通内容 | 是 | 登录用户可上传 |
-| 上传并绑定实体内容 | 是 | 未绑定实体需提供 token；已绑定实体需持有账号或 admin |
-| 上传私有内容 | 是 | 必须绑定到实体 |
+| 创建普通内容 | 是 | 通过创作中心和内容定义创建 |
+| 创建并绑定物件内容 | 是 | 未绑定物件需提供 token；已绑定物件需持有账号或 admin |
+| 创建私有内容 | 是 | 必须归属账号或物件实例 |
 | 账号绑定 token | 是 | token 未绑定或已绑定当前账号 |
 | 转赠实体 | 是 | 当前实体持有人 |
 | 申诉解绑 | 否/是 | 订单号必填，token 可选，官方人工审核 |
@@ -44,28 +44,52 @@ WhatMint 不是单纯的 NFC 产品，而是给实体安装“情绪应用”的
 
 ## 4. 关键数据库关系
 
-### `applications`
+### `users`
 
-技术层应用定义。用户侧不可见，用于抽象后续应用类型，例如情绪 IP、日常贴纸、传信、收藏手作。
+账号与资产持有人。用户拥有 `ip_instances`，也可以创建和管理自己的 `content_instances`。
 
-关系：`applications -> series -> groups(IP) -> entities(token)`
+### `ip_definitions`
 
-### `series`
+IP 定义，例如纸巾小狗、耳机小姐。包含实体信息、商品信息、创作者信息和官方设定。
 
-系列，用户侧可见。可关联一个 `application_id`。
+### `application_definitions`
 
-### `groups`
+应用定义。用于声明体验流、内容模板、事件订阅和 Skill 能力。
 
-IP 或业务场景，例如纸巾小狗。包含官方默认内容、价格、库存、众筹字段。
+关系：`ip_definitions *-* application_definitions`，当前业务上通常一对一。
 
-### `entities`
+### `content_definitions`
 
-一个实体对应一个 token：
+内容创作能力定义，例如耳机小姐的“插画 + 音频故事序列”。创作中心按它生成引导。
+
+关系：`application_definitions *-* content_definitions`。
+
+### `ip_instances`
+
+一个具体物件资产，对应一个 token：
 
 - `token` / `entity_key`：当前新逻辑使用同一个 128-bit 随机值。
-- `user_id`：持有账号，未绑定时为空。
+- `owner_user_id`：持有账号，未绑定时为空。
 - `external_order_no`：外部订单号。
 - `bound_at` / `unbound_at`：绑定状态时间。
+
+关系：`users 1-* ip_instances`，资产只能归一个用户。
+
+### `content_instances`
+
+真正的内容资产。官方创作和用户创作都进入这张表，再通过关系表绑定到 IP 实例。
+
+关系：`ip_instances *-* content_instances`。
+
+### `resources`
+
+图片、音频、视频等文件资源本身。资源通过 `content_instance_resource_links` 被内容实例引用。
+
+关系：`content_instances *-* resources`。
+
+### `events`
+
+高价值事实记录，例如绑定、解绑、转赠、内容创建、内容删除、内容默认绑定。操作日志如果存在，只用于提取事件，不作为核心业务事实。
 
 ### `orders`
 
@@ -80,37 +104,15 @@ IP 或业务场景，例如纸巾小狗。包含官方默认内容、价格、�
 - `nfc_written_at`
 - `token_delivered_at`
 
-### `videos`
-
-内容资源：
-
-- `group_id`：所属 IP。
-- `entity_id`：绑定到某个实体时填写。
-- `owner_user_id`：上传者。
-- `is_private`：私有内容必须绑定实体，且仅持有人/admin 可查看。
-
-### `user_defaults`
-
-实体默认播放内容。NFC 解析时优先读取该表。
-
-### `entity_ownership_events`
-
-token 持有历史，为实体传承做数据基础。当前事件包括：
-
-- `official_order_created`
-- `token_issued`
-- `content_default_set`
-- `bind`
-- `unbind`
-- `transfer`
-- `appeal_unbind`
-
 ## 5. 关键代码入口
 
 | 能力 | 文件 |
 |------|------|
 | 登录、绑定、转赠、默认内容、申诉 | `tapu/server/routes/auth.js` |
-| NFC 解析、上传、私有内容权限 | `tapu/server/routes/videos.js` |
+| 创作中心解析和内容列表 | `tapu/server/routes/mintStudio.js` |
+| 内容定义资源上传和内容实例创建 | `tapu/server/routes/authoring.js` |
+| 内容详情、删除、版本草稿和发布 | `tapu/server/routes/contents.js` |
+| NFC 核心内容解析 | `tapu/server/routes/contents.js` |
 | 外部订单录入和搜索 | `tapu/server/routes/orders.js` |
 | 持有记录查询 | `tapu/server/routes/entities.js` |
 | 应用技术层 | `tapu/server/routes/applications.js` |
@@ -119,7 +121,7 @@ token 持有历史，为实体传承做数据基础。当前事件包括：
 | 资产页 | `tapu/src/views/AssetsPage.vue` |
 | 内容详情直写 token | `tapu/src/views/ContentDetailPage.vue` |
 | 商城展示页 | `tapu/src/views/ShopPage.vue`、`tapu/src/components/shop/ShopFilterBar.vue`、`tapu/src/components/shop/ShopProductCard.vue` |
-| 日常贴纸触碰页 | `tapu/src/views/DailyStickerPage.vue` |
+| 耳机小姐故事空间 | `tapu/src/views/EarphoneGirlPage.vue` |
 | NFC 播放器 | `tapu/src/views/PlayerView.vue` |
 | 官方订单页 | `tapu/src/views/official/OrderManage.vue` |
 | 持有记录页 | `tapu/src/views/official/OwnershipManage.vue` |
@@ -132,13 +134,13 @@ token 持有历史，为实体传承做数据基础。当前事件包括：
 
 - admin 录入应用、系列、IP、外部订单。
 - 非 admin 无法创建 IP。
-- 上传公开内容并转码 ready。
+- 创建公开内容并进入内容实例。
 - 外部订单生成 128-bit token。
 - 未绑定 token 可设置公开默认内容。
 - NFC 未绑定状态可播放公开默认内容。
 - 账号绑定 token 后，匿名修改默认内容被拒。
 - 持有人可修改默认内容。
-- 持有人上传私有内容并绑定 token。
+- 持有人创建私有内容并绑定 token。
 - 匿名 NFC 不返回私有内容。
 - 持有人登录后 NFC 可播放私有默认内容。
 - 转赠后旧持有人无权修改，新持有人可修改。
@@ -156,9 +158,9 @@ token 持有历史，为实体传承做数据基础。当前事件包括：
 - 订单状态目前只粗略表示 `pending/shipped/completed`，NFC 写入和 token 发放已用独立时间字段记录。
 - 购买不在平台内完成，商城和心愿单只做展示与用户教育。
 - 社区和心愿单默认关闭，由官方管理开关控制。
-- `/assets` 顶部和空展馆态都有“绑定新资产 / 去绑定 token”入口；同一输入框会智能尝试实体 IP 与日常贴纸 token，仍保留单独绑定按钮。
+- `/assets` 顶部和空展馆态都有“绑定新资产 / 去绑定 token”入口；同一输入框会围绕实体 IP token 处理绑定。
 - 商城页已拆出 `ShopFilterBar` 与 `ShopProductCard`，页面本体保留数据编排和业务动作；后续扩展商品信息时优先扩展组件，不要把卡片逻辑写回页面。
-- 日常贴纸触碰页在分钟级 `release.cron_mode = minute_interval` 时会自动排程静默刷新，并用当前 entry key 重新触发卡片动画；带 `day/date` 的后台预览链接不会自动跳日。
+- 耳机小姐故事空间按实例级故事队列推进，联动副轨不覆盖主故事队列。
 - 登录头像菜单顺序为“我的资产 -> 解绑申诉 -> 账户设置”，避免资产绑定入口被账户设置遮挡。
 - 资产展馆与 IP 详情页已收敛大图、阴影和 hero 高度，保持黑/紫/粉视觉方向但降低移动端滚动负担。
 
@@ -166,29 +168,29 @@ token 持有历史，为实体传承做数据基础。当前事件包括：
 
 - 给外部订单增加真实买家引用字段，例如 `external_buyer_ref`、`external_platform`。
 - 给私有内容 NFC 匿名播放增加更明确的前端提示，避免用户误解“实体坏了”。
-- 将资产页继续拆为 `BindTokenCard`、`AssetCard`、`StickerAssetCard`、`TransferPanel`、`DefaultContentPicker`，降低维护成本；当前资产页仍超过 500 行，是下一轮前端重构优先级最高的页面之一。
-- 将官方日常贴纸管理继续拆为故事预览、内容编辑、Token/NFC、发布设置四个子组件；当前文件较长但业务边界清晰。
+- 将资产页继续拆为 `BindTokenCard`、`AssetCard`、`TransferPanel`、`DefaultContentPicker`，降低维护成本；当前资产页仍超过 500 行，是下一轮前端重构优先级最高的页面之一。
+- 后续耳机小姐管理能力优先走核心对象、创作中心和官方内容绑定，不再恢复旧贴纸后台。
 - 增加可重复运行的 E2E 测试脚本，但需要先决定是否引入测试框架和测试数据策略。
 ## 2026-07-14 流程复测与口径更新
 
 ### 情绪 IP 主流程复测
 
 - 使用临时 DB、临时上传目录和真实 HTTP 服务完成复测，测试结束后已删除临时数据和脚本。
-- 覆盖链路：用户外部购买获得订单号；官方录入订单并生成 128-bit token；订单记录包含 `nfc_written_at` 与 `token_delivered_at`；token 可搜索；未绑定 token 可设置公开默认内容；用户登录后绑定 token；其他账号无法抢绑；持有人可上传私有内容并设为默认；转赠后旧持有人不可修改，新持有人可修改。
-- 本轮修复：持有人通过 `/auth/entity-default/:entityId` 修改默认内容时，`entity_ownership_events` 的 `content_default_set` 事件现在会携带 token/order 信息，便于后续实体持有传承审计。
+- 覆盖链路：用户外部购买获得订单号；官方录入订单并生成 128-bit token；订单记录包含 `nfc_written_at` 与 `token_delivered_at`；token 可搜索；未绑定 token 可设置公开默认内容；用户登录后绑定 token；其他账号无法抢绑；持有人可创建私有内容并设为默认；转赠后旧持有人不可修改，新持有人可修改。
+- 本轮修复：持有人通过 `/auth/content-default/:entityId` 修改默认内容时，事件会携带 token/order 信息，便于后续物件持有传承审计。
 
-### 日常贴纸流程复测
+### 耳机小姐流程口径
 
-- 覆盖链路：官方创建人格、世界、故事、每日条目、token；公开 `/sticker?key=<token>` resolve 可按 `day` 预览不同故事；默认分钟级 cron 为 `*/1 * * * *`；用户绑定后贴纸进入资产展馆；已绑定 token 防止其他账号抢绑。
-- 日常贴纸没有转赠主流程需求；当前更接近低成本入口和展馆资产归属，不承担情绪 IP 的转赠关系玩法。
+- 耳机小姐不再沿用旧贴纸应用的日历式故事模型；首版按核心对象、官方内容实例和实例级故事队列组织体验。
+- 官方内容通过创作中心创建，再由官方权限手动选择默认或联动内容，避免形成第二套官方内容运营后台。
 
-### 私有内容与 NFC 播放口径
+### 核心内容与 NFC 播放口径
 
-- 当前安全规则：公开内容可通过 `/play?key=<token>` 匿名播放；私有内容必须登录实体持有人账号或 admin 才能查看。
-- 因此，“碰一下直接播放”默认指公开内容。若默认内容是私有内容，匿名 NFC 不会直接泄露私有视频，应引导用户登录持有人账号。
-- 如果未来希望 token 本身授权私有内容播放，需要重新设计分享边界、撤销机制和泄露风险处理。
+- `/play?key=<token>` 先通过 `/api/contents/resolve-by-token` 解析 IP 实例，再打开该实例的 `owner_default` 内容；若未设置，则回落到该 IP 的官方默认内容。
+- token 只授权当前物件的默认内容播放，不提供任意私有内容检索能力；内容详情和内容管理仍按登录用户、owner/admin 权限判断。
+- 播放器是 OS 内容渲染入口，具体视频、音频、AR 或网页体验由内容定义里的 renderer/template 决定。
 
 ### 前端维护建议
 
-- `AssetsPage.vue`、`DailyStickerManage.vue`、`IPDetailPage.vue` 均已超过 500 行，后续继续开发时优先拆组件。
-- 建议拆分方向：资产页拆 `BindTokenCard`、`AssetGallery`、`EntityAssetCard`、`StickerAssetCard`、`TransferPanel`、`DefaultContentPanel`；日常贴纸管理拆故事预览、内容编辑、token/NFC、发布设置；IP 详情拆 hero、故事档案、规格、内容预览。
+- `AssetsPage.vue`、`IPDetailPage.vue` 均已超过 500 行，后续继续开发时优先拆组件。
+- 建议拆分方向：资产页拆 `BindTokenCard`、`AssetGallery`、`EntityAssetCard`、`TransferPanel`、`DefaultContentPanel`；IP 详情拆 hero、故事档案、规格、内容预览。

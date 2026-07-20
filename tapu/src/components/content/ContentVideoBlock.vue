@@ -1,6 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue';
-import { canRenderVideoUrl } from './capabilities';
+import { ref } from 'vue';
 import type { ContentBlock, ContentRenderContext } from './types';
 import { contentCopy } from '../../copy';
 
@@ -9,13 +8,13 @@ const props = defineProps<{
   context?: ContentRenderContext;
 }>();
 
-const canRender = computed(() => canRenderVideoUrl(props.block.url || ''));
+const failed = ref(false);
 </script>
 
 <template>
   <section class="content-video">
     <video
-      v-if="canRender"
+      v-if="block.url && !failed"
       :src="block.url"
       :poster="block.poster || undefined"
       :controls="context?.controls ?? true"
@@ -24,6 +23,7 @@ const canRender = computed(() => canRenderVideoUrl(props.block.url || ''));
       preload="metadata"
       playsinline
       webkit-playsinline
+      @error="failed = true"
     ></video>
     <div v-else class="fallback">
       <strong>{{ block.title || contentCopy.blocks.unsupportedVideo }}</strong>

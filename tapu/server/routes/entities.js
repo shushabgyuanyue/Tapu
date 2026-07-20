@@ -4,6 +4,7 @@ import { getDb, saveDb } from '../db/index.js';
 import { adminRoute, loginRoute, registerRoutes } from '../services/routePermissions.js';
 import { createUniqueEntityToken } from '../services/tokens.js';
 import { recordOwnershipEvent } from '../services/ownership.js';
+import { stringifyJson } from '../services/coreStore.js';
 
 const router = Router();
 
@@ -28,7 +29,11 @@ async function listEntitiesByGroup(req, res) {
   try {
     const db = await getDb();
     const results = db.exec(
-      'SELECT * FROM entities WHERE group_id = ? ORDER BY created_at DESC',
+      `SELECT i.*
+       FROM ip_instances i
+       WHERE i.ip_definition_id = ?
+         AND i.instance_type != 'official_demo'
+       ORDER BY i.created_at DESC`,
       [req.params.groupId]
     );
     res.json(resultToObjects(results));
@@ -47,9 +52,29 @@ async function createEntity(req, res) {
     const db = await getDb();
     const id = uuidv4();
     const token = createUniqueEntityToken(db);
+    const applicationId = resultToObjects(db.exec(
+      `SELECT application_definition_id
+       FROM ip_definition_application_links
+       WHERE ip_definition_id = ?
+       ORDER BY is_primary DESC, sort_order ASC, created_at ASC
+       LIMIT 1`,
+      [group_id]
+    ))[0]?.application_definition_id || null;
     db.run(
-      'INSERT INTO entities (id, group_id, token, entity_key, external_order_no) VALUES (?, ?, ?, ?, ?)',
-      [id, group_id, token, token, external_order_no || null]
+      `INSERT INTO ip_instances
+       (id, ip_definition_id, owner_user_id, application_definition_id, label, token, entity_key, instance_type,
+        source_type, status, visibility, external_order_no, metadata_json)
+       VALUES (?, ?, NULL, ?, ?, ?, ?, 'physical', 'official', 'active', 'public', ?, ?)`,
+      [
+        id,
+        group_id,
+        applicationId,
+        token,
+        token,
+        token,
+        external_order_no || null,
+        stringifyJson({ created_by: req.user.id }),
+      ]
     );
     recordOwnershipEvent(db, {
       entityId: id,
@@ -78,53 +103,65 @@ async function listOwnershipEvents(req, res) {
 
     if (req.query.event_type) {
       conditions.push('ev.event_type = ?');
-      params.push(req.query.event_type);
+      params.push(`asset.${req.query.event_type.replace(/^asset\./, '')}`);
     }
 
     if (req.query.q) {
-      conditions.push('(ev.token LIKE ? OR ev.order_id LIKE ? OR e.external_order_no LIKE ? OR g.name LIKE ?)');
+      conditions.push(`(
+        json_extract(ev.payload_json, '$.token') LIKE ?
+        OR json_extract(ev.payload_json, '$.order_id') LIKE ?
+        OR e.external_order_no LIKE ?
+        OR g.name LIKE ?
+      )`);
       const q = `%${req.query.q}%`;
       params.push(q, q, q, q);
     }
 
     if (req.query.token) {
-      conditions.push('ev.token LIKE ?');
+      conditions.push(`json_extract(ev.payload_json, '$.token') LIKE ?`);
       params.push(`%${req.query.token}%`);
     }
 
     if (req.query.order_no) {
-      conditions.push('(ev.order_id LIKE ? OR e.external_order_no LIKE ?)');
+      conditions.push(`(json_extract(ev.payload_json, '$.order_id') LIKE ? OR e.external_order_no LIKE ?)`);
       const orderQ = `%${req.query.order_no}%`;
       params.push(orderQ, orderQ);
     }
 
     if (req.query.date_from) {
-      conditions.push('date(ev.created_at) >= date(?)');
+      conditions.push('date(ev.occurred_at) >= date(?)');
       params.push(req.query.date_from);
     }
 
     if (req.query.date_to) {
-      conditions.push('date(ev.created_at) <= date(?)');
+      conditions.push('date(ev.occurred_at) <= date(?)');
       params.push(req.query.date_to);
     }
 
-    const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
-    const fromSql = `FROM entity_ownership_events ev
-      LEFT JOIN entities e ON ev.entity_id = e.id
-      LEFT JOIN groups g ON e.group_id = g.id
-      LEFT JOIN series s ON g.series_id = s.id
-      LEFT JOIN users fu ON ev.from_user_id = fu.id
-      LEFT JOIN users tu ON ev.to_user_id = tu.id
+    conditions.unshift("ev.event_type LIKE 'asset.%'");
+    const where = `WHERE ${conditions.join(' AND ')}`;
+    const fromSql = `FROM events ev
+      LEFT JOIN ip_instances e ON ev.ip_instance_id = e.id
+      LEFT JOIN ip_definitions g ON e.ip_definition_id = g.id
+      LEFT JOIN users fu ON fu.id = json_extract(ev.payload_json, '$.from_user_id')
+      LEFT JOIN users tu ON tu.id = json_extract(ev.payload_json, '$.to_user_id')
       LEFT JOIN users au ON ev.actor_user_id = au.id
       ${where}`;
 
     const totalRows = resultToObjects(db.exec(`SELECT COUNT(*) as total ${fromSql}`, params));
     const total = totalRows[0]?.total || 0;
     const results = db.exec(
-      `SELECT ev.*, e.group_id, e.external_order_no, g.name as group_name, s.name as series_name,
-              fu.username as from_username, tu.username as to_username, au.username as actor_username
+      `SELECT ev.id,
+              replace(ev.event_type, 'asset.', '') as event_type,
+              ev.occurred_at as created_at,
+              ev.ip_instance_id as entity_id,
+              e.ip_definition_id as group_id, e.external_order_no, g.name as group_name, g.primary_series_name as series_name,
+              fu.username as from_username, tu.username as to_username, au.username as actor_username,
+              json_extract(ev.payload_json, '$.token') as token,
+              json_extract(ev.payload_json, '$.order_id') as order_id,
+              json_extract(ev.payload_json, '$.note') as note
        ${fromSql}
-       ORDER BY ev.created_at DESC${shouldPaginate ? ' LIMIT ? OFFSET ?' : ''}`,
+       ORDER BY ev.occurred_at DESC${shouldPaginate ? ' LIMIT ? OFFSET ?' : ''}`,
       shouldPaginate ? [...params, pageSize, (page - 1) * pageSize] : params
     );
 
@@ -149,7 +186,7 @@ async function listOwnershipEvents(req, res) {
 async function deleteEntity(req, res) {
   try {
     const db = await getDb();
-    db.run('DELETE FROM entities WHERE id = ?', [req.params.id]);
+    db.run('DELETE FROM ip_instances WHERE id = ?', [req.params.id]);
     saveDb();
     res.json({ success: true });
   } catch (error) {

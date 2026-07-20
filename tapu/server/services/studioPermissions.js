@@ -6,15 +6,8 @@ import {
   operationForStudioAction,
 } from '../contracts/operations.js';
 
-const ACTION_ALIASES = {
-  use_official_default: 'use_current_content',
-  use_current: 'use_current_content',
-  upload_video: 'upload_custom_video',
-};
-
 export function normalizeStudioAction(action) {
-  const key = String(action || '').trim();
-  return ACTION_ALIASES[key] || key;
+  return String(action || '').trim();
 }
 
 function operationForAction(action) {
@@ -93,7 +86,7 @@ export function applyStudioPermissions(recipe, context = {}) {
 export function assertStudioActionAllowed(db, req, { token, action }) {
   const normalized = normalizeStudioAction(action);
   const entity = token ? getEntityByToken(db, token) : null;
-  const policy = getStudioActionPermission(normalized, { tokenBound: !!entity?.user_id });
+  const policy = getStudioActionPermission(normalized, { tokenBound: !!entity?.owner_user_id });
 
   if (policy.requiresAuth && !req.user) {
     const error = new Error(serverMessages.permissions.loginRequiredWithPeriod);
@@ -102,9 +95,16 @@ export function assertStudioActionAllowed(db, req, { token, action }) {
     throw error;
   }
 
-  if (policy.token === 'token_or_owner' && token) {
-    assertTokenContentEditable(db, req, token);
+  let editableEntity = entity;
+  if (policy.token === 'token_or_owner') {
+    if (!token) {
+      const error = new Error(serverMessages.permissions.tokenRequired);
+      error.status = 400;
+      error.code = 'TOKEN_REQUIRED';
+      throw error;
+    }
+    editableEntity = assertTokenContentEditable(db, req, token);
   }
 
-  return { policy, entity };
+  return { policy, entity: editableEntity };
 }

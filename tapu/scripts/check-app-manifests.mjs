@@ -63,16 +63,19 @@ function validateSkills(app) {
       failures.push(`${app.code} skill "${skill.key}" must declare label`);
     }
     const triggerStates = skill.trigger?.states || [];
-    if (skill.trigger && (!Array.isArray(triggerStates) || triggerStates.length === 0)) {
-      failures.push(`${app.code} skill "${skill.key}" trigger must declare states`);
+    const triggerEvents = skill.trigger?.events || [];
+    const hasStateTrigger = Array.isArray(triggerStates) && triggerStates.length > 0;
+    const hasEventTrigger = Array.isArray(triggerEvents) && triggerEvents.length > 0;
+    if (skill.trigger && !hasStateTrigger && !hasEventTrigger) {
+      failures.push(`${app.code} skill "${skill.key}" trigger must declare states or events`);
     }
     for (const stateKey of triggerStates) {
       if (!stateKeyPattern.test(stateKey)) {
         failures.push(`${app.code} skill "${skill.key}" trigger state "${stateKey}" must use domain.name format`);
       }
     }
-    if (triggerStates.length > 0 && !skill.effect) {
-      failures.push(`${app.code} skill "${skill.key}" with trigger states must declare effect`);
+    if ((hasStateTrigger || hasEventTrigger) && !skill.effect) {
+      failures.push(`${app.code} skill "${skill.key}" with trigger conditions must declare effect`);
     }
   }
 }

@@ -1,6 +1,6 @@
 domain: frontend, backend, storage, ecommerce
 pack_status: packed
-branch: tapu-master
+branch: evo/core-domain-closeout
 base: tapu-master
 description: 前端重构 + 交互防抖与全局动效 + 双轨账号认证 + 实体选购架构 + 转码兼容性修复
 
@@ -296,3 +296,69 @@ entrypoint: tapu/src/main.ts
 - post-mortem:
   - The sprint is now closed according to the local evo practice: implementation, validation, review notes, constraints, and ledger are aligned.
   - Current branch is already `tapu-master`; merge is therefore a mainline commit-and-push rather than a feature-branch merge.
+
+## 2026-07-16 Codex Increment 15
+
+- domain: backend, database, whatmint-os, official-management
+- ref: working-tree
+- branch_context: `evo/core-domain-closeout` cut from `tapu-master`; this round isolates the core-domain cleanup from unrelated local edits.
+- todo:
+  - [x] Move application registry writes from legacy `applications` into core `application_definitions`.
+  - [x] Collapse runtime event writes and app analytics reads onto core `events` instead of legacy `object_events`.
+  - [x] Rewire emotion IP adapter lookup to core `ip_instances / ip_definitions / application_definitions`.
+  - [x] Stop bootstrap schema from creating legacy `applications` and `object_events` for new databases while keeping backfill compatibility for old databases.
+  - [x] Update contract coverage so core event writes and core object resolution are tested directly.
+  - [x] Remove obvious process residue: tracked `tapu/public/test.mp4` and stale files under `tapu/server/uploads/temp`.
+- evidence:
+  - `npm run check:server`
+  - `npm run check:permissions`
+  - `npm run test:contracts`
+  - `npm run check:db`
+  - `npm run build`
+- post-mortem:
+  - The repo still contains legacy compatibility surfaces such as `groups / entities / videos` route naming and backfill readers; this round intentionally removed active duplicate writes first, not every compatibility shell at once.
+  - Root note and unrelated working-tree changes remain intentionally out of this commit.
+
+## 2026-07-17 Codex Increment 16
+
+- domain: mint-studio, content-assets, database, evo-closeout
+- ref: working-tree
+- branch_context: `evo/core-domain-closeout`; closeout stays on the evo branch and does not merge or push.
+- todo:
+  - [x] Fix Mint Studio content list hot update after login by making Studio library auth state reactive.
+  - [x] Dispatch auth change events on a microtask so global listeners and login success handlers observe stable state.
+  - [x] Add `content_instance_deletions` as a supporting tombstone table for deleted content assets.
+  - [x] Record tombstones in the content delete service before removing `content_instances`.
+  - [x] Make Earphone Girl seed and legacy app content sync respect content tombstones.
+  - [x] Remove resurrected old synced content rows from the checked-in dev DB and leave tombstones behind.
+  - [x] Add S5 r7 observation, retro, and active Codex constraints.
+- evidence:
+  - `npm run check:quality`
+  - `npm run build`
+  - sql.js data check: `contentInstances: 7`, `oldPayloadRows: []`, `tombstones: 4`
+  - in-memory verification: `syncAnswerBookDeckContent` returns `null` for tombstoned content; Earphone Girl seed does not recreate a tombstoned story.
+- post-mortem:
+  - The bug was not only a DELETE problem; deterministic seed and sync writers need a durable "do not recreate" fact.
+  - Non-reactive auth helpers are fine for one-off requests, but not for computed UI lists.
+
+## 2026-07-21 Codex Increment 17
+
+- domain: whatmint-os, mint-studio, content-assets, ar-rendering, frontend-ia
+- ref: `b9b5f56`
+- branch_context: `evo/core-domain-closeout`; this round closes the paper puppy OS rendering and Studio detail workflow before merging to `tapu-master`.
+- todo:
+  - [x] Move paper puppy preview toward the OS rendering protocol so video and AR are renderer modes, not separate app business flows.
+  - [x] Add OS resource pipeline seams for upload handling, resource binding, and rendering contract assembly.
+  - [x] Seed an official paper puppy AR placeholder content asset and bind it to the existing physical tokens for local product validation.
+  - [x] Componentize content detail into a reusable workbench/action deck and keep Mint Studio detail open in-place with the library/sidebar visible.
+  - [x] Change draft resource snapshots to store binding references instead of cloning full resource payloads as a parallel truth.
+  - [x] Document current OS capabilities and missing capability seams for future AR/content-rendering work.
+- evidence:
+  - `npm run check:copy`
+  - `npm run build`
+  - `npm run check:quality`
+  - browser smoke: `/mint?detail_content_id=content-tissue-puppy-ar-placeholder`
+  - API resolve: token `53c0c3d81404ba583e0b48418672c515` resolves to `content-tissue-puppy-ar-placeholder` with renderer `ar.camera-overlay`
+- post-mortem:
+  - `MintStudioPage.vue` is still large after gaining in-place detail orchestration; the next Studio feature should split workspace state into a composable before adding more interaction branches.
+  - AR is currently a camera-overlay/plane fallback renderer for product validation, not yet real WebXR or marker-tracked spatial placement.

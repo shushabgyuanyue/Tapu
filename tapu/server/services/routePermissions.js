@@ -3,10 +3,7 @@ import { authOptional } from '../middleware/auth.js';
 import { resolveObjectByToken } from './objectRegistry.js';
 import { assertStudioActionAllowed } from './studioPermissions.js';
 import { getEntityByToken, resultToObjects } from './tokens.js';
-import {
-  assertEntityOwner,
-  assertVideoManageable,
-} from './objectPermissions.js';
+import { assertEntityOwner } from './objectPermissions.js';
 import { serverMessages } from '../copy/messages.js';
 
 function knownError(status, code, message) {
@@ -96,8 +93,8 @@ function requireAdmin(req) {
 }
 
 function canCurrentUserOwnEntity(req, entity) {
-  if (!entity?.user_id) return false;
-  return req.user?.username === 'admin' || entity.user_id === req.user?.id;
+  if (!entity?.owner_user_id) return false;
+  return req.user?.username === 'admin' || entity.owner_user_id === req.user?.id;
 }
 
 function canCurrentUserOwnAccountObject(req, object, userColumn = 'user_id') {
@@ -118,7 +115,7 @@ function requireTokenEntity(db, req) {
 function assertTokenUnboundOrOwner(db, req) {
   const { token, entity } = requireTokenEntity(db, req);
 
-  if (!entity.user_id) return { token, entity };
+  if (!entity.owner_user_id) return { token, entity };
   if (!req.user?.id) {
     throw knownError(401, 'LOGIN_REQUIRED', serverMessages.permissions.objectBoundLogin);
   }
@@ -131,12 +128,12 @@ function assertClaimableAsset(db, req) {
   const { token, entity } = requireTokenEntity(db, req);
 
   if (!req.user?.id) {
-    const message = entity.user_id
+    const message = entity.owner_user_id
       ? serverMessages.permissions.objectBoundOwnerLogin
       : serverMessages.permissions.objectClaimLogin;
     throw knownError(401, 'LOGIN_REQUIRED', message);
   }
-  if (!entity.user_id || canCurrentUserOwnEntity(req, entity)) return { token, entity };
+  if (!entity.owner_user_id || canCurrentUserOwnEntity(req, entity)) return { token, entity };
 
   throw knownError(409, 'ENTITY_ALREADY_BOUND', serverMessages.permissions.entityAlreadyBound);
 }
@@ -251,7 +248,7 @@ export const PERMISSION_CHECKERS = {
     const entityId = getRequestEntityId(req);
     if (!entityId) throw knownError(400, 'ENTITY_ID_REQUIRED', serverMessages.permissions.entityIdRequired);
     const entity = resultToObjects(db.exec(
-      'SELECT id, user_id, group_id, token, entity_key, external_order_no FROM entities WHERE id = ?',
+      'SELECT id, owner_user_id, ip_definition_id, ip_definition_id as group_id, token, entity_key, external_order_no FROM ip_instances WHERE id = ?',
       [entityId]
     ))[0] || null;
     if (!entity) throw knownError(404, 'ENTITY_NOT_FOUND', serverMessages.permissions.entityNotFound);
@@ -271,13 +268,25 @@ export const PERMISSION_CHECKERS = {
     requireLogin(req);
     const contentId = getRequestContentId(req);
     if (!contentId) throw knownError(400, 'CONTENT_ID_REQUIRED', serverMessages.permissions.contentIdRequired);
-    const video = resultToObjects(db.exec(
-      'SELECT id, entity_id, owner_user_id FROM videos WHERE id = ?',
+    const content = resultToObjects(db.exec(
+      'SELECT id, origin_ip_instance_id, owner_user_id, creator_user_id FROM content_instances WHERE id = ?',
       [contentId]
     ))[0] || null;
-    if (!video) throw knownError(404, 'CONTENT_NOT_FOUND', serverMessages.permissions.contentNotFound);
-    assertVideoManageable(db, req.user, video);
-    return { db, contentId, video };
+    if (content) {
+      if (req.user.username === 'admin'
+        || content.owner_user_id === req.user.id
+        || content.creator_user_id === req.user.id
+        || (content.origin_ip_instance_id && resultToObjects(db.exec(
+          'SELECT id FROM ip_instances WHERE id = ? AND owner_user_id = ? LIMIT 1',
+          [content.origin_ip_instance_id, req.user.id]
+        )).length > 0)
+      ) {
+        return { db, contentId, content };
+      }
+      throw knownError(403, 'CONTENT_OWNER_REQUIRED', serverMessages.objectPermissions.videoOwnerRequired);
+    }
+
+    throw knownError(404, 'CONTENT_NOT_FOUND', serverMessages.permissions.contentNotFound);
   },
 
   studio_action: (req, config, db) => {

@@ -8,6 +8,7 @@ export const CONTENT_CONTAINER_CAPABILITIES = [
   'link',
   'mixed',
   'interactive',
+  'ar',
 ];
 
 export const APPLICATION_MANIFESTS = [
@@ -24,20 +25,36 @@ export const APPLICATION_MANIFESTS = [
     },
     mintStudio: {
       profile: 'entity-recipe',
-      primaryActions: ['open_preview', 'use_current_content', 'upload_custom_video', 'collect_asset'],
+      primaryActions: ['open_preview', 'save_definition_content_by_token', 'collect_asset'],
     },
     permissionOperations: ['view:open', 'view:preview', 'content:token_update', 'content:account_create', 'asset:claim'],
+    operationDefinitions: [
+      {
+        key: 'object.touch',
+        label: 'Touch Object',
+        meaning: 'A user touched or opened the emotional IP object.',
+      },
+    ],
+    eventRules: [
+      {
+        eventType: 'emotion.frequent_touch',
+        sourceOperations: ['object.touch'],
+        windowHours: 24,
+        countGte: 10,
+        relationFocus: 'comfort',
+      },
+    ],
     producesStates: [
       {
         key: 'comfort.action_active',
         category: 'comfort',
-        fromEvents: ['tap_open', 'emotion_content_tap', 'media_play'],
+        fromEvents: ['emotion.frequent_touch'],
         meaning: 'This object is being used as active comfort or companionship.',
       },
       {
         key: 'companion.used_30_days',
         category: 'companion',
-        fromEvents: ['tap_open', 'emotion_content_tap'],
+        fromEvents: ['emotion.long_term_companion'],
         meaning: 'This Mint has become a long-running companion.',
       },
     ],
@@ -54,44 +71,146 @@ export const APPLICATION_MANIFESTS = [
     },
   },
   {
-    code: 'daily-sticker',
-    type: 'state',
-    objectPrinciple: 'A sticker opens a small slow world that updates over time.',
-    behavior: 'touch_to_read_today_story',
-    meaningQuestion: 'How does this small world accompany this moment?',
+    code: 'tissue-puppy',
+    type: 'meaning',
+    objectPrinciple: 'A tissue puppy carries gentle comfort through a physical object and one focused content node.',
+    behavior: 'touch_to_summon_comfort_companion',
+    meaningQuestion: 'What small comfort should this puppy bring into the room?',
     defaultRoutes: {
-      open: '/sticker',
+      open: '/play',
       studio: '/mint-studio',
-      admin: '/official/daily-stickers',
+      admin: '/official/applications',
     },
     mintStudio: {
-      profile: 'daily-sticker',
+      profile: 'tissue-puppy',
+      primaryActions: ['open_preview', 'save_definition_content_by_token', 'collect_asset'],
+    },
+    permissionOperations: ['view:open', 'view:preview', 'content:token_update', 'content:account_create', 'asset:claim'],
+    operationDefinitions: [
+      {
+        key: 'object.touch',
+        label: 'Touch Tissue Puppy',
+        meaning: 'A user touched or opened the tissue puppy object.',
+      },
+    ],
+    eventRules: [
+      {
+        eventType: 'comfort.frequent_touch',
+        sourceOperations: ['object.touch'],
+        windowHours: 24,
+        countGte: 10,
+        relationFocus: 'comfort',
+      },
+    ],
+    contentDefinition: {
+      id: 'content-def-tissue-puppy-comfort-video',
+      code: 'tissue-puppy-comfort-ar',
+      name: '纸巾小狗 AR 召唤',
+      description: '为纸巾小狗创建一个 AR 召唤内容节点，触碰后在现实画面里出现一段温柔陪伴。',
+      contentKind: 'ar',
+      primaryModality: 'video',
+      authoringSchema: {
+        authoringProtocol: {
+          createFlow: 'single_resource_node',
+          unitLabel: 'AR 召唤节点',
+          publishLabel: '完成铸造',
+          publishDescription: '生成纸巾小狗的 AR 内容资产，之后可在内容详情页预览和修改。',
+        },
+        contentShape: {
+          unit: 'comfort_ar_node',
+          slots: [
+            {
+              key: 'comfort_ar_overlay',
+              role: 'ar_overlay',
+              type: 'video',
+              label: 'AR 召唤视频',
+              required: true,
+              accept: 'video/*',
+            },
+          ],
+        },
+        resourceRequirements: [
+          {
+            role: 'ar_overlay',
+            type: 'video',
+            label: 'AR 召唤视频',
+            required: true,
+          },
+        ],
+      },
+      template: {
+        renderer: 'ar.camera-overlay',
+        layout: 'camera_center_overlay',
+        nodeType: 'comfort_ar_overlay',
+        playback: {
+          autoplay: true,
+          mutedByDefault: true,
+          tapToUnmute: true,
+          loop: true,
+          replayMode: 'loop',
+          objectFit: 'contain',
+        },
+        ar: {
+          mode: 'camera_overlay',
+          placement: 'screen_center',
+          scale: 0.72,
+          cameraFacingMode: 'environment',
+          fallbackRenderer: 'video.fullscreen',
+        },
+      },
+      extra: {
+        toneRule: '成熟克制、温柔但不煽情，像纸巾小狗递来一张纸。',
+      },
+    },
+    contentContainer: {
+      capabilities: ['ar', 'video'],
+      defaultModality: 'video',
+    },
+  },
+  {
+    code: 'earphone-girl',
+    type: 'meaning',
+    objectPrinciple: 'An earphone sticker opens a traveler-listener who brings back stories from the IP world.',
+    behavior: 'touch_to_listen_then_follow_story',
+    meaningQuestion: 'Whose story did she bring back today?',
+    defaultRoutes: {
+      open: '/earphone-girl',
+      studio: '/mint-studio',
+      admin: '/official/applications',
+    },
+    mintStudio: {
+      profile: 'earphone-girl',
       primaryActions: ['open_app', 'collect_asset'],
     },
-    permissionOperations: ['view:open', 'asset:claim', 'asset:owner_manage'],
-    producesStates: [
+    permissionOperations: ['view:open', 'app:token_operate', 'asset:claim', 'asset:owner_manage'],
+    operationDefinitions: [
       {
-        key: 'story.returning_touch',
-        category: 'continuity',
-        fromEvents: ['daily_sticker_tap'],
-        meaning: 'The user keeps returning to this slow story world.',
+        key: 'object.touch',
+        label: 'Touch Earphone Girl',
+        meaning: 'A user opened Earphone Girl story space.',
+      },
+      {
+        key: 'story.play_completed',
+        label: 'Story Completed',
+        meaning: 'A story was completed and the instance sequence can advance.',
       },
     ],
     skills: [
       {
-        key: 'guest_character_story',
-        label: 'Guest Character Story',
+        key: 'repeat_touch_crossover_invite',
+        label: 'Crossover Invite',
         trigger: {
-          states: ['comfort.action_active'],
+          events: ['object.touch'],
         },
         effect: {
-          contentAssembly: 'daily_sticker_guest_character_story',
+          actionType: 'show_gateway',
+          contentAssembly: 'earphone_girl_crossover_invite',
           role: 'crossover',
         },
       },
     ],
     contentContainer: {
-      capabilities: ['text', 'image', 'mixed'],
+      capabilities: ['text', 'image', 'audio', 'mixed', 'link'],
       defaultModality: 'mixed',
     },
   },
@@ -129,7 +248,7 @@ export const APPLICATION_MANIFESTS = [
     },
     mintStudio: {
       profile: 'moment',
-      primaryActions: ['open_app', 'save_moment_by_token', 'collect_asset'],
+      primaryActions: ['open_app', 'collect_asset'],
     },
     permissionOperations: ['view:open', 'content:token_update', 'asset:claim', 'asset:owner_manage'],
     contentContainer: {

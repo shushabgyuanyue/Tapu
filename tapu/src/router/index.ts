@@ -1,6 +1,16 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import { getConfig, getProfile, isLoggedIn } from '../api';
 
+const keyAllowedPaths = new Set([
+  '/earphone-girl',
+  '/answer',
+  '/moment',
+  '/trail',
+  '/check',
+  '/assets',
+  '/mint',
+]);
+
 const routes = [
   {
     path: '/',
@@ -13,9 +23,9 @@ const routes = [
     component: () => import('../views/PlayerView.vue'),
   },
   {
-    path: '/sticker',
-    name: 'daily-sticker',
-    component: () => import('../views/DailyStickerPage.vue'),
+    path: '/earphone-girl',
+    name: 'earphone-girl',
+    component: () => import('../views/EarphoneGirlPage.vue'),
   },
   {
     path: '/answer',
@@ -103,13 +113,6 @@ const routes = [
     component: () => import('../views/PrivacyPage.vue'),
   },
   {
-    path: '/admin',
-    component: () => import('../views/admin/AdminLayout.vue'),
-    children: [
-      { path: '', name: 'admin-videos', component: () => import('../views/admin/VideoList.vue') },
-    ],
-  },
-  {
     path: '/official',
     component: () => import('../views/official/OfficialLayout.vue'),
     beforeEnter: async (_to: any, _from: any, next: any) => {
@@ -125,7 +128,6 @@ const routes = [
       { path: 'applications', name: 'official-applications', component: () => import('../views/official/ApplicationManage.vue') },
       { path: 'works', name: 'official-works', component: () => import('../views/official/WorkManage.vue') },
       { path: 'content-collections', name: 'official-content-collections', component: () => import('../views/official/ContentCollectionManage.vue') },
-      { path: 'daily-stickers', name: 'official-daily-stickers', component: () => import('../views/official/DailyStickerManage.vue') },
       { path: 'answer-book', name: 'official-answer-book', component: () => import('../views/official/AnswerBookManage.vue') },
       { path: 'moments', name: 'official-moments', component: () => import('../views/official/MomentManage.vue') },
       { path: 'travel-trails', name: 'official-travel-trails', component: () => import('../views/official/TravelTrailManage.vue') },
@@ -133,6 +135,7 @@ const routes = [
       { path: 'orders', name: 'official-orders', component: () => import('../views/official/OrderManage.vue') },
       { path: 'appeals', name: 'official-appeals', component: () => import('../views/official/AppealManage.vue') },
       { path: 'ownership', name: 'official-ownership', component: () => import('../views/official/OwnershipManage.vue') },
+      { path: 'app-intake', name: 'official-app-intake', component: () => import('../views/official/AppIntakeChecklist.vue') },
       { path: 'stats', name: 'official-stats', component: () => import('../views/admin/Stats.vue') },
       { path: 'settings', name: 'official-settings', component: () => import('../views/official/SiteSettings.vue') },
     ],
@@ -173,36 +176,8 @@ router.beforeEach(async (to, _from, next) => {
       return next('/shop');
     }
   }
-  if (key && to.path.startsWith('/play')) {
-    // /play?key=xxx and /play/:id?key=xxx keep token context for NFC playback.
-    return next();
-  }
-  if (key && to.path === '/sticker') {
-    // Daily sticker NFC links resolve publicly without login.
-    return next();
-  }
-  if (key && to.path === '/answer') {
-    // Answer Book NFC links resolve publicly without login.
-    return next();
-  }
-  if (key && to.path === '/moment') {
-    // Moment NFC links resolve publicly without login.
-    return next();
-  }
-  if (key && to.path === '/trail') {
-    // Travel trail NFC links resolve publicly without login.
-    return next();
-  }
-  if (key && to.path === '/check') {
-    // Check NFC links resolve publicly without login.
-    return next();
-  }
-  if (key && to.path === '/assets') {
-    // Asset binding accepts keys through the dedicated assets page.
-    return next();
-  }
-  if (key && to.path === '/mint') {
-    // Mint Studio accepts keys as the first step of guided creation.
+  if (key && (to.path.startsWith('/play') || keyAllowedPaths.has(to.path))) {
+    // Public app open routes plus asset binding and Mint Studio explicitly preserve token context.
     return next();
   }
   if (key) {

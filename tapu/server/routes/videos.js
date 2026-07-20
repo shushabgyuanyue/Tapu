@@ -1,38 +1,22 @@
 import { Router } from 'express';
-import multer from 'multer';
-import { v4 as uuidv4 } from 'uuid';
-import path from 'path';
 import { getDb, saveDb } from '../db/index.js';
-import { getUploadsDir, deleteFile } from '../services/storage.js';
-import { transcodeVideo } from '../services/transcode.js';
-import { deleteFromR2, getR2KeyFromUrl } from '../services/r2.js';
 import { verifyEntityKey } from '../middleware/auth.js';
 import { resultToObjects } from '../services/tokens.js';
-import { loginRoute, publicRoute, registerRoutes } from '../services/routePermissions.js';
+import { publicRoute, registerRoutes } from '../services/routePermissions.js';
 import {
   assertVideoViewable,
   canViewPrivateEntityContent,
   videoListPrivacyScope,
 } from '../services/objectPermissions.js';
 import { serverMessages } from '../copy/messages.js';
-import { recordObjectEvent } from '../services/objectEvents.js';
+import { buildAppRuntimeContext } from '../services/appAdapters.js';
+import { recordObjectOperation, runOperationPipeline } from '../services/contentOperation.js';
+import {
+  getPrimaryLinkedContent,
+} from '../services/coreStore.js';
+import { deleteContentAsset } from '../services/contentAssets.js';
 
 const router = Router();
-
-// Configure multer for temp uploads
-const ALLOWED_MIMETYPES = ['video/mp4', 'video/quicktime', 'video/webm', 'video/x-m4v'];
-const upload = multer({
-  dest: path.join(getUploadsDir(), 'temp'),
-  defParamCharset: 'utf8',
-  limits: { fileSize: 20 * 1024 * 1024 }, // 20MB max
-  fileFilter: (req, file, cb) => {
-    if (ALLOWED_MIMETYPES.includes(file.mimetype)) {
-      cb(null, true);
-    } else {
-      cb(new Error(serverMessages.routes.common.unsupportedVideo));
-    }
-  },
-});
 
 function normalizeVideoId(rawId) {
   if (!rawId || typeof rawId !== 'string') return rawId;
@@ -44,8 +28,7 @@ function normalizeVideoId(rawId) {
   return trimmed;
 }
 
-// Middleware to optionally verify key from header/query for entity context
-async function optionalKeyVerify(req, res, next) {
+async function optionalKeyVerify(req, _res, next) {
   const key = req.headers['x-entity-key'] || req.query.key;
   if (key) {
     const db = await getDb();
@@ -59,55 +42,64 @@ async function optionalKeyVerify(req, res, next) {
   next();
 }
 
-function isTruthy(value) {
-  return value === true || value === 'true' || value === '1';
+function videoFromSql() {
+  return `FROM content_instances v
+    LEFT JOIN ip_definitions g ON g.id = v.ip_definition_id
+    LEFT JOIN application_definitions a ON a.id = v.application_definition_id
+    LEFT JOIN ip_definition_application_links gl
+      ON gl.ip_definition_id = v.ip_definition_id
+     AND gl.is_primary = 1
+    LEFT JOIN application_definitions linked_app ON linked_app.id = gl.application_definition_id
+    LEFT JOIN content_instance_resource_links rl
+      ON rl.content_instance_id = v.id
+     AND rl.is_primary = 1
+    LEFT JOIN resources r ON r.id = rl.resource_id`;
 }
 
-function decodeBase64Utf8(value) {
-  if (!value || typeof value !== 'string') return '';
-  try {
-    return Buffer.from(value, 'base64').toString('utf8').trim();
-  } catch {
-    return '';
-  }
+function videoSelectSql() {
+  return `SELECT v.id,
+            v.title,
+            json_extract(v.payload_json, '$.original_filename') as original_filename,
+            r.storage_url as file_path,
+            COALESCE(r.preview_url, json_extract(v.payload_json, '$.poster_url')) as poster_url,
+            v.status,
+            r.duration,
+            r.file_size,
+            CASE WHEN v.visibility = 'private' THEN 1 ELSE 0 END as is_private,
+            v.origin_ip_instance_id as entity_id,
+            v.owner_user_id,
+            v.ip_definition_id as group_id,
+            g.name as group_name,
+            g.primary_series_key as series_id,
+            g.primary_series_name as series_name,
+            COALESCE(a.code, linked_app.code) as application_code,
+            COALESCE(a.name, linked_app.name) as application_name,
+            v.created_at`;
 }
 
-// Upload video (requires auth)
-async function uploadVideoHandler(req, res) {
-  try {
-    if (!req.file) {
-      return res.status(400).json({ error: 'No video file provided' });
-    }
-
-    const { db } = req.permission;
-    const id = uuidv4();
-    const decodedTitle = decodeBase64Utf8(req.body.title_b64);
-    const title = decodedTitle || req.body.title || req.file.originalname;
-    const isPrivate = isTruthy(req.body.is_private) ? 1 : 0;
-    const groupId = req.body.group_id || null;
-
-    db.run(
-      `INSERT INTO videos
-        (id, title, group_id, original_filename, file_path, status, is_private, entity_id, owner_user_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [id, title, groupId, req.file.originalname, '', 'processing', isPrivate, null, req.user.id]
-    );
-
-    saveDb();
-
-    // Start transcoding asynchronously
-    transcodeVideo(req.file.path, id).catch(err => {
-      console.error(`Transcode failed for ${id}:`, err.message);
-    });
-
-    res.json({ id, status: 'processing', entity_id: null, default_set: false });
-  } catch (err) {
-    console.error('Upload error:', err);
-    res.status(err.status || 500).json({ error: err.status ? err.message : 'Upload failed' });
-  }
+function normalizeVideoStatus(status) {
+  return status === 'published' ? 'ready' : status;
 }
 
-// List videos
+function shapeVideoRow(row) {
+  return {
+    ...row,
+    content_status: row.status,
+    status: normalizeVideoStatus(row.status),
+    duration: row.duration == null ? null : Number(row.duration),
+    file_size: row.file_size == null ? null : Number(row.file_size),
+    is_private: Number(row.is_private || 0),
+  };
+}
+
+function getVideoRow(db, id) {
+  const rows = resultToObjects(db.exec(
+    `${videoSelectSql()} ${videoFromSql()} WHERE v.id = ? LIMIT 1`,
+    [id]
+  ));
+  return rows[0] ? shapeVideoRow(rows[0]) : null;
+}
+
 async function listVideosHandler(req, res) {
   const db = await getDb();
   const { group_id, series_id, sort, q, page, limit: limitStr, all, is_private } = req.query;
@@ -118,35 +110,38 @@ async function listVideosHandler(req, res) {
   const offset = (pageNum - 1) * limit;
 
   const canSeeAllPrivate = req.user?.username === 'admin' && all;
-  const conditions = [];
+  const conditions = ["v.content_kind = 'video'"];
   const params = [];
+
   if (!canSeeAllPrivate) {
     const scope = videoListPrivacyScope(req, 'v');
     conditions.push(scope.sql);
     params.push(...scope.params);
   }
 
-  let where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
-
   if (group_id) {
-    where += where ? ` AND v.group_id = ?` : ` WHERE v.group_id = ?`;
+    conditions.push('v.ip_definition_id = ?');
     params.push(group_id);
   } else if (series_id) {
-    where += where ? ` AND v.group_id IN (SELECT id FROM groups WHERE series_id = ?)` : ` WHERE v.group_id IN (SELECT id FROM groups WHERE series_id = ?)`;
+    conditions.push('g.primary_series_key = ?');
     params.push(series_id);
   }
 
   if (searchQuery) {
     const normalizedQuery = `%${searchQuery}%`;
     const compactQuery = `%${searchQuery.replace(/-/g, '')}%`;
-    where += where
-      ? ` AND (LOWER(v.title) LIKE LOWER(?) OR LOWER(COALESCE(g.name, '')) LIKE LOWER(?) OR LOWER(COALESCE(s.name, '')) LIKE LOWER(?) OR LOWER(v.id) LIKE LOWER(?) OR LOWER(REPLACE(v.id, '-', '')) LIKE LOWER(?))`
-      : ` WHERE (LOWER(v.title) LIKE LOWER(?) OR LOWER(COALESCE(g.name, '')) LIKE LOWER(?) OR LOWER(COALESCE(s.name, '')) LIKE LOWER(?) OR LOWER(v.id) LIKE LOWER(?) OR LOWER(REPLACE(v.id, '-', '')) LIKE LOWER(?))`;
+    conditions.push(`(
+      LOWER(v.title) LIKE LOWER(?)
+      OR LOWER(COALESCE(g.name, '')) LIKE LOWER(?)
+      OR LOWER(COALESCE(g.primary_series_name, '')) LIKE LOWER(?)
+      OR LOWER(v.id) LIKE LOWER(?)
+      OR LOWER(REPLACE(v.id, '-', '')) LIKE LOWER(?)
+    )`);
     params.push(normalizedQuery, normalizedQuery, normalizedQuery, normalizedQuery, compactQuery);
   }
 
   if (is_private === '1' || is_private === '0') {
-    where += where ? ` AND v.is_private = ?` : ` WHERE v.is_private = ?`;
+    conditions.push(`CASE WHEN v.visibility = 'private' THEN 1 ELSE 0 END = ?`);
     params.push(Number(is_private));
   }
 
@@ -159,39 +154,22 @@ async function listVideosHandler(req, res) {
     ) DESC, v.created_at DESC`;
   }
 
-  const baseFrom = `FROM videos v
-    LEFT JOIN groups g ON v.group_id = g.id
-    LEFT JOIN series s ON g.series_id = s.id`;
-
-  const sql = `SELECT v.*, g.name as group_name, s.name as series_name
-    ${baseFrom}
-    ${where}
-    ${orderBy}
-    LIMIT ${limit} OFFSET ${offset}`;
-
-  const results = db.exec(sql, params);
-  const videos = resultToObjects(results);
-
-  // Get total count for pagination info
+  const where = `WHERE ${conditions.join(' AND ')}`;
+  const baseFrom = videoFromSql();
+  const sql = `${videoSelectSql()} ${baseFrom} ${where} ${orderBy} LIMIT ${limit} OFFSET ${offset}`;
+  const videos = resultToObjects(db.exec(sql, params)).map(shapeVideoRow);
   const countSql = `SELECT COUNT(*) as total ${baseFrom} ${where}`;
-  const countResults = db.exec(countSql, params);
-  const total = countResults.length > 0 ? countResults[0].values[0][0] : 0;
+  const total = resultToObjects(db.exec(countSql, params))[0]?.total || 0;
 
   res.json({ videos, page: pageNum, limit, total, hasMore: offset + videos.length < total });
 }
 
-// Get single video
 async function getVideoHandler(req, res) {
   const db = await getDb();
-  const normalizedId = normalizeVideoId(req.params.id);
-  const results = db.exec('SELECT * FROM videos WHERE id = ?', [normalizedId]);
-  const videos = resultToObjects(results);
-
-  if (videos.length === 0) {
+  const video = getVideoRow(db, normalizeVideoId(req.params.id));
+  if (!video) {
     return res.status(404).json({ error: 'Video not found' });
   }
-
-  const video = videos[0];
 
   try {
     assertVideoViewable(video, req);
@@ -206,50 +184,36 @@ async function getVideoHandler(req, res) {
   res.json(video);
 }
 
-// Get sibling videos in the same group (for swipe feed)
 async function getSiblingVideosHandler(req, res) {
   const db = await getDb();
-  const results = db.exec('SELECT group_id FROM videos WHERE id = ?', [req.params.id]);
-  const current = resultToObjects(results);
-  if (current.length === 0) {
+  const current = getVideoRow(db, req.params.id);
+  if (!current) {
     return res.status(404).json({ error: 'Video not found' });
   }
+  const groupId = current.group_id;
+  if (!groupId) return res.json([]);
 
-  const groupId = current[0].group_id;
-  if (!groupId) {
-    return res.json([]);
-  }
-
-  const scope = videoListPrivacyScope(req);
-  const privacyCondition = scope.sql;
-  const siblingParams = [groupId, 'ready', req.params.id, ...scope.params];
-
-  const siblings = db.exec(
-    `SELECT id, title, file_path, poster_url, duration FROM videos WHERE group_id = ? AND status = ? AND id != ? AND ${privacyCondition} ORDER BY created_at DESC`,
+  const scope = videoListPrivacyScope(req, 'v');
+  const siblingParams = [groupId, req.params.id, ...scope.params];
+  const siblings = resultToObjects(db.exec(
+    `${videoSelectSql()} ${videoFromSql()}
+     WHERE v.ip_definition_id = ?
+       AND v.status = 'published'
+       AND v.id != ?
+       AND ${scope.sql}
+     ORDER BY v.created_at DESC`,
     siblingParams
-  );
-  res.json(resultToObjects(siblings));
+  )).map(shapeVideoRow);
+  res.json(siblings);
 }
 
-// Delete video (requires content ownership)
 async function deleteVideoHandler(req, res) {
   const { db } = req.permission;
-  const results = db.exec('SELECT file_path, poster_url, entity_id, owner_user_id FROM videos WHERE id = ?', [req.params.id]);
-  const videos = resultToObjects(results);
-
-  if (videos.length > 0) {
-    const { file_path: filePath, poster_url: posterUrl } = videos[0];
-    await removeStoredAsset(filePath);
-    await removeStoredAsset(posterUrl);
-  }
-
-  db.run('DELETE FROM videos WHERE id = ?', [req.params.id]);
+  await deleteContentAsset(db, req.params.id, req.user);
   saveDb();
   res.json({ success: true });
 }
 
-// Resolve playback by entity key
-// Default video priority: user_defaults > official_default > latest in group
 async function resolvePlaybackHandler(req, res) {
   const { key } = req.body;
   if (!key) return res.status(400).json({ error: 'key is required' });
@@ -266,87 +230,107 @@ async function resolvePlaybackHandler(req, res) {
   };
   const canViewPrivate = canViewPrivateEntityContent(tokenViewReq, entity_id, user_id || null);
 
-  // 1. Check user custom default
-  const userDefaultResults = db.exec(
-    'SELECT video_id FROM user_defaults WHERE entity_id = ? AND group_id = ? ORDER BY created_at DESC LIMIT 1',
-    [entity_id, group_id]
-  );
-  const userDefaults = resultToObjects(userDefaultResults);
-
-  // 2. Check official default
-  const groupResults = db.exec(
-    `SELECT g.*, s.name as series_name, a.code as application_code, a.name as application_name
-     FROM groups g
-     LEFT JOIN series s ON g.series_id = s.id
-     LEFT JOIN applications a ON a.id = s.application_id
-     WHERE g.id = ?`,
-    [group_id]
-  );
-  const group = resultToObjects(groupResults)[0] || null;
-
-  let defaultVideoId = null;
-  if (userDefaults.length > 0) {
-    defaultVideoId = userDefaults[0].video_id;
-  } else if (group && group.official_default_video_id) {
-    defaultVideoId = group.official_default_video_id;
+  const entity = resultToObjects(db.exec(
+    `SELECT i.*, d.name as group_name, d.primary_series_name as series_name,
+            a.code as application_code, a.name as application_name
+     FROM ip_instances i
+     LEFT JOIN ip_definitions d ON d.id = i.ip_definition_id
+     LEFT JOIN application_definitions a ON a.id = i.application_definition_id
+     WHERE i.id = ? LIMIT 1`,
+    [entity_id]
+  ))[0] || null;
+  if (!entity) {
+    return res.status(404).json({ error: serverMessages.routes.common.ipNotFound });
   }
 
-  // 3. Fetch videos for this group: public + this entity's private only after owner login
-  const privacySql = canViewPrivate ? '(is_private = 0 OR entity_id = ?)' : 'is_private = 0';
+  const ownerDefault = getPrimaryLinkedContent(db, entity_id, ['owner_default']);
+  const officialInstance = resultToObjects(db.exec(
+    `SELECT id FROM ip_instances
+     WHERE ip_definition_id = ? AND instance_type = 'official_demo'
+     LIMIT 1`,
+    [group_id]
+  ))[0] || null;
+  const officialDefault = officialInstance ? getPrimaryLinkedContent(db, officialInstance.id, ['official_default']) : null;
+  const defaultVideoId = ownerDefault?.id || officialDefault?.id || null;
+
+  const visibilitySql = canViewPrivate ? "(v.visibility = 'public' OR v.origin_ip_instance_id = ?)" : "v.visibility = 'public'";
   const queryParams = canViewPrivate
     ? [group_id, entity_id, defaultVideoId || '', entity_id]
     : [group_id, defaultVideoId || '', entity_id];
-  let results = db.exec(
-    `SELECT * FROM videos WHERE group_id = ? AND status = 'ready' AND ${privacySql} ORDER BY
-      CASE WHEN id = ? THEN 0 WHEN entity_id = ? THEN 1 ELSE 2 END,
-      created_at DESC`,
+  const videos = resultToObjects(db.exec(
+    `${videoSelectSql()} ${videoFromSql()}
+     WHERE v.ip_definition_id = ?
+       AND v.status = 'published'
+       AND ${visibilitySql}
+     ORDER BY CASE WHEN v.id = ? THEN 0 WHEN v.origin_ip_instance_id = ? THEN 1 ELSE 2 END,
+              v.created_at DESC`,
     queryParams
-  );
+  )).map(shapeVideoRow);
 
-  const videos = resultToObjects(results);
   if (videos.length === 0) {
     return res.status(404).json({ error: serverMessages.routes.common.noPlayableContent });
   }
 
-  const appCode = group?.application_code || 'emotion-ip';
-  recordObjectEvent(db, {
+  const appCode = entity.application_code || 'emotion-ip';
+  const operationId = recordObjectOperation(db, {
+    operationType: 'object.touch',
     objectType: 'mint-entity',
     objectId: entity_id,
     tokenId: entity_id,
     token: payload.token || key,
     appCode,
-    eventType: appCode === 'emotion-ip' ? 'emotion_content_tap' : 'tap_open',
     contentId: defaultVideoId || videos[0]?.id || null,
     userId: user_id || req.user?.id || null,
     userAgent: req.headers['user-agent'] || null,
+    ipDefinitionId: group_id,
     metadata: {
       groupId: group_id,
-      groupName: group?.name || null,
-      objectName: group?.name || null,
+      groupName: entity.group_name || null,
+      objectName: entity.group_name || null,
       defaultVideoId,
       contentCount: videos.length,
     },
   });
+  runOperationPipeline(db, { operationIds: [operationId] });
   saveDb();
 
-  res.json({ videos, group, entity_id, user_id, default_video_id: defaultVideoId });
-}
+  const runtimeContext = buildAppRuntimeContext(db, {
+    object: {
+      id: entity_id,
+      type: 'mint-entity',
+      token: payload.token || key,
+      displayName: entity.group_name || null,
+    },
+    app: {
+      code: appCode,
+      name: entity.application_name || null,
+    },
+    raw: {
+      id: entity_id,
+      user_id: user_id || null,
+      token: payload.token || key,
+    },
+  }, {
+    userId: user_id || req.user?.id || null,
+    token: payload.token || key,
+    appCode,
+  });
 
-// Helper: convert sql.js result to array of objects
-async function removeStoredAsset(assetPath) {
-  if (!assetPath) return;
-
-  const r2Key = getR2KeyFromUrl(assetPath);
-  if (r2Key) {
-    await deleteFromR2(r2Key);
-    return;
-  }
-
-  if (assetPath.startsWith('/uploads/')) {
-    const relativePath = assetPath.replace(/^\/uploads\//, '');
-    const localFilePath = path.join(getUploadsDir(), relativePath);
-    deleteFile(localFilePath);
-  }
+  res.json({
+    videos,
+    group: {
+      id: group_id,
+      name: entity.group_name,
+      series_name: entity.series_name,
+      application_code: entity.application_code,
+      application_name: entity.application_name,
+      official_default_video_id: officialDefault?.id || null,
+    },
+    entity_id,
+    user_id,
+    default_video_id: defaultVideoId,
+    runtime_context: runtimeContext,
+  });
 }
 
 registerRoutes(router, [
@@ -357,17 +341,9 @@ registerRoutes(router, [
     operation: 'view:open',
     summary: 'Resolve playable content for an entity token.',
     body: { key: 'string' },
-    response: { videos: 'array', group: 'object', entity_id: 'string', default_video_id: 'string|null' },
+    response: { videos: 'array', group: 'object', entity_id: 'string', default_video_id: 'string|null', runtime_context: 'object' },
     errors: ['ENTITY_NOT_FOUND', 'CONTENT_NOT_FOUND'],
     tags: ['touch', 'content'],
-  }),
-  loginRoute('post', '/upload', uploadVideoHandler, [upload.single('video')], {
-    operation: 'content:account_create',
-    summary: 'Upload an account-owned video content asset.',
-    body: { video: 'file', title: 'string', group_id: 'string?', is_private: 'boolean?' },
-    response: { id: 'string', url: 'string', status: 'string' },
-    errors: ['LOGIN_REQUIRED', 'INVALID_FILE', 'TRANSCODE_FAILED'],
-    tags: ['content', 'upload'],
   }),
   {
     method: 'delete',

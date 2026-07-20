@@ -120,16 +120,5 @@ export const serverMessages = {
       missingNextStop: '请写下下一站',
       noReturnPending: '还没有可以确认归来的下一站',
     },
-    dailySticker: {
-      tokenRequired: '缺少贴纸 token',
-      inactive: '贴纸不存在或未启用',
-      fallbackTitle: '日常贴纸',
-      refresh: '看看现在',
-      notBindable: '该贴纸暂不可绑定',
-      bindNote: '用户绑定日常贴纸资产',
-      unbindNote: '用户解除日常贴纸归属',
-      objectLabel: '贴纸',
-      assetLabel: '贴纸资产',
-    },
   },
 };

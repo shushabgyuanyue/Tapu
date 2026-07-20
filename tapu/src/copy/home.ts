@@ -12,6 +12,7 @@ export const homeCopy = {
     app: '答案之书',
     answer: '今天先别急着证明自己。把手松开一点，答案会浮上来。',
     chip: '碰一下进入',
+    heroAriaLabel: 'WhatMint 触碰体验示意',
   },
   objectSection: {
     eyebrow: 'Objects As IP',
@@ -45,9 +46,9 @@ export const homeCopy = {
     apps: [
       {
         index: '01',
-        name: '手账慢故事贴纸',
-        desc: '一枚贴纸就是一个慢慢更新的数字角落，让普通物品多出故事、气味和时间。',
-        tag: '内容容器',
+        name: '耳机小姐',
+        desc: '一枚耳机贴纸打开会旅行、会倾听、会带回故事的朋友，也把不同 IP 的关系轻轻连起来。',
+        tag: '关系入口',
       },
       {
         index: '02',

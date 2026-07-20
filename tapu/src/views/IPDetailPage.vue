@@ -42,12 +42,11 @@ const coverImage = computed(() => {
     return item.product_image_url || item.cover_url || item.official_default_video_poster;
   }
   const name = `${item.name || ''}${item.application_code || ''}`.toLowerCase();
-  if (name.includes('贴纸') || name.includes('sticker')) return '/shop/figures/daily-sticker.svg';
+  if (name.includes('贴纸') || name.includes('sticker')) return '/shop/figures/nfc-sticker.svg';
   if (name.includes('狗') || name.includes('puppy') || name.includes('纸巾')) return '/shop/figures/tissue-puppy.svg';
   return '/shop/figures/designer-toy-default.svg';
 });
 const heroImage = computed(() => group.value?.hero_url || coverImage.value);
-
 const tags = computed(() => {
   const rawTags = String(group.value?.display_tags || '')
     .split(/[，,\s]+/)
@@ -62,6 +61,19 @@ const storyParagraphs = computed(() => {
     .split(/\n+/)
     .map(line => line.trim())
     .filter(Boolean);
+});
+
+const relations = computed(() => {
+  const rows = Array.isArray(group.value?.relations) ? group.value.relations : [];
+  return rows.map((relation: any) => ({
+    ...relation,
+    counterpartName: relation.counterpart_ip_definition_name || communityCopy.ipDetail.defaults.ip,
+    displayLabel: relation.display_relation_label || relation.display_relation_type || 'related',
+    narrative: relation.narrative || '',
+    imageUrl: relation.counterpart_cover_url || relation.counterpart_hero_url || '',
+    themeColor: relation.counterpart_theme_color || group.value?.theme_color || '#ff4fd8',
+    strength: Number(relation.strength || 0),
+  }));
 });
 
 const specs = computed(() => [
@@ -262,6 +274,47 @@ onMounted(loadData);
             <strong>{{ spec.value }}</strong>
           </div>
         </article>
+      </section>
+
+      <section v-if="relations.length > 0" class="panel relation-panel">
+        <div class="section-head relation-head">
+          <div>
+            <span class="panel-kicker">{{ communityCopy.ipDetail.relations.kicker }}</span>
+            <h2>{{ communityCopy.ipDetail.relations.title }}</h2>
+          </div>
+          <div class="relation-meta">
+            <p>{{ communityCopy.ipDetail.relations.intro }}</p>
+            <strong>{{ communityCopy.ipDetail.relations.count(relations.length) }}</strong>
+          </div>
+        </div>
+
+        <div class="relation-grid">
+          <article
+            v-for="relation in relations"
+            :key="relation.id"
+            class="relation-card"
+            :style="{ '--relation-accent': relation.themeColor }"
+          >
+            <div class="relation-visual">
+              <img
+                v-if="relation.imageUrl"
+                :src="relation.imageUrl"
+                :alt="relation.counterpartName"
+              />
+              <div v-else class="relation-placeholder" :aria-label="communityCopy.ipDetail.relations.emptyImageAlt"></div>
+            </div>
+
+            <div class="relation-body">
+              <div class="relation-topline">
+                <span>{{ relation.displayLabel }}</span>
+                <strong v-if="relation.strength > 0">Lv.{{ relation.strength }}</strong>
+              </div>
+              <h3>{{ relation.counterpartName }}</h3>
+              <p v-if="relation.narrative">{{ relation.narrative }}</p>
+              <p v-else>{{ communityCopy.ipDetail.relations.fallbackNarrative(group.name, relation.counterpartName, relation.displayLabel) }}</p>
+            </div>
+          </article>
+        </div>
       </section>
 
       <section class="content-section">
@@ -664,6 +717,98 @@ onMounted(loadData);
   gap: 12px;
 }
 
+.relation-panel {
+  margin-bottom: 18px;
+}
+
+.relation-head {
+  align-items: end;
+}
+
+.relation-meta {
+  display: grid;
+  justify-items: end;
+  gap: 8px;
+}
+
+.relation-meta strong {
+  color: #2b1b32;
+  font-size: 13px;
+}
+
+.relation-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+}
+
+.relation-card {
+  overflow: hidden;
+  border: 1px solid #f0e8f2;
+  border-radius: 24px;
+  background:
+    radial-gradient(circle at 100% 0%, color-mix(in srgb, var(--relation-accent) 18%, white), transparent 34%),
+    linear-gradient(180deg, #ffffff, #fff8fb);
+  box-shadow: 0 18px 42px rgba(82, 34, 98, 0.08);
+}
+
+.relation-visual {
+  position: relative;
+  aspect-ratio: 16 / 10;
+  background:
+    radial-gradient(circle at 50% 20%, rgba(255, 255, 255, 0.72), transparent 30%),
+    linear-gradient(145deg, color-mix(in srgb, var(--relation-accent) 18%, #fff5fb), #f6efff);
+}
+
+.relation-visual img,
+.relation-placeholder {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+.relation-placeholder {
+  background:
+    radial-gradient(circle at 24% 24%, color-mix(in srgb, var(--relation-accent) 32%, white), transparent 24%),
+    radial-gradient(circle at 78% 78%, rgba(255, 255, 255, 0.9), transparent 18%),
+    linear-gradient(145deg, color-mix(in srgb, var(--relation-accent) 20%, #fff2f9), #f3edff);
+}
+
+.relation-body {
+  display: grid;
+  gap: 8px;
+  padding: 16px;
+}
+
+.relation-topline {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: #8b7f91;
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.relation-topline strong {
+  color: color-mix(in srgb, var(--relation-accent) 72%, #2b1b32);
+}
+
+.relation-body h3 {
+  margin: 0;
+  color: #2b1b32;
+  font-size: 22px;
+  letter-spacing: -0.04em;
+}
+
+.relation-body p {
+  margin: 0;
+  color: #625768;
+  line-height: 1.75;
+}
+
 .spec-row {
   display: flex;
   justify-content: space-between;
@@ -816,6 +961,10 @@ onMounted(loadData);
 
   .section-head {
     display: grid;
+  }
+
+  .relation-meta {
+    justify-items: start;
   }
 
   .content-grid {

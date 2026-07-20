@@ -298,7 +298,7 @@ onMounted(async () => {
       <template v-else>
         <p class="empty-icon">{{ communityCopy.feed.empty.allIcon }}</p>
         <p>{{ communityCopy.feed.empty.all }}</p>
-        <router-link to="/admin" class="empty-cta">{{ communityCopy.feed.empty.action }}</router-link>
+        <router-link to="/mint" class="empty-cta">{{ communityCopy.feed.empty.action }}</router-link>
       </template>
     </div>
 

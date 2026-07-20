@@ -1,3 +1,5 @@
+import { emitAuthChanged } from '../events/appEvents';
+
 const BASE = '/api';
 
 export type RequestOptions = RequestInit & {
@@ -12,10 +14,12 @@ export function getToken(): string | null {
 
 export function setToken(token: string) {
   localStorage.setItem('tapu_token', token);
+  emitAuthChanged();
 }
 
 export function clearToken() {
   localStorage.removeItem('tapu_token');
+  emitAuthChanged();
 }
 
 export function isLoggedIn(): boolean {

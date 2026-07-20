@@ -99,5 +99,13 @@ export const communityCopy = {
       touchTitle: '先碰一下，进入它的小世界',
       touchIntro: '像拿到它的那一刻一样，轻轻打开它会递出的第一段内容。',
     },
+    relations: {
+      kicker: 'World Relations',
+      title: '关系设定',
+      intro: '这些关系描述了这个 IP 在 whatmint 世界里的连接方式，也会成为后续生态联动的基础。',
+      count: (value: number) => `${value} 条关系`,
+      emptyImageAlt: '关系 IP 占位图',
+      fallbackNarrative: (name: string, counterpartName: string, label: string) => `${name} 与 ${counterpartName} 保持着「${label}」的关系。`,
+    },
   },
 };

@@ -4,11 +4,13 @@ import { getDb, saveDb } from '../db/index.js';
 import { cleanString } from '../services/contentCollections.js';
 import { recordObjectEvent } from '../services/objectEvents.js';
 import { resolveObjectByToken } from '../services/objectRegistry.js';
+import { buildAppRuntimeContext } from '../services/appAdapters.js';
 import { adminRoute, registerRoutes, tokenRoute } from '../services/routePermissions.js';
 import { buildTapResponse } from '../services/tapRuntime.js';
 import { createUniqueToken, normalizeEntityToken, resultToObjects } from '../services/tokens.js';
 import { createWork, getWork, updateWork } from '../services/works.js';
 import { serverMessages } from '../copy/messages.js';
+import { syncChecklistContent } from '../services/coreCreationSync.js';
 
 const router = Router();
 const APP_CODE = 'check';
@@ -158,6 +160,10 @@ router.get('/resolve', async (req, res) => {
       },
     });
     saveDb();
+    const runtimeContext = buildAppRuntimeContext(db, resolvedObject, {
+      userId: req.user?.id || tokenRow.user_id || null,
+      token: tokenRow.token,
+    });
 
     const tapResponse = buildTapResponse({
       object: resolvedObject.object,
@@ -191,6 +197,7 @@ router.get('/resolve', async (req, res) => {
       checklist,
       items: checklist.items,
       work,
+      runtime_context: runtimeContext,
     });
   } catch (error) {
     console.error('Resolve check error:', error);
@@ -231,7 +238,9 @@ async function listChecklists(_req, res) {
        LEFT JOIN works w ON w.id = c.work_id
        LEFT JOIN check_templates t ON t.id = c.template_id
        LEFT JOIN checklist_items i ON i.checklist_id = c.id
-       LEFT JOIN object_events e ON e.token_id = c.id AND e.app_code = ?
+       LEFT JOIN events e
+         ON json_extract(e.context_snapshot_json, '$.token_id') = c.id
+        AND e.application_definition_id IN (SELECT id FROM application_definitions WHERE code = ?)
        GROUP BY c.id
        ORDER BY c.updated_at DESC, c.created_at DESC`,
       [APP_CODE]
@@ -307,6 +316,7 @@ async function createChecklist(req, res) {
       itemCount: checklist.item_count,
       checkedCount: checklist.checked_count,
     });
+    syncChecklistContent(db, id);
     saveDb();
     res.json({ success: true, id, token, work_id: work.id, checklist });
   } catch (error) {
@@ -331,6 +341,7 @@ async function addChecklistItem(req, res) {
       itemCount: nextChecklist.item_count,
       checkedCount: nextChecklist.checked_count,
     });
+    syncChecklistContent(db, checklist.id);
     saveDb();
     res.json({ success: true, item, checklist: nextChecklist });
   } catch (error) {
@@ -365,6 +376,7 @@ async function updateChecklistItem(req, res) {
       itemCount: nextChecklist.item_count,
       checkedCount: nextChecklist.checked_count,
     });
+    syncChecklistContent(db, checklist.id);
     saveDb();
     res.json({ success: true, checklist: nextChecklist });
   } catch (error) {
@@ -385,6 +397,7 @@ async function deleteChecklistItem(req, res) {
       itemCount: nextChecklist.item_count,
       checkedCount: nextChecklist.checked_count,
     });
+    syncChecklistContent(db, checklist.id);
     saveDb();
     res.json({ success: true, checklist: nextChecklist });
   } catch (error) {
@@ -405,6 +418,7 @@ async function addPublicCheckItemHandler(req, res) {
       itemCount: checklist.item_count,
       checkedCount: checklist.checked_count,
     });
+    syncChecklistContent(db, tokenRow.id);
     recordObjectEvent(db, {
       objectType: resolved.resolvedObject.object.type,
       objectId: resolved.resolvedObject.object.id,
@@ -446,6 +460,7 @@ async function updatePublicCheckItemHandler(req, res) {
       itemCount: checklist.item_count,
       checkedCount: checklist.checked_count,
     });
+    syncChecklistContent(db, tokenRow.id);
     recordObjectEvent(db, {
       objectType: resolved.resolvedObject.object.type,
       objectId: resolved.resolvedObject.object.id,
@@ -485,6 +500,7 @@ async function resetPublicCheckHandler(req, res) {
       itemCount: checklist.item_count,
       checkedCount: 0,
     });
+    syncChecklistContent(db, tokenRow.id);
     recordObjectEvent(db, {
       objectType: resolved.resolvedObject.object.type,
       objectId: resolved.resolvedObject.object.id,

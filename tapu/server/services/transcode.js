@@ -183,6 +183,8 @@ export function transcodeVideo(inputPath, videoId) {
             console.error('Post-transcode error:', postErr.message);
             const db = await getDb();
             db.run('UPDATE videos SET status = ? WHERE id = ?', ['error', videoId]);
+            db.run('UPDATE content_instances SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', ['error', videoId]);
+            db.run('UPDATE resources SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', ['error', `resource-${videoId}`]);
             saveDb();
             reject(postErr);
           }
@@ -191,6 +193,8 @@ export function transcodeVideo(inputPath, videoId) {
           console.error('Transcode error:', err.message);
           const db = await getDb();
           db.run('UPDATE videos SET status = ? WHERE id = ?', ['error', videoId]);
+          db.run('UPDATE content_instances SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', ['error', videoId]);
+          db.run('UPDATE resources SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', ['error', `resource-${videoId}`]);
           saveDb();
           reject(err);
         })
@@ -199,8 +203,81 @@ export function transcodeVideo(inputPath, videoId) {
       console.error('Probe error:', probeErr.message);
       const db = await getDb();
       db.run('UPDATE videos SET status = ? WHERE id = ?', ['error', videoId]);
+      db.run('UPDATE content_instances SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', ['error', videoId]);
+      db.run('UPDATE resources SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', ['error', `resource-${videoId}`]);
       saveDb();
       reject(probeErr);
+    }
+  });
+}
+
+export function transcodeAuthoringVideo(inputPath, resourceId) {
+  const authoringDir = path.join(getUploadsDir(), 'authoring');
+  if (!fs.existsSync(authoringDir)) fs.mkdirSync(authoringDir, { recursive: true });
+
+  const outputFilename = `${resourceId}.mp4`;
+  const posterFilename = `${resourceId}.jpg`;
+  const outputPath = path.join(authoringDir, outputFilename);
+  const posterPath = path.join(authoringDir, posterFilename);
+
+  return new Promise(async (resolve, reject) => {
+    try {
+      const probe = await probeVideo(inputPath);
+      const vf = getVideoFilter(probe.width, probe.height);
+      const outputOptions = [
+        '-c:v', 'libx264',
+        '-profile:v', 'high',
+        '-level', '4.0',
+        '-preset', 'medium',
+        '-crf', '23',
+        '-movflags', '+faststart',
+        '-pix_fmt', 'yuv420p',
+        '-vf', vf,
+        ...(probe.hasAudio ? ['-c:a', 'aac', '-b:a', '128k', '-ac', '2'] : ['-an']),
+      ];
+
+      ffmpeg(inputPath)
+        .outputOptions(outputOptions)
+        .output(outputPath)
+        .on('end', async () => {
+          try {
+            await extractPoster(outputPath, posterPath, probe.duration || 0);
+            const { size } = fs.statSync(outputPath);
+            const outputProbe = await probeVideo(outputPath);
+            let storageUrl = `/uploads/authoring/${outputFilename}`;
+            let previewUrl = fs.existsSync(posterPath) ? `/uploads/authoring/${posterFilename}` : null;
+
+            if (isR2Configured()) {
+              storageUrl = await uploadToR2(outputPath, `authoring/${outputFilename}`, 'video/mp4');
+              if (previewUrl && fs.existsSync(posterPath)) {
+                previewUrl = await uploadToR2(posterPath, `authoring-posters/${posterFilename}`, 'image/jpeg');
+                fs.unlinkSync(posterPath);
+              }
+              if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath);
+            }
+
+            if (fs.existsSync(inputPath)) fs.unlinkSync(inputPath);
+            resolve({
+              storageUrl,
+              previewUrl,
+              storageKey: `authoring/${outputFilename}`,
+              storageProvider: isR2Configured() ? 'remote' : 'local',
+              mimeType: 'video/mp4',
+              fileSize: size,
+              duration: outputProbe.duration || probe.duration || null,
+              width: outputProbe.width || null,
+              height: outputProbe.height || null,
+              originalCodec: probe.codec || null,
+              originalPixFmt: probe.pixFmt || null,
+            });
+          } catch (postErr) {
+            reject(postErr);
+          }
+        })
+        .on('error', reject)
+        .run();
+    } catch (error) {
+      reject(error);
     }
   });
 }
@@ -229,6 +306,22 @@ async function finalizeVideo(videoId, outputPath, posterPath, posterFilename, ou
   db.run(
     'UPDATE videos SET status = ?, file_path = ?, poster_url = ?, duration = ?, file_size = ? WHERE id = ?',
     ['ready', filePath, posterUrl, duration, size, videoId]
+  );
+  db.run(
+    `UPDATE content_instances
+     SET status = 'published',
+         visibility = COALESCE(visibility, 'public'),
+         payload_json = json_set(COALESCE(payload_json, '{}'), '$.poster_url', ?, '$.file_path', ?),
+         published_at = COALESCE(published_at, CURRENT_TIMESTAMP),
+         updated_at = CURRENT_TIMESTAMP
+     WHERE id = ?`,
+    [posterUrl, filePath, videoId]
+  );
+  db.run(
+    `UPDATE resources
+     SET storage_url = ?, preview_url = ?, file_size = ?, duration = ?, status = 'ready', updated_at = CURRENT_TIMESTAMP
+     WHERE id = ?`,
+    [filePath, posterUrl, size, duration, `resource-${videoId}`]
   );
   saveDb();
 

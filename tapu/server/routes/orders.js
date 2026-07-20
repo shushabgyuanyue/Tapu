@@ -5,6 +5,7 @@ import { getDb, saveDb } from '../db/index.js';
 import { adminRoute, registerRoutes } from '../services/routePermissions.js';
 import { createUniqueEntityToken, normalizeEntityToken } from '../services/tokens.js';
 import { recordOwnershipEvent } from '../services/ownership.js';
+import { getPrimaryApplicationForIpDefinition, stringifyJson } from '../services/coreStore.js';
 
 const router = Router();
 
@@ -29,7 +30,6 @@ function generateOrderNo() {
   return `WM${date}${suffix}`;
 }
 
-// List all orders (admin only)
 async function listOrders(req, res) {
   try {
     const db = await getDb();
@@ -69,16 +69,17 @@ async function listOrders(req, res) {
 
     const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
     const fromSql = `FROM orders o
-       LEFT JOIN entities e ON o.entity_id = e.id
-       LEFT JOIN groups g ON o.group_id = g.id
-       LEFT JOIN series s ON g.series_id = s.id
+       LEFT JOIN ip_instances e ON o.entity_id = e.id
+       LEFT JOIN ip_definitions g ON COALESCE(o.group_id, e.ip_definition_id) = g.id
        LEFT JOIN users u ON o.buyer_user_id = u.id
        ${where}`;
 
     const totalResult = db.exec(`SELECT COUNT(*) as total ${fromSql}`, params);
     const total = totalResult.length > 0 ? totalResult[0].values[0][0] : 0;
     const results = db.exec(
-      `SELECT o.*, e.token, e.user_id as entity_user_id, g.name as group_name, s.name as series_name, u.username as buyer_username
+      `SELECT o.*, e.token, e.owner_user_id as entity_user_id,
+              g.name as group_name, g.primary_series_name as series_name,
+              u.username as buyer_username
        ${fromSql}
        ORDER BY o.created_at DESC${shouldPaginate ? ' LIMIT ? OFFSET ?' : ''}`,
       shouldPaginate ? [...params, pageSize, (page - 1) * pageSize] : params
@@ -108,21 +109,40 @@ async function createExternalOrder(req, res) {
     if (!orderNo) return res.status(400).json({ error: 'order_no is required' });
 
     const db = await getDb();
-    const groups = resultToObjects(db.exec('SELECT id FROM groups WHERE id = ?', [group_id]));
-    if (groups.length === 0) return res.status(404).json({ error: 'IP 不存在' });
+    const groups = resultToObjects(db.exec('SELECT id FROM ip_definitions WHERE id = ?', [group_id]));
+    if (groups.length === 0) return res.status(404).json({ error: 'IP not found' });
 
-    const existingOrder = resultToObjects(db.exec('SELECT id FROM orders WHERE id = ? OR external_order_no = ? LIMIT 1', [orderNo, orderNo]));
-    if (existingOrder.length > 0) return res.status(400).json({ error: '订单号已存在' });
+    const existingOrder = resultToObjects(db.exec(
+      'SELECT id FROM orders WHERE id = ? OR external_order_no = ? LIMIT 1',
+      [orderNo, orderNo]
+    ));
+    if (existingOrder.length > 0) return res.status(400).json({ error: 'Order number already exists' });
 
     const inputToken = normalizeEntityToken(req.body.token);
     const token = inputToken || createUniqueEntityToken(db);
-    const existingToken = resultToObjects(db.exec('SELECT id FROM entities WHERE token = ? OR entity_key = ? LIMIT 1', [token, token]));
-    if (existingToken.length > 0) return res.status(400).json({ error: 'token 已存在' });
+    const existingToken = resultToObjects(db.exec(
+      'SELECT id FROM ip_instances WHERE token = ? OR entity_key = ? LIMIT 1',
+      [token, token]
+    ));
+    if (existingToken.length > 0) return res.status(400).json({ error: 'Token already exists' });
 
     const entityId = uuidv4();
+    const application = getPrimaryApplicationForIpDefinition(db, group_id);
     db.run(
-      'INSERT INTO entities (id, group_id, token, entity_key, external_order_no) VALUES (?, ?, ?, ?, ?)',
-      [entityId, group_id, token, token, orderNo]
+      `INSERT INTO ip_instances
+        (id, ip_definition_id, owner_user_id, application_definition_id, label, token, entity_key, instance_type,
+         source_type, status, visibility, external_order_no, metadata_json)
+       VALUES (?, ?, NULL, ?, ?, ?, ?, 'physical', 'official', 'active', 'public', ?, ?)`,
+      [
+        entityId,
+        group_id,
+        application?.id || null,
+        token,
+        token,
+        token,
+        orderNo,
+        stringifyJson({ source: 'orders.external', created_by: req.user.id }),
+      ]
     );
 
     db.run(
@@ -131,13 +151,13 @@ async function createExternalOrder(req, res) {
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
       [
         orderNo,
-        req.user.id,
+        null,
         group_id,
         entityId,
         token,
-        '外部平台',
+        'External Platform',
         '',
-        '外部订单',
+        'External Order',
         status || 'completed',
         orderNo,
         'external',
@@ -150,7 +170,7 @@ async function createExternalOrder(req, res) {
       eventType: 'official_order_created',
       actorUserId: req.user.id,
       orderId: orderNo,
-      note: '官方录入外部订单并生成实体 token',
+      note: 'Officially registered an external order and generated an entity token.',
     });
 
     saveDb();
@@ -161,13 +181,12 @@ async function createExternalOrder(req, res) {
   }
 }
 
-// Update order status (admin only)
 async function updateOrderStatus(req, res) {
   try {
     const { status } = req.body;
     const validStatuses = ['pending', 'shipped', 'completed'];
     if (!validStatuses.includes(status)) {
-      return res.status(400).json({ error: '无效的状态值' });
+      return res.status(400).json({ error: 'Invalid status' });
     }
 
     const db = await getDb();

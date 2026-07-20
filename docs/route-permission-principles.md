@@ -34,7 +34,7 @@
 
 例如：
 
-- 视频是否属于同一个 IP。
+- 内容资产是否属于同一个 IP。
 - 内容状态是否是 `ready` 或 `processing`。
 - 标题、地点、清单项是否为空。
 - 旅行轨迹是否还在可编辑时间窗口内。
@@ -65,7 +65,7 @@
 - 查看个人资料。
 - 修改密码。
 - 查看自己的内容资产库。
-- 上传内容资产。
+- 创建内容资产。
 - 查看自己的订单或实体列表。
 
 ### `admin_required`
@@ -94,7 +94,7 @@
 
 适合：
 
-- `PUT /api/auth/entity-default-by-token`
+- `PUT /api/auth/content-default-by-token`
 - Mint Studio 中“通过物件码定制内容”的交易。
 - 后续通过 token 编辑轻应用作品的接口。
 
@@ -129,8 +129,8 @@
 
 - `POST /api/auth/unbind-entity`
 - `POST /api/auth/transfer-entity`
-- `GET /api/auth/entity-default/:entityId`
-- `PUT /api/auth/entity-default/:entityId`
+- `GET /api/auth/content-default/:entityId`
+- `PUT /api/auth/content-default/:entityId`
 
 ### `content_owner`
 
@@ -138,8 +138,8 @@
 
 适合：
 
-- 删除视频。
-- 修改用户上传的内容资产。
+- 删除内容资产。
+- 修改用户创建的内容资产。
 - 后续内容资产的重命名、归档、移动。
 
 示例：
@@ -173,7 +173,6 @@
 
 适合：
 
-- 日常贴纸 token 绑定账号。
 - 后续不走 `entities` 表、但同样有 `user_id` 归属字段的资产。
 
 ### `account_object_owner`
@@ -182,7 +181,6 @@
 
 适合：
 
-- 日常贴纸解绑。
 - 用户已经拥有的非实体资产修改。
 
 ### `anonymous_fingerprint`
@@ -198,25 +196,33 @@
 
 ## 接口分配示例
 
-### 上传视频
+### 上传创作资源
 
-接口：`POST /api/videos/upload`
+接口：`POST /api/authoring/resources`
 
 建议权限：`login_required`
 
-原因：上传只创建内容资产，不负责绑定实体，也不负责设置默认内容。绑定到物件应由单独交易完成。
+原因：资源上传只创建临时资源记录，不负责把内容资产发布到物件。资源进入内容资产必须继续通过内容定义协议完成。
 
-### 通过 token 设置默认内容
+### 通过 token 生成内容资产
 
-接口：`PUT /api/auth/entity-default-by-token`
+接口：`POST /api/authoring/content-by-token`
 
 权限：`token_unbound_or_owner`
 
-原因：这个交易的主体是“物件 token 是否允许被当前调用者编辑”。视频是否属于同一 IP，是业务有效性，不属于调用权限。
+原因：这个交易会把资源组织成 `content_instances`，并关联到当前可编辑的 `ip_instances`，主体是“物件 token 是否允许被当前调用者创作/修改”。
+
+### 通过 token 设置默认内容
+
+接口：`PUT /api/auth/content-default-by-token`
+
+权限：`token_unbound_or_owner`
+
+原因：这个交易的主体是“物件 token 是否允许被当前调用者编辑”。内容资产是否属于同一 IP，是业务有效性，不属于调用权限。
 
 ### 已绑定实体设置默认内容
 
-接口：`PUT /api/auth/entity-default/:entityId`
+接口：`PUT /api/auth/content-default/:entityId`
 
 权限：`entity_owner`
 
@@ -271,9 +277,9 @@
 registerRoutes(router, [
   {
     method: 'put',
-    path: '/entity-default-by-token',
+    path: '/content-default-by-token',
     permission: 'token_unbound_or_owner',
-    handler: setEntityDefaultByTokenHandler,
+    handler: setContentDefaultByTokenHandler,
   },
 ]);
 ```
@@ -281,7 +287,7 @@ registerRoutes(router, [
 handler 中通过 `req.permission` 读取权限层解析出的 subject：
 
 ```js
-async function setEntityDefaultByTokenHandler(req, res) {
+async function setContentDefaultByTokenHandler(req, res) {
   const { db, entity } = req.permission;
   // 这里只做业务有效性和数据更新。
 }
@@ -317,19 +323,18 @@ npm run check:permissions
 - `POST /api/auth/entity-key`
 - `POST /api/auth/bind-entity`
 - `POST /api/auth/unbind-entity`
-- `PUT /api/auth/entity-default-by-token`
+- `PUT /api/auth/content-default-by-token`
 - `POST /api/auth/transfer-entity`
-- `GET /api/auth/entity-default/:entityId`
-- `PUT /api/auth/entity-default/:entityId`
+- `GET /api/auth/content-default/:entityId`
+- `PUT /api/auth/content-default/:entityId`
 - `GET /api/auth/unbind-appeals`
 - `POST /api/auth/unbind-appeals/:id/resolve`
-- `POST /api/videos/upload`
+- `POST /api/authoring/resources`
+- `POST /api/authoring/content-by-token`
 - `DELETE /api/videos/:id`
 - `PUT /api/config/:key`
 - `GET /api/purchases`
 - `POST /api/purchases/by-group`
-- `POST /api/daily-stickers/bind-token`
-- `POST /api/daily-stickers/unbind-token`
 - `POST /api/checks/items`
 - `PUT /api/checks/items/:itemId`
 - `POST /api/checks/reset`

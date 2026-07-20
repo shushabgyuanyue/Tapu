@@ -22,10 +22,12 @@ async function listWishlistHandler(req, res) {
   const results = db.exec(
     `SELECT w.id, w.group_id, w.default_video_id, w.created_at,
             g.name as group_name,
-            v.title as video_title, v.poster_url as video_poster
+            v.title as video_title, r.preview_url as video_poster
      FROM wishlist w
-     JOIN groups g ON w.group_id = g.id
-     LEFT JOIN videos v ON w.default_video_id = v.id
+     JOIN ip_definitions g ON w.group_id = g.id
+     LEFT JOIN content_instances v ON w.default_video_id = v.id
+     LEFT JOIN content_instance_resource_links l ON l.content_instance_id = v.id AND l.is_primary = 1
+     LEFT JOIN resources r ON r.id = l.resource_id
      WHERE w.fingerprint = ?
      ORDER BY w.created_at DESC`,
     [fingerprint]
@@ -45,7 +47,12 @@ async function listWishlistHandler(req, res) {
   // Attach preview_videos for each group (top 6 ready videos)
   for (const item of items) {
     const vidResults = db.exec(
-      `SELECT id, title, poster_url FROM videos WHERE group_id = ? AND status = 'ready' ORDER BY created_at DESC LIMIT 6`,
+      `SELECT v.id, v.title, r.preview_url as poster_url
+       FROM content_instances v
+       LEFT JOIN content_instance_resource_links l ON l.content_instance_id = v.id AND l.is_primary = 1
+       LEFT JOIN resources r ON r.id = l.resource_id
+       WHERE v.ip_definition_id = ? AND v.content_kind = 'video' AND v.status = 'published'
+       ORDER BY v.created_at DESC LIMIT 6`,
       [item.group_id]
     );
     if (vidResults && vidResults.length > 0) {
