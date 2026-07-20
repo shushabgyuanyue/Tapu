@@ -95,9 +95,16 @@ export function assertStudioActionAllowed(db, req, { token, action }) {
     throw error;
   }
 
-  if (policy.token === 'token_or_owner' && token) {
-    assertTokenContentEditable(db, req, token);
+  let editableEntity = entity;
+  if (policy.token === 'token_or_owner') {
+    if (!token) {
+      const error = new Error(serverMessages.permissions.tokenRequired);
+      error.status = 400;
+      error.code = 'TOKEN_REQUIRED';
+      throw error;
+    }
+    editableEntity = assertTokenContentEditable(db, req, token);
   }
 
-  return { policy, entity };
+  return { policy, entity: editableEntity };
 }

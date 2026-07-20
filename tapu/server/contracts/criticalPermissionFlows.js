@@ -1,9 +1,9 @@
 export const CRITICAL_PERMISSION_FLOWS = [
   {
     id: 'touch-resolve-public-content',
-    title: 'Token resolve opens public content',
+    title: 'Token resolve opens core default content',
     routes: [
-      { method: 'post', path: '/api/videos/resolve', permissionType: 'public', operation: 'view:open' },
+      { method: 'get', path: '/api/contents/resolve-by-token', permissionType: 'public', operation: 'view:open' },
       { method: 'get', path: '/api/mint-studio/resolve', permissionType: 'public', operation: 'view:open' },
     ],
   },
@@ -13,6 +13,7 @@ export const CRITICAL_PERMISSION_FLOWS = [
     routes: [
       { method: 'post', path: '/api/authoring/resources', permissionType: 'login_required', operation: 'content:account_create' },
       { method: 'post', path: '/api/authoring/content-by-token', permissionType: 'studio_action', operation: 'content:token_update' },
+      { method: 'post', path: '/api/authoring/official-content', permissionType: 'admin_required', operation: 'content:official_create' },
     ],
   },
   {

@@ -1,112 +1,64 @@
 import { Router } from 'express';
+import fs from 'fs';
 import multer from 'multer';
 import { v4 as uuidv4 } from 'uuid';
-import fs from 'fs';
 import path from 'path';
-import { getDb, saveDb } from '../db/index.js';
+import { saveDb } from '../db/index.js';
 import { getUploadsDir } from '../services/storage.js';
-import { loginRoute, registerRoutes, route } from '../services/routePermissions.js';
-import { getEntityByToken, normalizeEntityToken } from '../services/tokens.js';
-import { cleanString, stringifyJson, upsertIpInstanceContentLink } from '../services/coreStore.js';
+import { adminRoute, loginRoute, registerRoutes, route } from '../services/routePermissions.js';
+import { resultToObjects } from '../services/tokens.js';
+import {
+  cleanString,
+  ensureOfficialIpInstance,
+  parseJson,
+  stringifyJson,
+  upsertIpInstanceContentLink,
+} from '../services/coreStore.js';
 import { recordCoreEvent } from '../services/events.js';
+import {
+  buildContentDetailRoute,
+  buildContentPreviewRoute,
+} from '../services/contentRenderingProtocol.js';
+import {
+  createProcessedAuthoringResource,
+  OS_RESOURCE_UPLOAD_MIMETYPES,
+} from '../services/osResourcePipeline.js';
+import {
+  assertContentResourcesMatchDefinition,
+  buildContentBlocksFromNodes,
+  buildContentResourceNodes,
+  getContentDefinitionBindingConfig,
+  hydrateAuthoringResources,
+} from '../services/contentResourceBinding.js';
 
 const router = Router();
-const AUTHORING_DIR = path.join(getUploadsDir(), 'authoring');
-const ALLOWED_MIMETYPES = [
-  'image/png',
-  'image/jpeg',
-  'image/webp',
-  'image/svg+xml',
-  'audio/mpeg',
-  'audio/mp3',
-  'audio/wav',
-  'audio/x-wav',
-  'audio/mp4',
-  'audio/aac',
-  'audio/ogg',
-  'audio/webm',
-];
-
-if (!fs.existsSync(AUTHORING_DIR)) {
-  fs.mkdirSync(AUTHORING_DIR, { recursive: true });
-}
 
 const upload = multer({
   dest: path.join(getUploadsDir(), 'temp'),
   defParamCharset: 'utf8',
   limits: { fileSize: 30 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
-    if (ALLOWED_MIMETYPES.includes(file.mimetype)) cb(null, true);
+    if (OS_RESOURCE_UPLOAD_MIMETYPES.includes(file.mimetype)) cb(null, true);
     else cb(new Error('暂不支持这个文件类型'));
   },
 });
 
-function resourceTypeFromMime(mimeType) {
-  if (String(mimeType || '').startsWith('image/')) return 'image';
-  if (String(mimeType || '').startsWith('audio/')) return 'audio';
-  return 'file';
-}
-
-function safeExtension(filename) {
-  const ext = path.extname(String(filename || '')).toLowerCase().replace(/[^a-z0-9.]/g, '');
-  return ext || '';
-}
-
-function contentBlocksFromPages(pages) {
-  return pages.flatMap((page, index) => {
-    const blocks = [];
-    const label = page.label || `第 ${index + 1} 段`;
-    blocks.push({
-      id: `page-${index + 1}-title`,
-      kind: 'heading',
-      title: label,
-      body: label,
-      tag: `Page ${index + 1}`,
-    });
-    for (const resource of page.resources || []) {
-      if (resource.resource_type === 'image') {
-        blocks.push({
-          id: `page-${index + 1}-${resource.slot_key || resource.relation_role || 'image'}`,
-          kind: 'image',
-          url: resource.storage_url,
-          title: resource.label || label,
-          caption: resource.original_filename || undefined,
-        });
-      } else if (resource.resource_type === 'audio') {
-        blocks.push({
-          id: `page-${index + 1}-${resource.slot_key || resource.relation_role || 'audio'}`,
-          kind: 'audio',
-          url: resource.storage_url,
-          title: resource.label || label,
-          caption: resource.original_filename || undefined,
-        });
-      }
-    }
-    return blocks;
-  });
-}
-
-function buildPagesFromResources(resources) {
-  const grouped = new Map();
-  for (const resource of resources) {
-    const unitIndex = Number(resource.unitIndex || resource.unit_index || 1);
-    const page = grouped.get(unitIndex) || {
-      index: unitIndex,
-      label: `第 ${unitIndex} 段故事`,
-      resources: [],
-    };
-    page.resources.push({
-      id: resource.id || resource.resource_id,
-      slot_key: resource.slotKey || resource.slot_key,
-      relation_role: resource.relationRole || resource.relation_role,
-      resource_type: resource.resourceType || resource.resource_type,
-      storage_url: resource.storageUrl || resource.storage_url,
-      original_filename: resource.originalFilename || resource.original_filename,
-      label: resource.label,
-    });
-    grouped.set(unitIndex, page);
-  }
-  return [...grouped.values()].sort((a, b) => a.index - b.index);
+function getContentDefinitionConfig(db, contentDefinitionId) {
+  const id = cleanString(contentDefinitionId);
+  if (!id) return { template: {}, schema: {}, authoringProtocol: {}, contentShape: {} };
+  const row = resultToObjects(db.exec(
+    'SELECT content_kind, primary_modality, template_json, authoring_schema_json FROM content_definitions WHERE id = ? LIMIT 1',
+    [id]
+  ))[0] || null;
+  const authoringSchema = parseJson(row?.authoring_schema_json, {});
+  return {
+    template: parseJson(row?.template_json, {}),
+    schema: authoringSchema,
+    authoringProtocol: authoringSchema.authoringProtocol || {},
+    contentShape: authoringSchema.contentShape || authoringSchema.authoringProtocol?.contentShape || {},
+    contentKind: cleanString(row?.content_kind),
+    primaryModality: cleanString(row?.primary_modality),
+  };
 }
 
 async function uploadAuthoringResource(req, res) {
@@ -114,80 +66,83 @@ async function uploadAuthoringResource(req, res) {
     if (!req.file) return res.status(400).json({ error: '请先选择文件' });
     const db = req.permission.db;
     const id = uuidv4();
-    const ext = safeExtension(req.file.originalname);
-    const filename = `${id}${ext}`;
-    const targetPath = path.join(AUTHORING_DIR, filename);
-    fs.renameSync(req.file.path, targetPath);
-
-    const storageUrl = `/uploads/authoring/${filename}`;
-    const resourceType = resourceTypeFromMime(req.file.mimetype);
     const relationRole = cleanString(req.body.relation_role || req.body.relationRole || req.body.slot_key || req.body.slotKey || 'authoring_resource');
     const slotKey = cleanString(req.body.slot_key || req.body.slotKey || relationRole);
     const unitIndex = Number(req.body.unit_index || req.body.unitIndex || 1);
-
-    db.run(
-      `INSERT INTO resources
-       (id, owner_user_id, resource_type, mime_type, original_filename, storage_provider,
-        storage_key, storage_url, preview_url, file_size, status, metadata_json)
-       VALUES (?, ?, ?, ?, ?, 'local', ?, ?, ?, ?, 'ready', ?)`,
-      [
-        id,
-        req.user.id,
-        resourceType,
-        req.file.mimetype,
-        req.file.originalname,
-        `authoring/${filename}`,
-        storageUrl,
-        resourceType === 'image' ? storageUrl : null,
-        req.file.size,
-        stringifyJson({
-          source: 'mint-studio-authoring',
-          relationRole,
-          slotKey,
-          unitIndex,
-        }),
-      ]
-    );
-    saveDb();
-
-    res.json({
-      id,
-      resource_id: id,
-      resource_type: resourceType,
-      mime_type: req.file.mimetype,
-      original_filename: req.file.originalname,
-      storage_url: storageUrl,
-      preview_url: resourceType === 'image' ? storageUrl : null,
-      relation_role: relationRole,
-      slot_key: slotKey,
-      unit_index: unitIndex,
+    const result = await createProcessedAuthoringResource(db, {
+      file: req.file,
+      resourceId: id,
+      ownerUserId: req.user.id,
+      contentDefinitionId: req.body.content_definition_id || req.body.contentDefinitionId,
+      contentDefinitionCode: req.body.content_definition_code || req.body.contentDefinitionCode,
+      relationRole,
+      slotKey,
+      unitIndex,
     });
+    saveDb();
+    res.json(result);
   } catch (error) {
+    if (req.file?.path && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
     console.error('Authoring resource upload error:', error);
-    res.status(500).json({ error: '资源上传失败' });
+    res.status(error.status || 500).json({
+      error: error.status ? error.message : '资源上传失败',
+      code: error.code || 'AUTHORING_RESOURCE_UPLOAD_FAILED',
+    });
   }
 }
 
-async function createDefinitionContentByToken(req, res) {
+function getOfficialAuthoringSubject(db, req) {
+  const ipDefinitionId = cleanString(req.body.ip_definition_id || req.body.ipDefinitionId);
+  if (!ipDefinitionId) return null;
+  const row = resultToObjects(db.exec(
+    `SELECT d.id as ip_definition_id, l.application_definition_id
+     FROM ip_definitions d
+     LEFT JOIN ip_definition_application_links l
+       ON l.ip_definition_id = d.id
+      AND l.is_primary = 1
+     WHERE d.id = ?
+     LIMIT 1`,
+    [ipDefinitionId]
+  ))[0] || null;
+  if (!row) return null;
+  return ensureOfficialIpInstance(db, row.ip_definition_id, row.application_definition_id || null);
+}
+
+async function createDefinitionContent(req, res, { entity, token = '', sourceType = 'user' } = {}) {
   try {
     const db = req.permission.db;
-    const token = normalizeEntityToken(String(req.body.key || ''));
-    const entity = getEntityByToken(db, token);
     if (!entity) return res.status(404).json({ error: '物件不存在' });
 
-    const resources = Array.isArray(req.body.resources) ? req.body.resources : [];
-    if (!resources.length) return res.status(400).json({ error: '请至少上传一组内容资源' });
+    const submittedResources = Array.isArray(req.body.resources) ? req.body.resources : [];
+    if (!submittedResources.length) return res.status(400).json({ error: '请至少上传一组内容资源' });
 
+    const isOfficialAuthoring = sourceType === 'official';
     const id = uuidv4();
-    const pages = buildPagesFromResources(resources);
-    const title = cleanString(req.body.title) || `${req.body.object_name || '耳机小姐'}的故事`;
-    const summary = cleanString(req.body.summary) || `${pages.length} 段插画与声音`;
+    const contentDefinitionId = cleanString(req.body.content_definition_id || req.body.contentDefinitionId);
+    const contentDefinitionConfig = getContentDefinitionConfig(db, contentDefinitionId);
+    const bindingConfig = getContentDefinitionBindingConfig(contentDefinitionConfig);
+    const resources = hydrateAuthoringResources(db, submittedResources, {
+      ownerUserId: req.user?.id || null,
+      allowAdmin: req.user?.username === 'admin',
+    });
+    assertContentResourcesMatchDefinition(resources, bindingConfig);
+    const pages = buildContentResourceNodes(resources, {
+      unitLabel: bindingConfig.unitLabel,
+    });
+    const title = cleanString(req.body.title) || `${req.body.object_name || '内容'}的内容`;
+    const hasVideo = resources.some(resource => (resource.resourceType || resource.resource_type) === 'video');
+    const contentKind = contentDefinitionConfig.contentKind || (hasVideo ? 'video' : 'mixed');
+    const primaryModality = contentDefinitionConfig.primaryModality || (hasVideo ? 'video' : 'mixed');
+    const summary = cleanString(req.body.summary) || (contentKind === 'ar' ? `${pages.length} 个 AR 内容节点` : (hasVideo ? `${pages.length} 个视频内容节点` : `${pages.length} 个内容节点`));
+    const contentDefinitionTemplate = contentDefinitionConfig.template;
     const payload = {
       source: 'mint-studio-definition-authoring',
       appCode: req.body.app_code || null,
       contentDefinitionCode: req.body.content_definition_code || null,
+      renderer: contentDefinitionTemplate.renderer || null,
+      playback: contentDefinitionTemplate.playback || null,
       pages,
-      blocks: contentBlocksFromPages(pages),
+      blocks: buildContentBlocksFromNodes(pages),
     };
 
     db.run(
@@ -196,18 +151,23 @@ async function createDefinitionContentByToken(req, res) {
         owner_user_id, creator_user_id, origin_ip_instance_id, title, summary,
         content_kind, primary_modality, source_type, visibility, access_scope,
         status, version_no, payload_json, published_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'mixed', 'mixed', 'user', 'private', 'owner',
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
         'published', 1, ?, CURRENT_TIMESTAMP)`,
       [
         id,
         entity.ip_definition_id,
-        req.body.content_definition_id || null,
+        contentDefinitionId || null,
         entity.application_definition_id || null,
         req.user?.id || entity.owner_user_id || null,
         req.user?.id || null,
         entity.id,
         title,
         summary,
+        contentKind,
+        primaryModality,
+        isOfficialAuthoring ? 'official' : 'user',
+        isOfficialAuthoring ? 'public' : 'private',
+        isOfficialAuthoring ? 'public' : 'owner',
         stringifyJson(payload),
       ]
     );
@@ -249,7 +209,7 @@ async function createDefinitionContentByToken(req, res) {
       userId: req.user?.id || entity.owner_user_id || null,
       ipDefinitionId: entity.ip_definition_id,
       applicationDefinitionId: entity.application_definition_id,
-      contentDefinitionId: req.body.content_definition_id || null,
+      contentDefinitionId: contentDefinitionId || null,
       ipInstanceId: entity.id,
       contentInstanceId: id,
       payload: {
@@ -259,18 +219,45 @@ async function createDefinitionContentByToken(req, res) {
     });
 
     saveDb();
+    const createdContent = {
+      id,
+      content_kind: contentKind,
+      primary_modality: primaryModality,
+      payload,
+      content_definition_template: contentDefinitionTemplate,
+    };
     res.json({
       success: true,
       content: { id, title, summary, page_count: pages.length },
       nextRoutes: {
-        preview: `/content/${id}`,
-        asset: `/assets?key=${encodeURIComponent(token)}`,
+        preview: buildContentPreviewRoute(createdContent),
+        detail: buildContentDetailRoute(createdContent),
+        ipInstance: token ? `/assets?key=${encodeURIComponent(token)}` : '',
       },
     });
   } catch (error) {
     console.error('Create definition content error:', error);
-    res.status(500).json({ error: '内容创建失败' });
+    res.status(error.status || 500).json({
+      error: error.status ? error.message : '内容创建失败',
+      code: error.code || 'CONTENT_CREATE_FAILED',
+    });
   }
+}
+
+async function createDefinitionContentByToken(req, res) {
+  return createDefinitionContent(req, res, {
+    entity: req.permission.entity,
+    token: req.permission.token,
+    sourceType: 'user',
+  });
+}
+
+async function createOfficialDefinitionContent(req, res) {
+  const entity = getOfficialAuthoringSubject(req.permission.db, req);
+  return createDefinitionContent(req, res, {
+    entity,
+    sourceType: 'official',
+  });
 }
 
 registerRoutes(router, [
@@ -289,6 +276,14 @@ registerRoutes(router, [
     response: { success: 'boolean', content: 'object', nextRoutes: 'object' },
     errors: ['LOGIN_REQUIRED', 'ENTITY_NOT_FOUND', 'OBJECT_BOUND_TO_OTHER_ACCOUNT'],
     tags: ['authoring', 'content'],
+  }),
+  adminRoute('post', '/official-content', createOfficialDefinitionContent, [], {
+    operation: 'content:official_create',
+    summary: 'Create official content from a definition-driven Studio flow for an IP definition.',
+    body: { ip_definition_id: 'string', content_definition_id: 'string', resources: 'array' },
+    response: { success: 'boolean', content: 'object', nextRoutes: 'object' },
+    errors: ['LOGIN_REQUIRED', 'ADMIN_REQUIRED', 'ENTITY_NOT_FOUND'],
+    tags: ['authoring', 'content', 'official'],
   }),
 ]);
 

@@ -8,6 +8,14 @@ const BUILT_IN_APPLICATIONS = [
     status: 'active',
   },
   {
+    name: '纸巾小狗',
+    code: 'tissue-puppy',
+    app_type: 'meaning',
+    interaction_type: 'tap_to_comfort_video',
+    description: '触碰纸巾小狗，打开一段温柔、克制、可被收藏和替换的视频内容。',
+    status: 'active',
+  },
+  {
     name: '耳机小姐',
     code: 'earphone-girl',
     app_type: 'meaning',

@@ -112,7 +112,7 @@ IP 定义，例如纸巾小狗、耳机小姐。包含实体信息、商品信�
 | 创作中心解析和内容列表 | `tapu/server/routes/mintStudio.js` |
 | 内容定义资源上传和内容实例创建 | `tapu/server/routes/authoring.js` |
 | 内容详情、删除、版本草稿和发布 | `tapu/server/routes/contents.js` |
-| NFC 解析和视频媒体播放 | `tapu/server/routes/videos.js` |
+| NFC 核心内容解析 | `tapu/server/routes/contents.js` |
 | 外部订单录入和搜索 | `tapu/server/routes/orders.js` |
 | 持有记录查询 | `tapu/server/routes/entities.js` |
 | 应用技术层 | `tapu/server/routes/applications.js` |
@@ -184,11 +184,11 @@ IP 定义，例如纸巾小狗、耳机小姐。包含实体信息、商品信�
 - 耳机小姐不再沿用旧贴纸应用的日历式故事模型；首版按核心对象、官方内容实例和实例级故事队列组织体验。
 - 官方内容通过创作中心创建，再由官方权限手动选择默认或联动内容，避免形成第二套官方内容运营后台。
 
-### 私有内容与 NFC 播放口径
+### 核心内容与 NFC 播放口径
 
-- 当前安全规则：公开内容可通过 `/play?key=<token>` 匿名播放；私有内容必须登录实体持有人账号或 admin 才能查看。
-- 因此，“碰一下直接播放”默认指公开内容。若默认内容是私有内容，匿名 NFC 不会直接泄露私有内容，应引导用户登录持有人账号。
-- 如果未来希望 token 本身授权私有内容播放，需要重新设计分享边界、撤销机制和泄露风险处理。
+- `/play?key=<token>` 先通过 `/api/contents/resolve-by-token` 解析 IP 实例，再打开该实例的 `owner_default` 内容；若未设置，则回落到该 IP 的官方默认内容。
+- token 只授权当前物件的默认内容播放，不提供任意私有内容检索能力；内容详情和内容管理仍按登录用户、owner/admin 权限判断。
+- 播放器是 OS 内容渲染入口，具体视频、音频、AR 或网页体验由内容定义里的 renderer/template 决定。
 
 ### 前端维护建议
 

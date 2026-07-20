@@ -1,6 +1,7 @@
 import { computed, ref, type Ref } from 'vue';
 import {
   createDefinitionContentByToken,
+  createOfficialDefinitionContent,
   uploadAuthoringResource,
   type MintStudioRecipe,
 } from '../api';
@@ -35,13 +36,18 @@ export function useMintStudioDefinitionAuthoring(params: {
   toast?: Toast;
   addMessage: (role: MessageRole, text: string) => void;
   loadStudioLibrary: () => void;
+  openAuthoringPreview: (payload: any) => void;
+  onContentCreated?: (contentId: string) => void;
 }) {
   const runtimeSteps = ref<any[]>([]);
   const uploadedResources = ref<any[]>([]);
   const flowSteps = computed(() => (
     runtimeSteps.value.length ? runtimeSteps.value : (params.studioFlow.value?.steps || [])
   ));
-  const isDefinitionResourceFlow = computed(() => params.studioFlow.value?.kind === 'definition_resource_sequence');
+  const isDefinitionResourceFlow = computed(() => [
+    'definition_resource_sequence',
+    'definition_resource_single_node',
+  ].includes(params.studioFlow.value?.kind));
 
   function resetDefinitionAuthoring() {
     runtimeSteps.value = [];
@@ -85,6 +91,8 @@ export function useMintStudioDefinitionAuthoring(params: {
       relationRole: step.relationRole || step.slotKey,
       slotKey: step.slotKey || step.relationRole,
       unitIndex: Number(step.unitIndex || 1),
+      contentDefinitionId: params.studioFlow.value?.contentDefinitionId,
+      contentDefinitionCode: params.studioFlow.value?.contentDefinitionCode,
     });
 
     if (result.error) {
@@ -115,15 +123,29 @@ export function useMintStudioDefinitionAuthoring(params: {
     }
 
     params.phase.value = 'saving';
-    const result = await createDefinitionContentByToken({
+    const objectName = studio.object.displayName || studio.app.name;
+    const contentTitle = params.studioFlow.value?.contentTitle;
+    const payload = {
       key: studio.token.token,
-      title: studioCopy.messages.definitionContentTitle(studio.object.displayName || studio.app.name),
-      object_name: studio.object.displayName || studio.app.name,
+      title: studioCopy.messages.definitionContentTitle(objectName, contentTitle),
+      object_name: objectName,
       app_code: studio.app.code,
+      ip_definition_id: studio.bindings?.ipDefinitionId || studio.object.id,
       content_definition_id: params.studioFlow.value?.contentDefinitionId,
       content_definition_code: params.studioFlow.value?.contentDefinitionCode,
       resources: uploadedResources.value,
-    });
+    };
+    const result = params.studioFlow.value?.submitAction === 'save_official_definition_content'
+      ? await createOfficialDefinitionContent({
+        title: payload.title,
+        object_name: payload.object_name,
+        app_code: payload.app_code,
+        ip_definition_id: payload.ip_definition_id,
+        content_definition_id: payload.content_definition_id,
+        content_definition_code: payload.content_definition_code,
+        resources: payload.resources,
+      })
+      : await createDefinitionContentByToken(payload);
 
     if (result.error) {
       params.phase.value = 'step';
@@ -135,13 +157,57 @@ export function useMintStudioDefinitionAuthoring(params: {
       studio.nextRoutes = {
         ...(studio.nextRoutes || {}),
         preview: result.nextRoutes.preview,
+        detail: result.nextRoutes.detail,
       };
     }
+    if (result.content?.id) params.onContentCreated?.(result.content.id);
     params.phase.value = 'done';
     params.addMessage('assistant', studioCopy.messages.definitionContentCreated);
     emitContentChanged('created', result.content?.id);
     params.loadStudioLibrary();
     params.toast?.show(studioCopy.toast.minted, 1600, 'success');
+    return true;
+  }
+
+  function previewDefinitionDraft() {
+    if (!uploadedResources.value.length) {
+      params.addMessage('assistant', studioCopy.messages.previewResourceRequired);
+      return true;
+    }
+
+    const studio = params.studio.value;
+    const template = params.studioFlow.value?.contentDefinitionTemplate || {};
+    const objectName = studio?.object.displayName || studio?.app.name || studioCopy.defaultTitle;
+    const resources = uploadedResources.value.map((resource: any, index) => ({
+      id: resource.id || resource.resource_id || `draft-resource-${index}`,
+      resource_type: resource.resource_type || resource.resourceType || 'file',
+      storage_url: resource.storage_url || resource.storageUrl,
+      preview_url: resource.preview_url || resource.previewUrl || '',
+      relation_role: resource.relation_role || resource.relationRole || resource.slotKey || 'authoring_resource',
+      original_filename: resource.original_filename || resource.originalFilename || resource.label || '',
+      is_primary: index === 0,
+    }));
+
+    params.openAuthoringPreview({
+      id: `draft-${crypto.randomUUID()}`,
+      title: studioCopy.messages.definitionContentTitle(objectName, params.studioFlow.value?.contentTitle),
+      summary: '',
+      content_kind: template.contentKind || (template.renderer === 'ar.camera-overlay' ? 'ar' : 'video'),
+      renderer: template.renderer || params.studioFlow.value?.renderer || '',
+      content_definition_template: template,
+      payload: {
+        renderer: template.renderer || params.studioFlow.value?.renderer || '',
+        playback: template.playback || null,
+        ar: template.ar || null,
+      },
+      resources,
+    });
+    params.addMessage('assistant', studioCopy.messages.draftPreviewOpened);
+    if (params.currentStepIndex.value < flowSteps.value.length - 1) {
+      params.currentStepIndex.value += 1;
+      const nextStep = flowSteps.value[params.currentStepIndex.value];
+      if (nextStep?.prompt) params.addMessage('assistant', nextStep.prompt);
+    }
     return true;
   }
 
@@ -151,7 +217,10 @@ export function useMintStudioDefinitionAuthoring(params: {
       appendUnitSteps();
       return true;
     }
-    if (option.action === 'publish_definition_content') {
+    if (option.action === 'preview_authoring_content') {
+      return previewDefinitionDraft();
+    }
+    if (['publish_definition_content', 'publish_official_definition_content'].includes(option.action)) {
       return publishDefinitionContent();
     }
     return false;

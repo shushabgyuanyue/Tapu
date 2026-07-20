@@ -340,3 +340,25 @@ entrypoint: tapu/src/main.ts
 - post-mortem:
   - The bug was not only a DELETE problem; deterministic seed and sync writers need a durable "do not recreate" fact.
   - Non-reactive auth helpers are fine for one-off requests, but not for computed UI lists.
+
+## 2026-07-21 Codex Increment 17
+
+- domain: whatmint-os, mint-studio, content-assets, ar-rendering, frontend-ia
+- ref: `b9b5f56`
+- branch_context: `evo/core-domain-closeout`; this round closes the paper puppy OS rendering and Studio detail workflow before merging to `tapu-master`.
+- todo:
+  - [x] Move paper puppy preview toward the OS rendering protocol so video and AR are renderer modes, not separate app business flows.
+  - [x] Add OS resource pipeline seams for upload handling, resource binding, and rendering contract assembly.
+  - [x] Seed an official paper puppy AR placeholder content asset and bind it to the existing physical tokens for local product validation.
+  - [x] Componentize content detail into a reusable workbench/action deck and keep Mint Studio detail open in-place with the library/sidebar visible.
+  - [x] Change draft resource snapshots to store binding references instead of cloning full resource payloads as a parallel truth.
+  - [x] Document current OS capabilities and missing capability seams for future AR/content-rendering work.
+- evidence:
+  - `npm run check:copy`
+  - `npm run build`
+  - `npm run check:quality`
+  - browser smoke: `/mint?detail_content_id=content-tissue-puppy-ar-placeholder`
+  - API resolve: token `53c0c3d81404ba583e0b48418672c515` resolves to `content-tissue-puppy-ar-placeholder` with renderer `ar.camera-overlay`
+- post-mortem:
+  - `MintStudioPage.vue` is still large after gaining in-place detail orchestration; the next Studio feature should split workspace state into a composable before adding more interaction branches.
+  - AR is currently a camera-overlay/plane fallback renderer for product validation, not yet real WebXR or marker-tracked spatial placement.

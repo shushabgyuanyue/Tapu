@@ -6,6 +6,21 @@ function definitionIdForApp(appCode) {
   return `content-def-${appCode}`;
 }
 
+function getManifestContentDefinition(manifest) {
+  const definition = manifest?.contentDefinition || {};
+  return {
+    id: definition.id || definitionIdForApp(manifest.code),
+    code: definition.code || `${manifest.code}-default`,
+    name: definition.name || null,
+    description: definition.description || null,
+    contentKind: definition.contentKind || null,
+    primaryModality: definition.primaryModality || null,
+    authoringSchema: definition.authoringSchema || null,
+    template: definition.template || null,
+    extra: definition.extra || null,
+  };
+}
+
 function inferContentKind(manifest) {
   const container = manifest?.contentContainer || {};
   const capabilities = Array.isArray(container.capabilities) ? container.capabilities : [];
@@ -24,6 +39,8 @@ function getApplicationByCode(db, appCode) {
 }
 
 function buildDefinitionSchema(manifest) {
+  const custom = manifest?.contentDefinition?.authoringSchema;
+  if (custom) return custom;
   return {
     meaningQuestion: manifest?.meaningQuestion || null,
     behavior: manifest?.behavior || null,
@@ -39,7 +56,8 @@ export function ensureCoreContentDefinitions(db) {
     const app = getApplicationByCode(db, manifest.code);
     if (!app) continue;
 
-    const definitionId = definitionIdForApp(manifest.code);
+    const manifestDefinition = getManifestContentDefinition(manifest);
+    const definitionId = manifestDefinition.id;
     const contentKind = inferContentKind(manifest);
     const primaryModality = cleanString(manifest?.contentContainer?.defaultModality) || contentKind;
 
@@ -60,19 +78,20 @@ export function ensureCoreContentDefinitions(db) {
          updated_at = CURRENT_TIMESTAMP`,
       [
         definitionId,
-        `${manifest.code}-default`,
-        `${app.name}内容定义`,
-        manifest.objectPrinciple || manifest.meaningQuestion || `${app.name} 的默认创作内容定义。`,
-        contentKind,
-        primaryModality,
+        manifestDefinition.code,
+        manifestDefinition.name || `${app.name}内容定义`,
+        manifestDefinition.description || manifest.objectPrinciple || manifest.meaningQuestion || `${app.name} 的默认创作内容定义。`,
+        manifestDefinition.contentKind || contentKind,
+        manifestDefinition.primaryModality || primaryModality,
         stringifyJson(buildDefinitionSchema(manifest)),
-        stringifyJson({
+        stringifyJson(manifestDefinition.template || {
           studio: manifest.mintStudio || null,
           routes: manifest.defaultRoutes || null,
         }),
         stringifyJson({
           appCode: manifest.code,
           appType: manifest.type,
+          ...(manifestDefinition.extra || {}),
         }),
       ]
     );

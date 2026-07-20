@@ -19,6 +19,11 @@ export const OPERATIONS = {
     studioPolicy: { login: 'always', token: 'token_or_owner', contentAsset: 'account' },
     description: 'Create account-owned content asset.',
   },
+  'content:official_create': {
+    permissionType: 'admin_required',
+    studioPolicy: { login: 'always', token: 'admin', contentAsset: 'official' },
+    description: 'Create official content asset for an IP definition.',
+  },
   'content:owner_manage': {
     permissionType: 'content_owner',
     studioPolicy: { login: 'always', token: 'owner', contentAsset: 'account' },
@@ -53,6 +58,8 @@ export const STUDIO_ACTION_OPERATIONS = {
   upload_authoring_resource: 'content:account_create',
   save_definition_content_by_token: 'content:token_update',
   publish_definition_content: 'content:token_update',
+  save_official_definition_content: 'content:official_create',
+  publish_official_definition_content: 'content:official_create',
   append_unit: 'view:preview',
   collect_asset: 'asset:claim',
 };

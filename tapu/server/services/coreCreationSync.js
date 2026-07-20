@@ -1,6 +1,6 @@
 import { findAppManifest, getAppManifests } from '../contracts/appManifests.js';
 import { getContentCollection } from './contentCollections.js';
-import { cleanString, parseJson, stringifyJson } from './coreStore.js';
+import { cleanString, stringifyJson } from './coreStore.js';
 import { resultToObjects } from './tokens.js';
 
 function tableExists(db, tableName) {
@@ -15,8 +15,19 @@ function definitionIdForApp(appCode) {
   return `content-def-${appCode}`;
 }
 
-function getLegacyCollectionContentDefinitionId() {
-  return 'content-def-legacy-collection';
+function getManifestContentDefinition(manifest) {
+  const definition = manifest?.contentDefinition || {};
+  return {
+    id: definition.id || definitionIdForApp(manifest.code),
+    code: definition.code || `${manifest.code}-default`,
+    name: definition.name || null,
+    description: definition.description || null,
+    contentKind: definition.contentKind || null,
+    primaryModality: definition.primaryModality || null,
+    authoringSchema: definition.authoringSchema || null,
+    template: definition.template || null,
+    extra: definition.extra || null,
+  };
 }
 
 function contentInstanceIdForSource(sourceTable, sourceId) {
@@ -87,24 +98,9 @@ function getPrimaryContentDefinitionByAppCode(db, appCode) {
   ))[0] || null;
 }
 
-function getLegacyCollectionContentDefinition(db) {
-  const id = getLegacyCollectionContentDefinitionId();
-  db.run(
-    `INSERT OR IGNORE INTO content_definitions
-     (id, code, name, description, content_kind, primary_modality, status)
-     VALUES (?, 'legacy-collection', 'Legacy Collection', 'Backfilled mixed content from the previous collection schema.', 'mixed', 'mixed', 'active')`,
-    [id]
-  );
-  return resultToObjects(db.exec(
-    `SELECT *
-     FROM content_definitions
-     WHERE id = ?
-     LIMIT 1`,
-    [id]
-  ))[0] || null;
-}
-
 function buildDefinitionSchema(manifest) {
+  const custom = manifest?.contentDefinition?.authoringSchema;
+  if (custom) return custom;
   return {
     meaningQuestion: manifest?.meaningQuestion || null,
     behavior: manifest?.behavior || null,
@@ -115,24 +111,13 @@ function buildDefinitionSchema(manifest) {
   };
 }
 
-function coverUrlFromBlocks(blocks = []) {
-  for (const block of Array.isArray(blocks) ? blocks : []) {
-    const kind = cleanString(block?.kind);
-    const url = cleanString(block?.url);
-    if (!url) continue;
-    if (['image', 'video'].includes(kind)) return url;
-  }
-  return null;
-}
-
 export function ensureCoreContentDefinitions(db) {
-  getLegacyCollectionContentDefinition(db);
-
   for (const manifest of getAppManifests()) {
     const app = getApplicationByCode(db, manifest.code);
     if (!app) continue;
 
-    const definitionId = definitionIdForApp(manifest.code);
+    const manifestDefinition = getManifestContentDefinition(manifest);
+    const definitionId = manifestDefinition.id;
     const contentKind = inferContentKind(manifest);
     const primaryModality = cleanString(manifest?.contentContainer?.defaultModality) || contentKind;
 
@@ -153,19 +138,20 @@ export function ensureCoreContentDefinitions(db) {
          updated_at = CURRENT_TIMESTAMP`,
       [
         definitionId,
-        `${manifest.code}-default`,
-        `${app.name}内容定义`,
-        manifest.objectPrinciple || manifest.meaningQuestion || `${app.name} 的默认创作内容定义。`,
-        contentKind,
-        primaryModality,
+        manifestDefinition.code,
+        manifestDefinition.name || `${app.name}内容定义`,
+        manifestDefinition.description || manifest.objectPrinciple || manifest.meaningQuestion || `${app.name} 的默认创作内容定义。`,
+        manifestDefinition.contentKind || contentKind,
+        manifestDefinition.primaryModality || primaryModality,
         stringifyJson(buildDefinitionSchema(manifest)),
-        stringifyJson({
+        stringifyJson(manifestDefinition.template || {
           studio: manifest.mintStudio || null,
           routes: manifest.defaultRoutes || null,
         }),
         stringifyJson({
           appCode: manifest.code,
           appType: manifest.type,
+          ...(manifestDefinition.extra || {}),
         }),
       ]
     );
@@ -197,26 +183,6 @@ export function ensureCoreContentDefinitions(db) {
       ]
     );
   }
-}
-
-function getPrimaryApplicationByContentCollection(db, collectionId) {
-  return resultToObjects(db.exec(
-    `SELECT a.*
-     FROM app_bindings b
-     JOIN application_definitions a ON a.code = b.app_code
-     WHERE b.collection_id = ?
-       AND b.status = 'active'
-     ORDER BY
-       CASE
-         WHEN b.scope_type = 'app' THEN 0
-         WHEN b.scope_type = 'token' THEN 1
-         WHEN b.scope_type = 'object' THEN 2
-         ELSE 9
-       END,
-       b.created_at ASC
-     LIMIT 1`,
-    [collectionId]
-  ))[0] || null;
 }
 
 export function syncAppContentInstance(db, params = {}) {
@@ -372,75 +338,6 @@ export function archiveAppContentInstance(db, sourceTable, sourceId) {
      WHERE id = ?`,
     [contentInstanceIdForSource(sourceTable, sourceId)]
   );
-}
-
-export function syncContentCollectionContent(db, collectionId) {
-  if (!tableExists(db, 'content_collections')) return null;
-  const row = resultToObjects(db.exec(
-    `SELECT c.*
-     FROM content_collections c
-     WHERE c.id = ?
-     LIMIT 1`,
-    [collectionId]
-  ))[0] || null;
-  if (!row) return null;
-
-  const blocksCollection = getContentCollection(db, row.id);
-  const blocks = Array.isArray(blocksCollection?.blocks) ? blocksCollection.blocks : [];
-  const definition = getLegacyCollectionContentDefinition(db);
-  const app = getPrimaryApplicationByContentCollection(db, row.id);
-  const status = cleanString(row.status) || 'draft';
-  const contentStatus = mapAppStatusToContentStatus(status);
-  const { visibility, accessScope } = inferVisibility(contentStatus);
-  const coverUrl = coverUrlFromBlocks(blocks);
-  const contentInstanceId = contentInstanceIdForSource('content_collections', row.id);
-
-  db.run(
-    `INSERT INTO content_instances
-     (id, ip_definition_id, content_definition_id, application_definition_id, owner_user_id, creator_user_id,
-      origin_ip_instance_id, title, summary, content_kind, primary_modality, source_type, visibility, access_scope,
-      status, version_no, payload_json, published_at, created_at, updated_at)
-     VALUES (?, NULL, ?, ?, NULL, NULL, NULL, ?, ?, ?, ?, 'official', ?, ?, ?, 1, ?, ?, ?, ?)
-     ON CONFLICT(id) DO UPDATE SET
-       content_definition_id = excluded.content_definition_id,
-       application_definition_id = excluded.application_definition_id,
-       title = excluded.title,
-       summary = excluded.summary,
-       content_kind = excluded.content_kind,
-       primary_modality = excluded.primary_modality,
-       visibility = excluded.visibility,
-       access_scope = excluded.access_scope,
-       status = excluded.status,
-       payload_json = excluded.payload_json,
-       published_at = excluded.published_at,
-       updated_at = excluded.updated_at`,
-    [
-      contentInstanceId,
-      definition?.id || getLegacyCollectionContentDefinitionId(),
-      app?.id || null,
-      row.name,
-      row.description || null,
-      cleanString(row.primary_modality) || 'mixed',
-      cleanString(row.primary_modality) || 'mixed',
-      visibility,
-      accessScope,
-      contentStatus,
-      stringifyJson({
-        sourceTable: 'content_collections',
-        sourceId: row.id,
-        slug: row.slug || null,
-        themeColor: row.theme_color || null,
-        metadata: parseJson(row.metadata_json, {}),
-        blocks,
-        cover_url: coverUrl || null,
-      }),
-      contentStatus === 'published' ? (row.updated_at || row.created_at || null) : null,
-      row.created_at || null,
-      row.updated_at || row.created_at || null,
-    ]
-  );
-
-  return contentInstanceId;
 }
 
 function getTravelTrailPlaces(db, trailId) {
@@ -663,12 +560,6 @@ export function syncAnswerBookDeckContent(db, deckId) {
 export function backfillCoreCreationContent(db) {
   ensureCoreContentDefinitions(db);
 
-  if (tableExists(db, 'content_collections')) {
-    resultToObjects(db.exec('SELECT id FROM content_collections')).forEach(row => {
-      syncContentCollectionContent(db, row.id);
-    });
-  }
-
   if (tableExists(db, 'answer_book_decks')) {
     resultToObjects(db.exec('SELECT id FROM answer_book_decks')).forEach(row => {
       syncAnswerBookDeckContent(db, row.id);
@@ -692,9 +583,4 @@ export function backfillCoreCreationContent(db) {
       syncChecklistContent(db, row.id);
     });
   }
-}
-
-export function getCoreContentLibraryItemToken(row) {
-  const payload = parseJson(row.payload_json, {});
-  return cleanString(payload.token) || cleanString(row.entity_token) || cleanString(row.entity_key) || '';
 }

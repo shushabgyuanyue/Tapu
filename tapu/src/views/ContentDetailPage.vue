@@ -2,15 +2,18 @@
 import { computed, inject, onMounted, onUnmounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import {
+  deleteContentInstance,
   fetchContentInstance,
   isLoggedIn,
+  setIpDefinitionOfficialDefaultContent,
   setIpInstanceContentByToken,
-  setOfficialDefaultContent,
 } from '../api';
-import ContentRenderer from '../components/content/ContentRenderer.vue';
 import NavBar from '../components/NavBar.vue';
+import ContentDetailActionDeck from '../components/content/detail/ContentDetailActionDeck.vue';
+import ContentDetailWorkbench from '../components/content/detail/ContentDetailWorkbench.vue';
 import { contentCopy } from '../copy';
 import { AUTH_CHANGED_EVENT, CONTENT_CHANGED_EVENT, emitContentChanged } from '../events/appEvents';
+import '../styles/contentDetail.css';
 
 const route = useRoute();
 const router = useRouter();
@@ -19,26 +22,66 @@ const toast = inject<{ show: (text: string, duration?: number, type?: string) =>
 const content = ref<any>(null);
 const loading = ref(true);
 const failed = ref(false);
-const tokenKey = ref('');
-const tokenBinding = ref(false);
-const tokenBindMsg = ref('');
-const tokenBindError = ref(false);
+const deleting = ref(false);
 const officialBinding = ref(false);
+const officialDefaultSet = ref(false);
 const officialBindMsg = ref('');
 const officialBindError = ref(false);
-const officialDefaultSet = ref(false);
+const entityToken = ref('');
+const entityBinding = ref(false);
+const entityBindMsg = ref('');
+const entityBindError = ref(false);
 
-const formatContentId = (id?: string) => id ? id.replace(/-/g, '').toUpperCase() : '-';
-
-const blocks = computed(() => Array.isArray(content.value?.blocks) ? content.value.blocks : []);
-const canBindToEntity = computed(() => !!content.value?.ip_definition_id);
+const contentNodes = computed(() => Array.isArray(content.value?.content_nodes) ? content.value.content_nodes : []);
+const resources = computed(() => Array.isArray(content.value?.resources) ? content.value.resources : []);
+const primaryResource = computed(() => resources.value.find((resource: any) => resource.is_primary) || resources.value[0] || null);
+const previewCover = computed(() => (
+  primaryResource.value?.preview_url
+  || (primaryResource.value?.resource_type === 'image' ? primaryResource.value?.storage_url : '')
+  || ''
+));
+const contentModeLabel = computed(() => {
+  const renderer = content.value?.renderer || '';
+  if (renderer === 'video.fullscreen') return contentCopy.detail.renderer.videoFullscreen;
+  if (renderer === 'ar.camera-overlay') return contentCopy.detail.renderer.arCameraOverlay;
+  if (renderer === 'content.blocks') return contentCopy.detail.renderer.blocks;
+  return contentCopy.detail.renderer.fallback(renderer);
+});
+const isSingleVideoContent = computed(() => (
+  content.value?.renderer === 'video.fullscreen'
+  || content.value?.renderer === 'ar.camera-overlay'
+  || content.value?.content_definition_template?.layout === 'single_video_node'
+  || content.value?.content_definition_template?.layout === 'camera_center_overlay'
+));
 const canEditContent = computed(() => !!content.value?.viewer_can_edit);
+const canDeleteContent = computed(() => !!content.value?.viewer_can_edit);
+const canBindToIpEntity = computed(() => !!content.value?.ip_definition_id);
 const canSetOfficialDefault = computed(() => !!content.value?.viewer_can_set_official_default);
-const draftVersions = computed(() => Array.isArray(content.value?.draft_versions) ? content.value.draft_versions : []);
-const themeColor = computed(() => (
-  content.value?.payload?.themeColor
-  || content.value?.payload?.theme_color
-  || '#2f6f5e'
+const contentIdLabel = computed(() => content.value?.id ? content.value.id.replace(/-/g, '').toUpperCase() : '');
+const resourceNames = computed(() => resources.value.map((resource: any) => (
+  resource.original_filename
+  || resource.relation_role
+  || resource.resource_type
+  || contentCopy.detail.maintenance.resource
+)).filter(Boolean));
+const nodeSummary = computed(() => (
+  contentNodes.value.length
+    ? contentCopy.detail.maintenance.nodeSummary(contentNodes.value.length, resources.value.length)
+    : contentCopy.detail.maintenance.resourceSummary(resources.value.length)
+));
+const showNodeSection = computed(() => !isSingleVideoContent.value && contentNodes.value.length > 0);
+const detailTitle = computed(() => (
+  isSingleVideoContent.value
+    ? (content.value?.application_name || content.value?.content_definition_name || contentCopy.detail.maintenance.kicker)
+    : (content.value?.title || contentCopy.detail.maintenance.untitled)
+));
+const detailKicker = computed(() => (
+  isSingleVideoContent.value
+    ? (content.value?.content_definition_name || contentModeLabel.value)
+    : (content.value?.application_name || content.value?.content_definition_name || contentCopy.detail.maintenance.kicker)
+));
+const detailSummary = computed(() => (
+  isSingleVideoContent.value ? '' : (content.value?.summary || nodeSummary.value)
 ));
 
 async function loadContent() {
@@ -57,9 +100,7 @@ async function loadContent() {
 
 function handleRuntimeContentChange(event: Event) {
   const changedId = (event as CustomEvent<{ contentId?: string }>).detail?.contentId;
-  if (!changedId || changedId === content.value?.id || changedId === route.params.id) {
-    loadContent();
-  }
+  if (!changedId || changedId === content.value?.id || changedId === route.params.id) loadContent();
 }
 
 onMounted(() => {
@@ -75,74 +116,64 @@ onUnmounted(() => {
   window.removeEventListener('focus', loadContent);
 });
 
-const copyContentId = async () => {
-  if (!content.value?.id) return;
-  await navigator.clipboard.writeText(formatContentId(content.value.id));
-  toast?.show(contentCopy.detail.toasts.contentIdCopied, 1800, 'success');
-};
+function openPreview() {
+  if (!content.value?.preview_route) return;
+  window.open(content.value.preview_route, '_blank', 'noopener,noreferrer');
+}
 
-const sharePreview = async () => {
-  if (!content.value?.id) return;
-  const url = `${window.location.origin}/content/${content.value.id}`;
-  if (navigator.share) {
-    await navigator.share({ title: content.value.title, url });
-  } else {
-    await navigator.clipboard.writeText(url);
-    toast?.show(contentCopy.detail.toasts.previewCopied, 1800, 'success');
-  }
-};
-
-const handleBindEntity = () => {
-  if (!content.value?.id) return;
-  if (!isLoggedIn()) {
-    toast?.show(contentCopy.detail.toasts.bindLogin, 3200, 'error');
-  }
-  router.push({ path: '/assets', query: { defaultContentId: content.value.id } });
-};
-
-const openContentAuthoring = (mode: 'revise' | 'extend') => {
+function openContentAuthoring() {
   if (!content.value?.id) return;
   if (!isLoggedIn()) {
     toast?.show(contentCopy.detail.toasts.editLogin, 2400, 'error');
     return;
   }
-  router.push({ path: '/mint', query: { content_id: content.value.id, mode } });
-};
+  router.push({ path: '/mint', query: { content_id: content.value.id, mode: 'revise' } });
+}
 
-const bindCurrentContentToToken = async () => {
+async function copyContentId() {
   if (!content.value?.id) return;
-  tokenBindMsg.value = '';
-  tokenBindError.value = false;
+  await navigator.clipboard.writeText(content.value.id);
+  toast?.show(contentCopy.detail.toasts.contentIdCopied, 1800, 'success');
+}
 
-  const key = tokenKey.value.trim();
-  if (!key) {
-    tokenBindMsg.value = contentCopy.detail.tokenBind.empty;
-    tokenBindError.value = true;
+async function bindContentToIpEntity() {
+  if (!content.value?.id || entityBinding.value) return;
+  if (!isLoggedIn()) {
+    toast?.show(contentCopy.detail.toasts.bindLogin, 2600, 'error');
     return;
   }
 
-  tokenBinding.value = true;
-  const result = await setIpInstanceContentByToken(key, content.value.id);
-  tokenBinding.value = false;
+  const key = entityToken.value.trim();
+  entityBindMsg.value = '';
+  entityBindError.value = false;
+  if (!key) {
+    entityBindMsg.value = contentCopy.detail.entityBind.empty;
+    entityBindError.value = true;
+    return;
+  }
 
-  if (result?.success) {
-    tokenBindMsg.value = contentCopy.detail.tokenBind.success;
-    tokenKey.value = '';
+  entityBinding.value = true;
+  const defaultResult = await setIpInstanceContentByToken(key, content.value.id);
+  entityBinding.value = false;
+  if (defaultResult?.success) {
+    entityToken.value = '';
+    entityBindMsg.value = contentCopy.detail.entityBind.success;
     emitContentChanged('bound', content.value.id);
     toast?.show(contentCopy.detail.toasts.defaultUpdated, 2200, 'success');
-  } else {
-    tokenBindMsg.value = result?.error || contentCopy.detail.tokenBind.failed;
-    tokenBindError.value = true;
+    return;
   }
-};
 
-const bindAsOfficialDefault = async () => {
+  entityBindMsg.value = defaultResult?.error || contentCopy.detail.entityBind.failed;
+  entityBindError.value = true;
+}
+
+async function bindAsOfficialDefault() {
   if (!content.value?.id || !content.value?.ip_definition_id) return;
   officialBindMsg.value = '';
   officialBindError.value = false;
   officialBinding.value = true;
 
-  const result = await setOfficialDefaultContent(content.value.ip_definition_id, content.value.id);
+  const result = await setIpDefinitionOfficialDefaultContent(content.value.ip_definition_id, content.value.id);
 
   officialBinding.value = false;
   if (result?.success) {
@@ -155,103 +186,100 @@ const bindAsOfficialDefault = async () => {
 
   officialBindMsg.value = result?.error || contentCopy.detail.officialDefault.failed;
   officialBindError.value = true;
-};
+}
 
-const goBack = () => {
+async function deleteCurrentContent() {
+  if (!content.value?.id || deleting.value) return;
+  if (!window.confirm(contentCopy.detail.actions.confirmDelete(content.value.title))) return;
+
+  deleting.value = true;
+  const contentId = content.value.id;
+  const result = await deleteContentInstance(contentId);
+  deleting.value = false;
+
+  if (result?.error) {
+    toast?.show(result.error, 2200, 'error');
+    return;
+  }
+
+  emitContentChanged('deleted', contentId);
+  toast?.show(contentCopy.detail.toasts.deleteSuccess, 1800, 'success');
+  router.push('/mint');
+}
+
+function goBack() {
   router.back();
-};
+}
 </script>
 
 <template>
   <div class="detail-page">
     <NavBar />
 
-    <main v-if="!loading && content" class="detail-shell">
-      <section class="hero">
-        <div class="hero-copy">
-          <p class="hero-kicker">{{ content.application_name || content.content_definition_name || 'Content' }}</p>
-          <h1>{{ content.title || 'Content' }}</h1>
-          <p v-if="content.summary" class="hero-summary">{{ content.summary }}</p>
-        </div>
-        <div class="hero-meta">
-          <span>{{ content.content_kind || 'mixed' }}</span>
-          <span>{{ content.status || 'draft' }}</span>
-          <span>{{ contentCopy.detail.versions.current(content.version_no || 1) }}</span>
-          <button class="detail-id" @click="copyContentId">
-            {{ contentCopy.detail.meta.id(formatContentId(content.id)) }}
-          </button>
-        </div>
-        <p v-if="canEditContent" class="version-hint">
-          {{
-            draftVersions.length
-              ? contentCopy.detail.versions.draftCount(draftVersions.length)
-              : contentCopy.detail.versions.editHint
-          }}
-        </p>
-      </section>
-
-      <section class="content-card">
-        <ContentRenderer
-          :blocks="blocks"
-          :context="{ surface: 'detail', themeColor, appCode: content.application_code, controls: true }"
-        />
-        <p v-if="blocks.length === 0" class="empty">{{ contentCopy.detail.states.emptyRenderable }}</p>
-      </section>
-
-      <section class="detail-actions">
-        <button class="act-btn" @click="sharePreview">
-          <span>{{ contentCopy.detail.actions.sharePreview }}</span>
-        </button>
-
-        <button v-if="canBindToEntity" class="act-btn act-btn-bind" @click="handleBindEntity">
-          <span>{{ contentCopy.detail.actions.bindEntity }}</span>
-        </button>
-
-        <button v-if="canEditContent" class="act-btn act-btn-revise" @click="openContentAuthoring('revise')">
-          <span>{{ contentCopy.detail.actions.revise }}</span>
-        </button>
-
-        <button v-if="canEditContent" class="act-btn act-btn-extend" @click="openContentAuthoring('extend')">
-          <span>{{ contentCopy.detail.actions.extend }}</span>
-        </button>
-
-        <button
-          v-if="canSetOfficialDefault"
-          class="act-btn act-btn-official"
-          :disabled="officialBinding || officialDefaultSet"
-          @click="bindAsOfficialDefault"
-        >
-          <span>
-            {{
-              officialBinding
-                ? contentCopy.detail.officialDefault.setting
-                : (officialDefaultSet ? contentCopy.detail.officialDefault.setDone : contentCopy.detail.officialDefault.set)
-            }}
-          </span>
-        </button>
-      </section>
-
-      <p v-if="canBindToEntity" class="detail-action-hint">{{ contentCopy.detail.actions.bindHint }}</p>
-      <p
-        v-if="canSetOfficialDefault && officialBindMsg"
-        :class="['detail-action-hint', { 'detail-action-hint--error': officialBindError }]"
+    <main v-if="!loading && content" class="detail-shell detail-shell--compact">
+      <ContentDetailWorkbench
+        :title="detailTitle"
+        :kicker="detailKicker"
+        :summary="detailSummary"
+        :preview-cover="previewCover"
+        :preview-alt="content.title"
+        :mode-label="contentModeLabel"
+        :status-label="content.status || 'draft'"
+        :content-id-label="contentIdLabel"
+        :resource-label="contentCopy.detail.maintenance.resource"
+        :resource-names="resourceNames"
+        :no-cover-label="contentCopy.detail.maintenance.noCover"
+        :preview-label="contentCopy.detail.actions.preview"
+        :copy-id-label="contentCopy.detail.actions.copyContentId"
+        @preview="openPreview"
+        @copy-id="copyContentId"
       >
-        {{ officialBindMsg }}
-      </p>
+        <template #actions>
+          <ContentDetailActionDeck
+            v-model:entity-token="entityToken"
+            :entity-binding="entityBinding"
+            :entity-bind-msg="entityBindMsg"
+            :entity-bind-error="entityBindError"
+            :official-binding="officialBinding"
+            :official-default-set="officialDefaultSet"
+            :official-bind-msg="officialBindMsg"
+            :official-bind-error="officialBindError"
+            :deleting="deleting"
+            :can-edit="canEditContent"
+            :can-bind-to-entity="canBindToIpEntity"
+            :can-set-official-default="canSetOfficialDefault"
+            :can-delete="canDeleteContent"
+            :is-single-resource="isSingleVideoContent"
+            @edit="openContentAuthoring"
+            @bind-entity="bindContentToIpEntity"
+            @set-official-default="bindAsOfficialDefault"
+            @delete="deleteCurrentContent"
+          />
+        </template>
+      </ContentDetailWorkbench>
 
-      <section v-if="canBindToEntity" class="token-bind-panel">
-        <div>
-          <span class="token-bind-kicker">{{ contentCopy.detail.tokenBind.kicker }}</span>
-          <h2>{{ contentCopy.detail.tokenBind.title }}</h2>
-          <p>{{ contentCopy.detail.tokenBind.body }}</p>
+      <section v-if="showNodeSection" class="maintenance-resources">
+        <div class="content-card-head">
+          <div>
+            <span>{{ contentCopy.detail.nodes.title }}</span>
+            <h2>{{ nodeSummary }}</h2>
+          </div>
         </div>
-        <div class="token-bind-box">
-          <input v-model="tokenKey" :placeholder="contentCopy.detail.tokenBind.placeholder" />
-          <button :disabled="tokenBinding" @click="bindCurrentContentToToken">
-            {{ tokenBinding ? contentCopy.detail.tokenBind.writing : contentCopy.detail.tokenBind.write }}
-          </button>
+
+        <div v-if="contentNodes.length" class="node-list">
+          <article v-for="(node, index) in contentNodes" :key="node.id || node.index || index" class="node-item">
+            <strong>{{ node.label || contentCopy.detail.nodes.unit(index + 1) }}</strong>
+            <span>{{ contentCopy.detail.nodes.resourceCount((node.resources || []).length) }}</span>
+          </article>
         </div>
-        <p v-if="tokenBindMsg" :class="['token-bind-msg', { error: tokenBindError }]">{{ tokenBindMsg }}</p>
+
+        <div v-else-if="resources.length" class="resource-chip-list">
+          <span v-for="resource in resources" :key="resource.id" class="resource-chip">
+            {{ resource.resource_type }} · {{ resource.relation_role || resource.original_filename || contentCopy.detail.maintenance.resource }}
+          </span>
+        </div>
+
+        <p v-else class="empty">{{ contentCopy.detail.nodes.empty }}</p>
       </section>
 
       <button class="back-btn" @click="goBack">{{ contentCopy.detail.actions.back }}</button>
@@ -270,255 +298,3 @@ const goBack = () => {
     </main>
   </div>
 </template>
-
-<style scoped>
-.detail-page {
-  min-height: 100vh;
-  background:
-    radial-gradient(circle at 16% 10%, rgba(217, 143, 183, 0.16), transparent 30%),
-    radial-gradient(circle at 84% 18%, rgba(47, 111, 94, 0.16), transparent 26%),
-    linear-gradient(180deg, #f7f0e8 0%, #fffdf8 48%, #ffffff 100%);
-}
-
-.detail-shell {
-  width: min(920px, calc(100vw - 32px));
-  margin: 0 auto;
-  padding: 28px 0 48px;
-  display: grid;
-  gap: 18px;
-}
-
-.hero,
-.content-card,
-.token-bind-panel,
-.error-card {
-  border: 1px solid rgba(32, 27, 34, 0.08);
-  background: rgba(255, 255, 255, 0.88);
-  border-radius: 28px;
-  box-shadow: 0 18px 40px rgba(32, 27, 34, 0.06);
-}
-
-.hero {
-  display: grid;
-  gap: 16px;
-  padding: 28px;
-}
-
-.hero-kicker {
-  margin: 0;
-  color: #8d5b3b;
-  font-size: 12px;
-  font-weight: 900;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-
-h1 {
-  margin: 6px 0 0;
-  color: #241814;
-  font-size: clamp(32px, 6vw, 52px);
-  line-height: 1.08;
-  font-family: Georgia, "Times New Roman", "Noto Serif SC", serif;
-}
-
-.hero-summary {
-  margin: 12px 0 0;
-  max-width: 720px;
-  color: rgba(36, 24, 20, 0.76);
-  font-size: 16px;
-  line-height: 1.85;
-}
-
-.hero-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  align-items: center;
-}
-
-.hero-meta span,
-.detail-id {
-  border-radius: 999px;
-  padding: 8px 12px;
-  background: rgba(47, 111, 94, 0.08);
-  color: #2f6f5e;
-  font-size: 12px;
-  font-weight: 800;
-}
-
-.detail-id {
-  border: 0;
-  cursor: pointer;
-}
-
-.content-card {
-  padding: 24px;
-}
-
-.empty {
-  margin: 0;
-  color: rgba(36, 24, 20, 0.56);
-}
-
-.detail-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
-.act-btn,
-.token-bind-box button,
-.back-btn {
-  border: 0;
-  border-radius: 14px;
-  padding: 12px 16px;
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: 900;
-}
-
-.act-btn,
-.back-btn {
-  background: #241814;
-  color: #fff;
-}
-
-.act-btn-bind {
-  background: linear-gradient(135deg, #2f6f5e, #4c9a81);
-}
-
-.act-btn-official {
-  background: linear-gradient(135deg, #8d5b3b, #c48a52);
-}
-
-.act-btn-revise {
-  background: linear-gradient(135deg, #4b5f8f, #7b8fc1);
-}
-
-.act-btn-extend {
-  background: linear-gradient(135deg, #9a6a2f, #d1a36a);
-}
-
-.act-btn:disabled {
-  opacity: 0.7;
-  cursor: default;
-}
-
-.version-hint {
-  margin: 2px 0 0;
-  color: rgba(36, 24, 20, 0.6);
-  font-size: 13px;
-  line-height: 1.7;
-}
-
-.detail-action-hint {
-  margin: -4px 0 0;
-  color: rgba(36, 24, 20, 0.58);
-  font-size: 13px;
-}
-
-.detail-action-hint--error {
-  color: #c0395f;
-}
-
-.token-bind-panel {
-  display: grid;
-  gap: 14px;
-  padding: 22px 24px;
-}
-
-.token-bind-kicker {
-  color: #2f6f5e;
-  font-size: 12px;
-  font-weight: 900;
-  text-transform: uppercase;
-}
-
-.token-bind-panel h2 {
-  margin: 6px 0 0;
-  color: #241814;
-  font-size: 22px;
-}
-
-.token-bind-panel p {
-  margin: 8px 0 0;
-  color: rgba(36, 24, 20, 0.72);
-  line-height: 1.75;
-}
-
-.token-bind-box {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 10px;
-}
-
-.token-bind-box input {
-  min-width: 0;
-  border: 1px solid rgba(36, 24, 20, 0.14);
-  border-radius: 14px;
-  padding: 12px 14px;
-  font-size: 14px;
-}
-
-.token-bind-box button {
-  background: #2f6f5e;
-  color: #fff;
-}
-
-.token-bind-msg {
-  margin: 0;
-  color: #13723a;
-  font-size: 13px;
-  font-weight: 700;
-}
-
-.token-bind-msg.error {
-  color: #c0395f;
-}
-
-.error-card {
-  padding: 28px;
-  text-align: center;
-}
-
-.error-card p {
-  color: rgba(36, 24, 20, 0.68);
-}
-
-.detail-loading {
-  min-height: 60vh;
-  display: grid;
-  place-items: center;
-}
-
-.spinner {
-  width: 38px;
-  height: 38px;
-  border-radius: 999px;
-  border: 4px solid rgba(47, 111, 94, 0.18);
-  border-top-color: #2f6f5e;
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
-@media (max-width: 720px) {
-  .detail-shell {
-    width: min(100vw - 20px, 920px);
-    padding-top: 18px;
-  }
-
-  .hero,
-  .content-card,
-  .token-bind-panel,
-  .error-card {
-    border-radius: 22px;
-  }
-
-  .token-bind-box {
-    grid-template-columns: 1fr;
-  }
-}
-</style>

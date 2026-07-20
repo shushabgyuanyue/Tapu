@@ -67,6 +67,7 @@ export const APP_ADAPTERS = Object.freeze({
   'emotion-ip': createBaseAdapter('emotion-ip', {
     resolveObject: resolveEmotionIpEntity,
   }),
+  'tissue-puppy': createBaseAdapter('tissue-puppy'),
   'earphone-girl': createBaseAdapter('earphone-girl'),
   'answer-book': createBaseAdapter('answer-book'),
   moment: createBaseAdapter('moment'),

@@ -275,9 +275,26 @@ export function getContentResources(db, contentInstanceId) {
   }));
 }
 
+function tableHasColumn(db, tableName, columnName) {
+  try {
+    return resultToObjects(db.exec(`PRAGMA table_info(${tableName})`))
+      .some(column => column.name === columnName);
+  } catch {
+    return false;
+  }
+}
+
+function contentDefinitionTemplateSelect(db) {
+  return tableHasColumn(db, 'content_definitions', 'template_json')
+    ? 'd.template_json as content_definition_template_json'
+    : 'NULL as content_definition_template_json';
+}
+
 export function getContentInstance(db, contentInstanceId) {
+  const templateSelect = contentDefinitionTemplateSelect(db);
   const row = resultToObjects(db.exec(
     `SELECT c.*, d.code as content_definition_code, d.name as content_definition_name,
+            ${templateSelect},
             a.code as application_code, a.name as application_name
      FROM content_instances c
      LEFT JOIN content_definitions d ON d.id = c.content_definition_id
@@ -290,6 +307,7 @@ export function getContentInstance(db, contentInstanceId) {
   return {
     ...row,
     payload: parseJson(row.payload_json, {}),
+    content_definition_template: parseJson(row.content_definition_template_json, {}),
     resources: getContentResources(db, row.id),
   };
 }
@@ -297,6 +315,7 @@ export function getContentInstance(db, contentInstanceId) {
 export function getLinkedContentInstances(db, ipInstanceId, options = {}) {
   const roles = Array.isArray(options.roles) ? options.roles.filter(Boolean) : [];
   const params = [ipInstanceId];
+  const templateSelect = contentDefinitionTemplateSelect(db);
   let roleSql = '';
   if (roles.length) {
     roleSql = ` AND l.relation_role IN (${roles.map(() => '?').join(', ')})`;
@@ -307,6 +326,7 @@ export function getLinkedContentInstances(db, ipInstanceId, options = {}) {
     `SELECT c.*, l.id as link_id, l.relation_role, l.is_primary, l.sort_order,
             l.starts_at, l.ends_at, l.metadata_json as link_metadata_json,
             d.code as content_definition_code, d.name as content_definition_name,
+            ${templateSelect},
             a.code as application_code, a.name as application_name
      FROM ip_instance_content_instance_links l
      JOIN content_instances c ON c.id = l.content_instance_id
@@ -320,6 +340,7 @@ export function getLinkedContentInstances(db, ipInstanceId, options = {}) {
   return rows.map(row => ({
     ...row,
     payload: parseJson(row.payload_json, {}),
+    content_definition_template: parseJson(row.content_definition_template_json, {}),
     link_metadata: parseJson(row.link_metadata_json, {}),
     resources: getContentResources(db, row.id),
   }));

@@ -166,8 +166,8 @@ export async function deleteGroup(id: string) {
   });
 }
 
-export async function setOfficialDefaultContent(groupId: string, contentId: string) {
-  return request(`/groups/${groupId}/official-default`, {
+export async function setIpDefinitionOfficialDefaultContent(ipDefinitionId: string, contentId: string) {
+  return request(`/groups/${ipDefinitionId}/official-default`, {
     method: 'PUT',
     auth: true,
     jsonBody: { content_id: contentId },
@@ -209,7 +209,7 @@ export async function fetchVideos(
 
 export async function fetchVideo(id: string, key?: string) {
   const query = key ? `?key=${encodeURIComponent(key)}` : '';
-  return request(`/videos/${id}${query}`, { auth: !!key });
+  return request(`/videos/${id}${query}`, { auth: !!key || isLoggedIn() });
 }
 
 export async function fetchContentInstance(id: string) {
@@ -225,7 +225,7 @@ export async function deleteContentInstance(id: string) {
 
 export async function fetchSiblings(id: string, key?: string) {
   const query = key ? `?key=${encodeURIComponent(key)}` : '';
-  return request(`/videos/${id}/siblings${query}`, { auth: !!key });
+  return request(`/videos/${id}/siblings${query}`, { auth: !!key || isLoggedIn() });
 }
 
 export async function deleteVideo(id: string) {
@@ -237,11 +237,8 @@ export async function deleteVideo(id: string) {
 
 // Resolve playback by entity key (NFC touch flow)
 export async function resolveByKey(key: string) {
-  return request('/videos/resolve', {
-    method: 'POST',
-    auth: true,
-    jsonBody: { key },
-  });
+  const query = new URLSearchParams({ key });
+  return request(`/contents/resolve-by-token?${query.toString()}`, { auth: isLoggedIn() });
 }
 
 // ===== Applications (Official Technical Layer) =====

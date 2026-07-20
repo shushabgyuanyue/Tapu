@@ -401,13 +401,15 @@ async function setContentDefaultByTokenHandler(req, res) {
     const { db, entity } = req.permission;
 
     const contentRows = resultToObjects(db.exec(
-      `SELECT c.id, c.ip_definition_id as group_id, c.origin_ip_instance_id as entity_id,
+      `SELECT c.id, c.ip_definition_id, c.origin_ip_instance_id as entity_id,
               c.owner_user_id, c.visibility, c.status
        FROM content_instances c WHERE c.id = ?`,
       [contentId]
     ));
     if (contentRows.length === 0) return res.status(404).json({ error: serverMessages.routes.common.contentDefaultMissing });
-    if (contentRows[0].group_id !== entity.group_id) return res.status(400).json({ error: serverMessages.routes.common.contentNotInIp });
+    if (contentRows[0].ip_definition_id !== entity.ip_definition_id) {
+      return res.status(400).json({ error: serverMessages.routes.common.contentNotInIp });
+    }
     if (!['published', 'processing', 'draft'].includes(contentRows[0].status)) return res.status(400).json({ error: serverMessages.routes.common.contentUnavailableForDefault });
     assertVideoAssignableToEntity(req.user, {
       ...contentRows[0],
@@ -427,6 +429,22 @@ async function setContentDefaultByTokenHandler(req, res) {
       isPrimary: true,
       metadata: { set_by: req.user?.id || null },
     });
+    if (req.user?.id && !entity.owner_user_id) {
+      db.run(
+        'UPDATE ip_instances SET owner_user_id = ?, bound_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+        [req.user.id, entity.id]
+      );
+      recordOwnershipEvent(db, {
+        entityId: entity.id,
+        token: entity.token || entity.entity_key,
+        eventType: 'bind',
+        fromUserId: null,
+        toUserId: req.user.id,
+        actorUserId: req.user.id,
+        orderId: entity.external_order_no || null,
+        note: serverMessages.routes.auth.entityBindNote,
+      });
+    }
     recordOwnershipEvent(db, {
       entityId: entity.id,
       token: entity.token || entity.entity_key,
@@ -608,10 +626,10 @@ async function setContentDefaultHandler(req, res) {
     if (!contentId) return res.status(400).json({ error: 'content_id is required' });
 
     const { db, entityId, entity } = req.permission;
-    const group_id = entity.group_id;
+    const ipDefinitionId = entity.ip_definition_id;
 
     const contentResults = db.exec(
-      `SELECT c.id, c.ip_definition_id as group_id, c.origin_ip_instance_id as entity_id,
+      `SELECT c.id, c.ip_definition_id, c.origin_ip_instance_id as entity_id,
               c.owner_user_id, c.visibility, c.status
        FROM content_instances c WHERE c.id = ?`,
       [contentId]
@@ -620,7 +638,7 @@ async function setContentDefaultHandler(req, res) {
     if (contentRows.length === 0) {
       return res.status(404).json({ error: serverMessages.routes.common.contentDefaultMissing });
     }
-    if (contentRows[0].group_id !== group_id) {
+    if (contentRows[0].ip_definition_id !== ipDefinitionId) {
       return res.status(400).json({ error: serverMessages.routes.common.contentNotInIp });
     }
     if (!['published', 'processing', 'draft'].includes(contentRows[0].status)) {

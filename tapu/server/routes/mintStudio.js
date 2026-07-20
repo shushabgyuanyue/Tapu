@@ -18,6 +18,10 @@ import {
   buildDefinitionDrivenStudioFlow,
   getApplicationContentDefinitionGuides,
 } from '../services/mintStudioContentGuides.js';
+import {
+  buildContentDetailRoute,
+  buildContentPreviewRoute,
+} from '../services/contentRenderingProtocol.js';
 
 const router = Router();
 
@@ -46,35 +50,35 @@ function appLabel(appCode, fallback) {
 function dedupeLibraryItems(items) {
   const seen = new Set();
   return items.filter(item => {
-    const key = item.token ? `token:${item.appCode}:${item.token}` : item.id;
+    const key = item.id;
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
   });
 }
 
-function libraryItemToken(row, payload) {
-  return cleanString(payload.token) || cleanString(row.entity_token) || cleanString(row.entity_key);
-}
-
-function buildCoreContentLibraryItems(db, req) {
+export function buildCoreContentLibraryItems(db, req) {
   const isAdmin = req.user.username === 'admin';
   const params = [];
   const where = isAdmin
-    ? ''
+    ? `WHERE json_extract(v.payload_json, '$.source') = 'mint-studio-definition-authoring'
+       AND COALESCE(v.status, 'draft') != 'archived'`
     : `WHERE (
         v.owner_user_id = ?
         OR v.creator_user_id = ?
         OR v.origin_ip_instance_id IN (SELECT id FROM ip_instances WHERE owner_user_id = ?)
-      )`;
+      )
+      AND json_extract(v.payload_json, '$.source') = 'mint-studio-definition-authoring'
+      AND COALESCE(v.status, 'draft') != 'archived'`;
   if (!isAdmin) params.push(req.user.id, req.user.id, req.user.id);
 
   return resultToObjects(db.exec(
     `SELECT v.*, cd.name as content_definition_name, cd.code as content_definition_code,
             d.name as group_name, d.primary_series_name as series_name,
+            cd.id as content_definition_id,
             a.id as application_definition_id,
             a.code as application_code, a.name as application_name,
-            i.token as entity_token, i.entity_key,
+            i.id as ip_instance_id,
             r.preview_url as poster_url
      FROM content_instances v
      LEFT JOIN content_definitions cd ON cd.id = v.content_definition_id
@@ -92,17 +96,25 @@ function buildCoreContentLibraryItems(db, req) {
     return { row, payload };
   }).map(({ row, payload }) => {
     const appCode = row.application_code || payload.appCode || 'emotion-ip';
-    const token = libraryItemToken(row, payload);
     return {
       id: `content:${row.id}`,
+      contentInstanceId: row.id,
       source: 'content',
       title: row.title || row.content_definition_name || 'Content asset',
       subtitle: row.summary || row.group_name || row.series_name || '',
       appCode,
       appName: appLabel(appCode, row.application_name),
-      token,
-      tokenCompact: compactToken(token),
-      previewRoute: token ? routeForApp(appCode, token) : (row.content_kind === 'video' ? `/play/${row.id}` : `/content/${row.id}`),
+      ipDefinitionId: row.ip_definition_id || null,
+      ipInstanceId: row.ip_instance_id || null,
+      contentDefinitionId: row.content_definition_id || null,
+      applicationDefinitionId: row.application_definition_id || null,
+      previewRoute: buildContentPreviewRoute({
+        id: row.id,
+        content_kind: row.content_kind,
+        primary_modality: row.primary_modality,
+        renderer: payload.renderer,
+      }),
+      detailRoute: buildContentDetailRoute({ id: row.id }),
       thumb: row.poster_url || payload.cover_url || payload.poster_url || '',
       status: row.status || 'draft',
       createdAt: row.created_at,
@@ -175,16 +187,12 @@ function findOfficialIpRecipeSource(db, ipDefinitionId) {
   ))[0] || null;
 }
 
-function isTissuePuppy(row) {
-  const text = `${row.group_name || ''} ${row.series_name || ''} ${row.application_name || ''}`.toLowerCase();
-  return text.includes('纸巾') || text.includes('小狗') || text.includes('puppy') || text.includes('tissue');
-}
-
 function buildEntityRecipe(db, row, token) {
-  const puppy = isTissuePuppy(row);
-  const objectName = row.group_name || row.series_name || (puppy ? mintStudioCopy.entityRecipe.tissuePuppy : mintStudioCopy.entityRecipe.emotionIp);
-  const studioTitle = puppy ? mintStudioCopy.entityRecipe.puppyStudioTitle : mintStudioCopy.entityRecipe.studioTitle(objectName);
-  const themeColor = row.theme_color || (puppy ? '#d86f45' : '#2f6f5e');
+  const appCode = row.application_code || 'emotion-ip';
+  const profile = getMintStudioProfile(appCode);
+  const objectName = row.group_name || row.series_name || row.application_name || profile?.name || mintStudioCopy.entityRecipe.emotionIp;
+  const studioTitle = profile?.studioTitle || mintStudioCopy.entityRecipe.studioTitle(objectName);
+  const themeColor = row.theme_color || '#2f6f5e';
   const defaultContentId = row.official_default_content_id || null;
   const contentGuides = getApplicationContentDefinitionGuides(db, row.application_definition_id || row.application_code);
   const studioFlow = buildDefinitionDrivenStudioFlow(contentGuides);
@@ -205,18 +213,16 @@ function buildEntityRecipe(db, row, token) {
       image: row.product_image_url || row.cover_url || row.official_default_content_poster || null,
     },
     app: {
-      code: row.application_code || 'emotion-ip',
-      name: row.application_name || (puppy ? mintStudioCopy.entityRecipe.tissuePuppy : mintStudioCopy.entityRecipe.emotionIp),
+      code: appCode,
+      name: row.application_name || profile?.name || mintStudioCopy.entityRecipe.emotionIp,
       appType: row.app_type || 'meaning',
       interactionType: row.interaction_type || 'tap_to_emotional_content',
     },
     recipe: applyStudioPermissions({
       studioTitle,
-      voice: puppy ? 'gentle_puppy' : 'warm_object',
-      introMessages: puppy
-        ? mintStudioCopy.entityRecipe.puppyIntro
-        : mintStudioCopy.entityRecipe.objectIntro(objectName),
-      creationModes: [
+      voice: profile ? `${profile.code}_guide` : 'warm_object',
+      introMessages: profile?.introMessages || mintStudioCopy.entityRecipe.objectIntro(objectName),
+      creationModes: profile?.creationModes || [
         {
           code: 'open_preview',
           label: defaultContentId ? mintStudioCopy.entityRecipe.previewCurrent : mintStudioCopy.entityRecipe.previewObject,
@@ -247,29 +253,31 @@ function buildEntityRecipe(db, row, token) {
         customUploadRequiresLogin: false,
       },
       contentDefinitions: contentGuides,
-      completionCopy: puppy
-        ? mintStudioCopy.entityRecipe.puppyCompleted
-        : mintStudioCopy.entityRecipe.completed,
+      completionCopy: mintStudioCopy.entityRecipe.completed,
       studioFlow,
     }, { tokenBound: !!row.owner_user_id }),
     bindings: {
-      entityId: row.id,
-      groupId: row.ip_definition_id,
+      ipInstanceId: row.id,
+      ipDefinitionId: row.ip_definition_id,
       officialDefaultContentId: defaultContentId,
     },
     nextRoutes: {
       preview: buildRoute('/play', token),
-      asset: buildRoute('/assets', token),
+      ipInstance: buildRoute('/assets', token),
     },
   };
 }
 
-function buildOfficialIpRecipe(row) {
-  const puppy = isTissuePuppy(row);
-  const objectName = row.group_name || row.series_name || (puppy ? mintStudioCopy.entityRecipe.tissuePuppy : mintStudioCopy.entityRecipe.emotionIp);
+function buildOfficialIpRecipe(db, row) {
+  const objectName = row.group_name || row.series_name || row.application_name || mintStudioCopy.entityRecipe.emotionIp;
   const studioTitle = `${objectName} · 官方内容工作台`;
-  const themeColor = row.theme_color || (puppy ? '#d86f45' : '#2f6f5e');
+  const themeColor = row.theme_color || '#2f6f5e';
   const defaultContentId = row.official_default_content_id || null;
+  const contentGuides = getApplicationContentDefinitionGuides(db, row.application_definition_id || row.application_code);
+  const studioFlow = buildDefinitionDrivenStudioFlow(contentGuides, {
+    submitAction: 'save_official_definition_content',
+    publishAction: 'publish_official_definition_content',
+  });
 
   return {
     token: {
@@ -306,7 +314,11 @@ function buildOfficialIpRecipe(row) {
           tone: 'primary',
         },
       ],
-      preview: defaultContentId ? {
+      preview: contentGuides.length ? {
+        kind: 'definition_guide',
+        title: `${objectName}创作引导`,
+        contentDefinitions: contentGuides,
+      } : (defaultContentId ? {
         kind: 'video',
         title: row.official_default_content_title || mintStudioCopy.entityRecipe.currentContent,
         contentId: defaultContentId,
@@ -315,15 +327,16 @@ function buildOfficialIpRecipe(row) {
       } : {
         kind: 'empty',
         title: '还没有官方预览内容',
-      },
+      }),
       requirements: {
         customUploadRequiresLogin: false,
       },
+      contentDefinitions: contentGuides,
       completionCopy: '官方内容请在内容中心创建、预览并手动设为默认内容。',
-      studioFlow: null,
+      studioFlow,
     }, { tokenBound: true }),
     bindings: {
-      groupId: row.ip_definition_id,
+      ipDefinitionId: row.ip_definition_id,
       officialInstanceId: row.official_instance_id || null,
       officialDefaultContentId: defaultContentId,
       officialStudio: true,
@@ -389,12 +402,12 @@ function buildLightAppRecipe(db, resolved, token) {
     }, { tokenBound: !!raw.owner_user_id }),
     bindings: {
       tokenId: resolved.object.tokenId,
-      groupId: null,
-      entityId: null,
+      ipDefinitionId: null,
+      ipInstanceId: null,
     },
     nextRoutes: {
       open: route,
-      asset: buildRoute('/assets', token),
+      ipInstance: buildRoute('/assets', token),
     },
   };
 }
@@ -439,7 +452,7 @@ async function resolveOfficialIpStudio(req, res) {
         code: 'OFFICIAL_IP_NOT_FOUND',
       });
     }
-    res.json(buildOfficialIpRecipe(row));
+    res.json(buildOfficialIpRecipe(db, row));
   } catch (error) {
     console.error('Mint Studio official IP resolve error:', error);
     res.status(500).json({

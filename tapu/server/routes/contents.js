@@ -4,8 +4,12 @@ import { registerRoutes, publicRoute, route } from '../services/routePermissions
 import {
   cleanString,
   getContentInstance,
+  getIpInstanceByToken,
+  getPrimaryLinkedContent,
   getPrimaryVideoResource,
 } from '../services/coreStore.js';
+import { recordObjectOperation, runOperationPipeline } from '../services/osPipeline.js';
+import { buildAppRuntimeContext } from '../services/appAdapters.js';
 import {
   buildContentAuthoringRecipe,
   canEditContent,
@@ -15,6 +19,12 @@ import {
 } from '../services/contentVersions.js';
 import { deleteContentAsset } from '../services/contentAssets.js';
 import { serverMessages } from '../copy/messages.js';
+import {
+  buildContentDetailRoute,
+  buildContentPreviewRoute,
+  inferContentRenderer,
+} from '../services/contentRenderingProtocol.js';
+import { resultToObjects } from '../services/tokens.js';
 
 const router = Router();
 
@@ -68,6 +78,60 @@ function buildBlocksFromContent(content) {
   return [];
 }
 
+function buildContentDetailPayload(req, content) {
+  return {
+    id: content.id,
+    title: content.title || 'Content',
+    summary: content.summary || '',
+    content_kind: content.content_kind || 'mixed',
+    primary_modality: content.primary_modality || 'mixed',
+    status: content.status || 'draft',
+    visibility: content.visibility || 'private',
+    ip_definition_id: content.ip_definition_id || null,
+    application_code: content.application_code || null,
+    application_name: content.application_name || null,
+    content_definition_code: content.content_definition_code || null,
+    content_definition_name: content.content_definition_name || null,
+    content_definition_template: content.content_definition_template || {},
+    renderer: inferContentRenderer(content),
+    preview_route: buildContentPreviewRoute(content),
+    detail_route: buildContentDetailRoute(content),
+    owner_user_id: content.owner_user_id || null,
+    creator_user_id: content.creator_user_id || null,
+    viewer_is_admin: req.user?.username === 'admin',
+    viewer_can_edit: canEditContent(req.user, content),
+    viewer_can_set_official_default: req.user?.username === 'admin' && !!content.ip_definition_id,
+    version_no: Number(content.version_no || 1),
+    draft_versions: canEditContent(req.user, content)
+      ? getContentDraftVersions(req.permission.db, content.id)
+      : [],
+    payload: content.payload || {},
+    content_nodes: Array.isArray(content.payload?.pages) ? content.payload.pages : [],
+    resources: content.resources || [],
+    blocks: buildBlocksFromContent(content),
+    created_at: content.created_at,
+    updated_at: content.updated_at,
+  };
+}
+
+function getOfficialDefaultContent(db, ipDefinitionId) {
+  const officialInstance = resultToObjects(db.exec(
+    `SELECT id
+     FROM ip_instances
+     WHERE ip_definition_id = ?
+       AND instance_type = 'official_demo'
+     LIMIT 1`,
+    [ipDefinitionId]
+  ))[0] || null;
+  return officialInstance ? getPrimaryLinkedContent(db, officialInstance.id, ['official_default']) : null;
+}
+
+export function resolveDefaultContentForIpInstance(db, ipInstance) {
+  if (!ipInstance?.id) return null;
+  return getPrimaryLinkedContent(db, ipInstance.id, ['owner_default'])
+    || getOfficialDefaultContent(db, ipInstance.ip_definition_id);
+}
+
 async function getContentDetail(req, res) {
   try {
     const content = getContentInstance(req.permission.db, req.params.id);
@@ -76,35 +140,93 @@ async function getContentDetail(req, res) {
       return res.status(403).json({ error: 'Content is not available' });
     }
 
-    res.json({
-      id: content.id,
-      title: content.title || 'Content',
-      summary: content.summary || '',
-      content_kind: content.content_kind || 'mixed',
-      primary_modality: content.primary_modality || 'mixed',
-      status: content.status || 'draft',
-      visibility: content.visibility || 'private',
-      ip_definition_id: content.ip_definition_id || null,
-      application_code: content.application_code || null,
-      application_name: content.application_name || null,
-      content_definition_name: content.content_definition_name || null,
-      owner_user_id: content.owner_user_id || null,
-      creator_user_id: content.creator_user_id || null,
-      viewer_is_admin: req.user?.username === 'admin',
-      viewer_can_edit: canEditContent(req.user, content),
-      viewer_can_set_official_default: req.user?.username === 'admin' && !!content.ip_definition_id,
-      version_no: Number(content.version_no || 1),
-      draft_versions: canEditContent(req.user, content)
-        ? getContentDraftVersions(req.permission.db, content.id)
-        : [],
-      payload: content.payload || {},
-      resources: content.resources || [],
-      blocks: buildBlocksFromContent(content),
-      created_at: content.created_at,
-      updated_at: content.updated_at,
-    });
+    res.json(buildContentDetailPayload(req, content));
   } catch (error) {
     console.error('Get content detail error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+async function resolvePlayableContentByToken(req, res) {
+  try {
+    const key = cleanString(req.query.key || req.body?.key);
+    if (!key) return res.status(400).json({ error: 'key is required', code: 'TOKEN_REQUIRED' });
+
+    const db = req.permission.db;
+    const ipInstance = getIpInstanceByToken(db, key);
+    if (!ipInstance) return res.status(404).json({ error: 'IP instance not found', code: 'IP_INSTANCE_NOT_FOUND' });
+
+    const linkedContent = resolveDefaultContentForIpInstance(db, ipInstance);
+    if (!linkedContent) {
+      return res.status(404).json({
+        error: 'No playable content is bound to this IP instance',
+        code: 'PLAYABLE_CONTENT_NOT_FOUND',
+      });
+    }
+
+    const content = getContentInstance(db, linkedContent.id);
+    if (!content || content.status !== 'published') {
+      return res.status(404).json({
+        error: 'Playable content is not available',
+        code: 'PLAYABLE_CONTENT_NOT_AVAILABLE',
+      });
+    }
+
+    const operationId = recordObjectOperation(db, {
+      operationType: 'object.touch',
+      objectType: ipInstance.instance_type === 'official_demo' ? 'official-demo' : 'mint-entity',
+      objectId: ipInstance.id,
+      tokenId: ipInstance.id,
+      token: ipInstance.token || ipInstance.entity_key || key,
+      appCode: ipInstance.application_code || content.application_code || 'emotion-ip',
+      contentId: content.id,
+      userId: ipInstance.owner_user_id || req.user?.id || null,
+      userAgent: req.headers['user-agent'] || null,
+      ipDefinitionId: ipInstance.ip_definition_id || content.ip_definition_id || null,
+      metadata: {
+        objectName: ipInstance.ip_definition_name || null,
+        source: 'contents.resolve-by-token',
+      },
+    });
+    runOperationPipeline(db, { operationIds: [operationId] });
+    const appCode = ipInstance.application_code || content.application_code || 'emotion-ip';
+    const runtimeContext = buildAppRuntimeContext(db, {
+      object: {
+        type: ipInstance.instance_type === 'official_demo' ? 'official-demo' : 'mint-entity',
+        id: ipInstance.id,
+        tokenId: ipInstance.id,
+        token: ipInstance.token || ipInstance.entity_key || key,
+        label: ipInstance.ip_definition_name || ipInstance.label || null,
+        displayName: ipInstance.ip_definition_name || ipInstance.label || null,
+        status: ipInstance.status || 'active',
+        themeColor: ipInstance.theme_color || null,
+      },
+      app: {
+        code: appCode,
+        name: ipInstance.application_name || content.application_name || null,
+        interactionType: ipInstance.interaction_type || null,
+      },
+      raw: ipInstance,
+    }, {
+      userId: ipInstance.owner_user_id || req.user?.id || null,
+      token: ipInstance.token || ipInstance.entity_key || key,
+      appCode,
+    });
+    saveDb();
+
+    res.json({
+      content: buildContentDetailPayload(req, content),
+      object: {
+        id: ipInstance.id,
+        ip_definition_id: ipInstance.ip_definition_id,
+        display_name: ipInstance.ip_definition_name || ipInstance.label || null,
+        application_code: ipInstance.application_code || content.application_code || null,
+      },
+      default_content_id: content.id,
+      runtime_context: runtimeContext,
+    });
+  } catch (error) {
+    console.error('Resolve playable content by token error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 }
@@ -197,6 +319,14 @@ async function deleteContentInstance(req, res) {
 }
 
 registerRoutes(router, [
+  publicRoute('get', '/resolve-by-token', resolvePlayableContentByToken, [], {
+    operation: 'view:open',
+    summary: 'Resolve the default core content instance for an IP instance token.',
+    query: { key: 'string' },
+    response: { content: 'object', object: 'object', default_content_id: 'string', runtime_context: 'object' },
+    errors: ['TOKEN_REQUIRED', 'IP_INSTANCE_NOT_FOUND', 'PLAYABLE_CONTENT_NOT_FOUND'],
+    tags: ['content', 'touch', 'os'],
+  }),
   publicRoute('get', '/:id', getContentDetail, [], {
     operation: 'view:preview',
     summary: 'Get a core content instance detail view.',

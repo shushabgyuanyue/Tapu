@@ -8,6 +8,7 @@ export const CONTENT_CONTAINER_CAPABILITIES = [
   'link',
   'mixed',
   'interactive',
+  'ar',
 ];
 
 export const APPLICATION_MANIFESTS = [
@@ -66,6 +67,103 @@ export const APPLICATION_MANIFESTS = [
     ],
     contentContainer: {
       capabilities: ['video', 'image', 'text', 'mixed'],
+      defaultModality: 'video',
+    },
+  },
+  {
+    code: 'tissue-puppy',
+    type: 'meaning',
+    objectPrinciple: 'A tissue puppy carries gentle comfort through a physical object and one focused content node.',
+    behavior: 'touch_to_summon_comfort_companion',
+    meaningQuestion: 'What small comfort should this puppy bring into the room?',
+    defaultRoutes: {
+      open: '/play',
+      studio: '/mint-studio',
+      admin: '/official/applications',
+    },
+    mintStudio: {
+      profile: 'tissue-puppy',
+      primaryActions: ['open_preview', 'save_definition_content_by_token', 'collect_asset'],
+    },
+    permissionOperations: ['view:open', 'view:preview', 'content:token_update', 'content:account_create', 'asset:claim'],
+    operationDefinitions: [
+      {
+        key: 'object.touch',
+        label: 'Touch Tissue Puppy',
+        meaning: 'A user touched or opened the tissue puppy object.',
+      },
+    ],
+    eventRules: [
+      {
+        eventType: 'comfort.frequent_touch',
+        sourceOperations: ['object.touch'],
+        windowHours: 24,
+        countGte: 10,
+        relationFocus: 'comfort',
+      },
+    ],
+    contentDefinition: {
+      id: 'content-def-tissue-puppy-comfort-video',
+      code: 'tissue-puppy-comfort-ar',
+      name: '纸巾小狗 AR 召唤',
+      description: '为纸巾小狗创建一个 AR 召唤内容节点，触碰后在现实画面里出现一段温柔陪伴。',
+      contentKind: 'ar',
+      primaryModality: 'video',
+      authoringSchema: {
+        authoringProtocol: {
+          createFlow: 'single_resource_node',
+          unitLabel: 'AR 召唤节点',
+          publishLabel: '完成铸造',
+          publishDescription: '生成纸巾小狗的 AR 内容资产，之后可在内容详情页预览和修改。',
+        },
+        contentShape: {
+          unit: 'comfort_ar_node',
+          slots: [
+            {
+              key: 'comfort_ar_overlay',
+              role: 'ar_overlay',
+              type: 'video',
+              label: 'AR 召唤视频',
+              required: true,
+              accept: 'video/*',
+            },
+          ],
+        },
+        resourceRequirements: [
+          {
+            role: 'ar_overlay',
+            type: 'video',
+            label: 'AR 召唤视频',
+            required: true,
+          },
+        ],
+      },
+      template: {
+        renderer: 'ar.camera-overlay',
+        layout: 'camera_center_overlay',
+        nodeType: 'comfort_ar_overlay',
+        playback: {
+          autoplay: true,
+          mutedByDefault: true,
+          tapToUnmute: true,
+          loop: true,
+          replayMode: 'loop',
+          objectFit: 'contain',
+        },
+        ar: {
+          mode: 'camera_overlay',
+          placement: 'screen_center',
+          scale: 0.72,
+          cameraFacingMode: 'environment',
+          fallbackRenderer: 'video.fullscreen',
+        },
+      },
+      extra: {
+        toneRule: '成熟克制、温柔但不煽情，像纸巾小狗递来一张纸。',
+      },
+    },
+    contentContainer: {
+      capabilities: ['ar', 'video'],
       defaultModality: 'video',
     },
   },

@@ -46,14 +46,18 @@ export type MintStudioRecipe = {
 
 export type MintStudioLibraryItem = {
   id: string;
+  contentInstanceId?: string;
   source: string;
   title: string;
   subtitle?: string;
   appCode?: string;
   appName?: string;
-  token?: string;
-  tokenCompact?: string;
+  ipDefinitionId?: string | null;
+  ipInstanceId?: string | null;
+  contentDefinitionId?: string | null;
+  applicationDefinitionId?: string | null;
   previewRoute?: string;
+  detailRoute?: string;
   thumb?: string;
   status?: string;
   createdAt?: string;
@@ -104,12 +108,16 @@ export async function uploadAuthoringResource(params: {
   relationRole: string;
   slotKey: string;
   unitIndex: number;
+  contentDefinitionId?: string;
+  contentDefinitionCode?: string;
 }) {
   const form = new FormData();
   form.append('file', params.file);
   form.append('relation_role', params.relationRole);
   form.append('slot_key', params.slotKey);
   form.append('unit_index', String(params.unitIndex));
+  if (params.contentDefinitionId) form.append('content_definition_id', params.contentDefinitionId);
+  if (params.contentDefinitionCode) form.append('content_definition_code', params.contentDefinitionCode);
 
   const headers: Record<string, string> = {};
   const token = getToken();
@@ -131,6 +139,7 @@ export async function createDefinitionContentByToken(params: {
   summary?: string;
   app_code?: string;
   object_name?: string;
+  ip_definition_id?: string;
   content_definition_id?: string;
   content_definition_code?: string;
   resources: unknown[];
@@ -138,6 +147,23 @@ export async function createDefinitionContentByToken(params: {
   return request('/authoring/content-by-token', {
     method: 'POST',
     auth: isLoggedIn(),
+    jsonBody: params,
+  });
+}
+
+export async function createOfficialDefinitionContent(params: {
+  title?: string;
+  summary?: string;
+  app_code?: string;
+  object_name?: string;
+  ip_definition_id: string;
+  content_definition_id?: string;
+  content_definition_code?: string;
+  resources: unknown[];
+}) {
+  return request('/authoring/official-content', {
+    method: 'POST',
+    auth: true,
     jsonBody: params,
   });
 }

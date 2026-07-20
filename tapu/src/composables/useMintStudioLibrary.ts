@@ -12,8 +12,12 @@ export type MintedItem = {
   title: string;
   appName: string;
   appCode?: string;
-  token: string;
+  ipDefinitionId?: string | null;
+  ipInstanceId?: string | null;
+  contentDefinitionId?: string | null;
+  applicationDefinitionId?: string | null;
   previewRoute: string;
+  detailRoute: string;
   thumb?: string;
   status: 'draft' | 'published' | 'processing' | string;
   source: 'content';
@@ -37,12 +41,16 @@ function libraryItemToMintedItem(item: MintStudioLibraryItem): MintedItem {
   const [, ...idParts] = String(item.id || '').split(':');
   return {
     id: item.id,
-    rawId: idParts.join(':') || item.id,
+    rawId: item.contentInstanceId || idParts.join(':') || item.id,
     title: item.title || item.appName || studioCopy.defaultTitle,
     appName: item.appName || item.appCode || 'WhatMint',
     appCode: item.appCode,
-    token: item.tokenCompact || item.token || '',
+    ipDefinitionId: item.ipDefinitionId || null,
+    ipInstanceId: item.ipInstanceId || null,
+    contentDefinitionId: item.contentDefinitionId || null,
+    applicationDefinitionId: item.applicationDefinitionId || null,
     previewRoute: item.previewRoute || '',
+    detailRoute: item.detailRoute || `/content/${idParts.join(':') || item.id}`,
     thumb: item.thumb || undefined,
     status: item.status || 'draft',
     source: 'content',

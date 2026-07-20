@@ -123,6 +123,51 @@ function ensureDefaultIpDefinitionApplicationBackfill(db) {
   }
 }
 
+function isTissuePuppyDefinition(row) {
+  const text = `${row.name || ''} ${row.code || ''} ${row.primary_series_name || ''}`.toLowerCase();
+  return text.includes('纸巾') || text.includes('tissue') || text.includes('puppy');
+}
+
+function ensureTissuePuppyApplicationBackfill(db) {
+  const app = resultToObjects(db.exec(
+    `SELECT id
+     FROM application_definitions
+     WHERE code = 'tissue-puppy'
+     LIMIT 1`
+  ))[0] || null;
+  if (!app?.id) return;
+
+  const rows = resultToObjects(db.exec(
+    `SELECT id, code, name, primary_series_name
+     FROM ip_definitions`
+  )).filter(isTissuePuppyDefinition);
+
+  for (const row of rows) {
+    db.run(
+      `UPDATE ip_definition_application_links
+       SET is_primary = 0, updated_at = CURRENT_TIMESTAMP
+       WHERE ip_definition_id = ?`,
+      [row.id]
+    );
+    db.run(
+      `INSERT INTO ip_definition_application_links
+       (id, ip_definition_id, application_definition_id, relation_role, is_primary, sort_order, metadata_json)
+       VALUES (?, ?, ?, 'primary', 1, 0, ?)
+       ON CONFLICT(ip_definition_id, application_definition_id, relation_role) DO UPDATE SET
+         is_primary = 1,
+         sort_order = 0,
+         metadata_json = excluded.metadata_json,
+         updated_at = CURRENT_TIMESTAMP`,
+      [
+        `ipapp-${row.id}-${app.id}`,
+        row.id,
+        app.id,
+        stringifyJson({ inferred: true, reason: 'tissue_puppy_definition' }),
+      ]
+    );
+  }
+}
+
 function ensureIpInstanceBackfill(db) {
   if (!tableExists(db, 'entities')) return;
   db.run(
@@ -264,6 +309,7 @@ export function backfillCoreTables(db) {
   ensureCoreContentDefinitions(db);
   ensureIpDefinitionBackfill(db);
   ensureIpDefinitionApplicationBackfill(db);
+  ensureTissuePuppyApplicationBackfill(db);
   ensureDefaultIpDefinitionApplicationBackfill(db);
   ensureIpInstanceBackfill(db);
   syncPrimaryApplicationReferences(db);

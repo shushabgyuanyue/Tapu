@@ -11,6 +11,7 @@ const props = defineProps<{
   open: boolean;
   items: MintedItem[];
   loading: boolean;
+  activeItemId?: string;
 }>();
 
 const emit = defineEmits<{
@@ -28,7 +29,7 @@ const filteredItems = computed(() => {
   const q = query.value.trim().toLowerCase();
   return props.items.filter(item => {
     const matchesFilter = filter.value === 'all' || item.status === filter.value;
-    const text = `${item.title} ${item.appName} ${item.subtitle || ''} ${item.token || ''}`.toLowerCase();
+    const text = `${item.title} ${item.appName} ${item.subtitle || ''}`.toLowerCase();
     return matchesFilter && (!q || text.includes(q));
   });
 });
@@ -78,7 +79,7 @@ const hiddenCount = computed(() => Math.max(0, filteredItems.value.length - visi
         <div
           v-for="item in visibleItems"
           :key="item.id"
-          class="minted-item"
+          :class="['minted-item', { 'minted-item--active': item.rawId === activeItemId }]"
           role="button"
           tabindex="0"
           @click="emit('open-item', item)"
@@ -152,6 +153,14 @@ const hiddenCount = computed(() => Math.max(0, filteredItems.value.length - visi
     background 0.16s ease,
     border-color 0.16s ease,
     transform 0.16s ease;
+}
+
+.minted-item--active {
+  border-color: rgba(47, 111, 94, 0.36);
+  background:
+    radial-gradient(circle at 100% 0%, rgba(47, 111, 94, 0.12), transparent 48%),
+    rgba(255, 255, 255, 0.96);
+  box-shadow: inset 0 0 0 1px rgba(47, 111, 94, 0.08);
 }
 
 .sidebar-icon {

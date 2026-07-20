@@ -248,7 +248,7 @@ export const PERMISSION_CHECKERS = {
     const entityId = getRequestEntityId(req);
     if (!entityId) throw knownError(400, 'ENTITY_ID_REQUIRED', serverMessages.permissions.entityIdRequired);
     const entity = resultToObjects(db.exec(
-      'SELECT id, owner_user_id, ip_definition_id as group_id, token, entity_key, external_order_no FROM ip_instances WHERE id = ?',
+      'SELECT id, owner_user_id, ip_definition_id, ip_definition_id as group_id, token, entity_key, external_order_no FROM ip_instances WHERE id = ?',
       [entityId]
     ))[0] || null;
     if (!entity) throw knownError(404, 'ENTITY_NOT_FOUND', serverMessages.permissions.entityNotFound);

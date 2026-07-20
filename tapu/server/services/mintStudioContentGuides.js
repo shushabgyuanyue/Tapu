@@ -38,6 +38,7 @@ export function getApplicationContentDefinitionGuides(db, applicationDefinitionI
       contentShape: authoringSchema.contentShape || authoringSchema.authoringProtocol?.contentShape || null,
       renderer: template.renderer || '',
       layout: template.layout || '',
+      template,
       toneRule: extra.toneRule || '',
     };
   }).filter(guide => (
@@ -48,9 +49,83 @@ export function getApplicationContentDefinitionGuides(db, applicationDefinitionI
   ));
 }
 
-export function buildDefinitionDrivenStudioFlow(contentGuides) {
+export function buildDefinitionDrivenStudioFlow(contentGuides, options = {}) {
   if (!contentGuides.length) return null;
   const primaryGuide = contentGuides.find(item => item.isPrimary) || contentGuides[0];
+  const submitAction = options.submitAction || 'save_definition_content_by_token';
+  const publishAction = options.publishAction || 'publish_definition_content';
+  if (primaryGuide.authoringProtocol?.createFlow === 'single_resource_node') {
+    const slots = primaryGuide.contentShape?.slots || primaryGuide.resources.map(resource => ({
+      key: resource.role,
+      role: resource.role,
+      type: resource.type,
+      label: resource.label || resource.role,
+      required: !!resource.required,
+      accept: resource.type === 'video' ? 'video/*' : (resource.type === 'audio' ? 'audio/*' : (resource.type === 'image' ? 'image/*' : '*/*')),
+    }));
+
+    const uploadSteps = slots.map(slot => ({
+      id: `node_1_${slot.key}`,
+      type: 'resource_upload',
+      unitIndex: 1,
+      slotKey: slot.key,
+      relationRole: slot.role || slot.key,
+      resourceType: slot.type || 'file',
+      accept: slot.accept || (slot.type === 'video' ? 'video/*' : (slot.type === 'audio' ? 'audio/*' : (slot.type === 'image' ? 'image/*' : '*/*'))),
+      label: slot.label || slot.key,
+      prompt: mintStudioCopy.definitionFlow.uploadResourcePrompt(
+        primaryGuide.authoringProtocol.unitLabel || mintStudioCopy.definitionFlow.defaultNodeLabel,
+        1,
+        slot.label || slot.key
+      ),
+      required: slot.required !== false,
+    }));
+
+    return {
+      kind: 'definition_resource_single_node',
+      source: 'content_definitions',
+      submitAction,
+      contentDefinitionId: primaryGuide.id,
+      contentDefinitionCode: primaryGuide.code,
+      contentTitle: primaryGuide.name,
+      contentDefinitionTemplate: primaryGuide.template || {},
+      unitTemplate: {
+        unitName: primaryGuide.contentShape?.unit || 'content_node',
+        unitLabel: primaryGuide.authoringProtocol.unitLabel || mintStudioCopy.definitionFlow.defaultNodeLabel,
+        slots,
+      },
+      steps: [
+        ...uploadSteps,
+        {
+          id: 'preview_authoring_content',
+          type: 'choice',
+          prompt: primaryGuide.authoringProtocol.previewPrompt || mintStudioCopy.definitionFlow.singleNodePreviewPrompt,
+          options: [
+            {
+              id: 'preview_authoring_content',
+              label: primaryGuide.authoringProtocol.previewLabel || mintStudioCopy.definitionFlow.previewLabel,
+              description: primaryGuide.authoringProtocol.previewDescription || mintStudioCopy.definitionFlow.previewDescription,
+              action: 'preview_authoring_content',
+            },
+          ],
+        },
+        {
+          id: 'publish_definition_content',
+          type: 'choice',
+          prompt: primaryGuide.authoringProtocol.publishPrompt || mintStudioCopy.definitionFlow.singleNodePublishPrompt,
+          options: [
+            {
+              id: 'publish_definition_content',
+              label: primaryGuide.authoringProtocol.publishLabel || mintStudioCopy.definitionFlow.publishLabel,
+              description: primaryGuide.authoringProtocol.publishDescription || mintStudioCopy.definitionFlow.publishDescription,
+              action: publishAction,
+            },
+          ],
+        },
+      ],
+    };
+  }
+
   if (primaryGuide.authoringProtocol?.createFlow === 'repeatable_resource_sequence') {
     const slots = primaryGuide.contentShape?.slots || primaryGuide.resources.map(resource => ({
       key: resource.role,
@@ -58,7 +133,7 @@ export function buildDefinitionDrivenStudioFlow(contentGuides) {
       type: resource.type,
       label: resource.label || resource.role,
       required: !!resource.required,
-      accept: resource.type === 'audio' ? 'audio/*' : (resource.type === 'image' ? 'image/*' : '*/*'),
+      accept: resource.type === 'video' ? 'video/*' : (resource.type === 'audio' ? 'audio/*' : (resource.type === 'image' ? 'image/*' : '*/*')),
     }));
     const buildUnitSteps = unitIndex => slots.map(slot => ({
       id: `unit_${unitIndex}_${slot.key}`,
@@ -67,7 +142,7 @@ export function buildDefinitionDrivenStudioFlow(contentGuides) {
       slotKey: slot.key,
       relationRole: slot.role || slot.key,
       resourceType: slot.type || 'file',
-      accept: slot.accept || (slot.type === 'audio' ? 'audio/*' : (slot.type === 'image' ? 'image/*' : '*/*')),
+      accept: slot.accept || (slot.type === 'video' ? 'video/*' : (slot.type === 'audio' ? 'audio/*' : (slot.type === 'image' ? 'image/*' : '*/*'))),
       label: slot.label || slot.key,
       prompt: mintStudioCopy.definitionFlow.uploadResourcePrompt(
         primaryGuide.authoringProtocol.unitLabel || mintStudioCopy.definitionFlow.defaultUnitLabel,
@@ -80,10 +155,11 @@ export function buildDefinitionDrivenStudioFlow(contentGuides) {
     return {
       kind: 'definition_resource_sequence',
       source: 'content_definitions',
-      submitAction: 'save_definition_content_by_token',
+      submitAction,
       contentDefinitionId: primaryGuide.id,
       contentDefinitionCode: primaryGuide.code,
       contentTitle: primaryGuide.name,
+      contentDefinitionTemplate: primaryGuide.template || {},
       unitTemplate: {
         unitName: primaryGuide.contentShape?.unit || 'story_page',
         unitLabel: primaryGuide.authoringProtocol.unitLabel || '第 {index} 段故事',
@@ -106,7 +182,7 @@ export function buildDefinitionDrivenStudioFlow(contentGuides) {
               id: 'publish_definition_content',
               label: primaryGuide.authoringProtocol.publishLabel || mintStudioCopy.definitionFlow.publishLabel,
               description: mintStudioCopy.definitionFlow.publishDescription,
-              action: 'publish_definition_content',
+              action: publishAction,
             },
           ],
         },

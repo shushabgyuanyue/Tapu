@@ -212,6 +212,17 @@ function buildDraftPayload(content, params) {
   };
 }
 
+function buildResourceBindingSnapshot(content) {
+  return (content.resources || []).map(resource => ({
+    resourceId: resource.id || null,
+    relationRole: resource.relation_role || resource.metadata?.relationRole || null,
+    slotKey: resource.link_metadata?.slotKey || resource.metadata?.slotKey || null,
+    unitIndex: resource.link_metadata?.unitIndex || resource.metadata?.unitIndex || 1,
+    isPrimary: Number(resource.is_primary || 0) === 1,
+    sortOrder: Number(resource.sort_order || 0),
+  })).filter(resource => resource.resourceId);
+}
+
 export function createContentVersionDraft(db, params = {}) {
   const content = getContentInstance(db, params.contentInstanceId);
   if (!content) return null;
@@ -236,7 +247,7 @@ export function createContentVersionDraft(db, params = {}) {
       draft.title,
       draft.summary,
       stringifyJson(draft.payload),
-      stringifyJson(content.resources || []),
+      stringifyJson(buildResourceBindingSnapshot(content)),
       cleanString(params.changeRequest) || null,
       params.createdBy || null,
     ]

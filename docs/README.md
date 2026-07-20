@@ -10,6 +10,7 @@
 - [content-container-architecture.md](content-container-architecture.md)：内容容器架构和后续兼容攻坚边界。
 - [content-collection-app-binding.md](content-collection-app-binding.md)：内容集合和应用绑定的最小协议。
 - [whatmint-os-abstraction.md](whatmint-os-abstraction.md)：物体身份、触碰运行时、内容协议和统一事件账本的 OS 抽象雏形。
+- [os-capability-map.md](os-capability-map.md)：当前 OS 级能力地图、AR 渲染能力和后续待补足能力。
 - [route-permission-principles.md](route-permission-principles.md)：后端接口权限分配原则、权限类型和新增接口检查清单。
 - [development-standards.md](development-standards.md)：日常开发执行标准，约束文件拆分、文案放置、样式复用、接口和路由接入方式。
 - [engineering-governance.md](engineering-governance.md)：工程治理护栏，包含编码、质量检查、文件体积和新增功能检查卡。
@@ -29,6 +30,7 @@
 - `content-container-architecture.md`：统一内容容器的架构边界。
 - `content-collection-app-binding.md`：内容创作中心与轻应用运行时之间的绑定协议。
 - `whatmint-os-abstraction.md`：轻应用共性抽象和平台能力沉淀边界。
+- `os-capability-map.md`：OS 能力现状、上传/渲染/事件/上下文能力边界，以及后续补齐清单。
 - `route-permission-principles.md`：新增后端接口时如何选择 `public`、`login_required`、`admin_required`、`token_unbound_or_owner`、`entity_owner` 等权限类型。
 - `development-standards.md`：开发时的默认执行标准，避免功能完成后再补工程治理。
 - `engineering-governance.md`：新增功能和治理冲刺时的质量检查、编码策略、拆分阈值和提交前检查卡。

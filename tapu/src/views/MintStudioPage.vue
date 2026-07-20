@@ -5,10 +5,12 @@ import {
   bindEntity,
   isLoggedIn,
   resolveMintStudio,
+  setIpInstanceContentByToken,
   type MintStudioRecipe,
 } from '../api';
 import LoginModal from '../components/LoginModal.vue';
 import MintStudioComposer from '../components/mint/MintStudioComposer.vue';
+import MintStudioContentDetailPanel from '../components/mint/MintStudioContentDetailPanel.vue';
 import MintStudioSidebar from '../components/mint/MintStudioSidebar.vue';
 import MintStudioThread from '../components/mint/MintStudioThread.vue';
 import NavBar from '../components/NavBar.vue';
@@ -22,7 +24,6 @@ import { useMintStudioDefinitionAuthoring } from '../composables/useMintStudioDe
 import { useMintStudioOfficialResolve } from '../composables/useMintStudioOfficialResolve';
 import { studioCopy } from '../copy';
 import { AUTH_CHANGED_EVENT, CONTENT_CHANGED_EVENT } from '../events/appEvents';
-import MintStudioDetailPanel from '../components/mint/MintStudioDetailPanel.vue';
 import '../styles/mintStudio.css';
 
 type Toast = { show: (text: string, duration?: number, type?: string) => void };
@@ -46,12 +47,14 @@ const tokenInput = ref('');
 const studio = ref<MintStudioRecipe | null>(null);
 const uploadFile = ref<File | null>(null);
 const assetBound = ref(false);
+const mintedContentId = ref('');
 const currentStepIndex = ref(0);
 const flowAnswers = ref<Record<string, string>>({});
 const pendingLoginAction = ref<PendingLoginAction>('');
 const showLogin = ref(false);
 const navKey = ref(0);
 const sidebarOpen = ref(true);
+const selectedContentId = ref('');
 const threadRef = ref<{ scrollToBottom: () => void } | null>(null);
 const composerInputRef = ref<{ focus: () => void } | null>(null);
 const {
@@ -61,16 +64,10 @@ const {
   removeContentItem,
 } = useMintStudioLibrary();
 const {
-  selectedMintItem,
-  detailBusy,
-  detailCanDelete,
-  openLibraryDetail: openLibraryDetailBase,
-  closeLibraryDetail,
-  openSelectedPreview,
-  deleteSelectedItem,
   deleteMintedItem,
 } = useMintStudioDetail({ toast, loadStudioLibrary, removeContentItem });
 const isBusy = computed(() => ['resolving', 'saving'].includes(phase.value));
+const isStudioDetailMode = computed(() => !!selectedContentId.value);
 const previewRoute = computed(() => studio.value?.nextRoutes?.preview || studio.value?.nextRoutes?.open || '');
 const isEntityStudio = computed(() => studio.value?.object.type === 'entity');
 const isOfficialStudio = computed(() => !!studio.value?.bindings?.officialStudio);
@@ -92,12 +89,16 @@ const {
   toast,
   addMessage,
   loadStudioLibrary,
+  openAuthoringPreview,
+  onContentCreated: (contentId: string) => {
+    mintedContentId.value = contentId;
+  },
 });
 const currentStep = computed<StudioStep | null>(() => (
   phase.value === 'step' ? flowSteps.value[currentStepIndex.value] || null : null
 ));
 const canGoBack = computed(() => !['token', 'resolving', 'saving', 'done'].includes(phase.value));
-const canCollectAsset = computed(() => isEntityStudio.value && !assetBound.value);
+const canCollectAsset = computed(() => isEntityStudio.value && (!assetBound.value || !!mintedContentId.value));
 const composerPlaceholder = computed(() => {
   if (phase.value === 'step' && currentStep.value?.type === 'resource_upload') {
     return uploadFile.value ? studioCopy.placeholders.uploadWithFile : (currentStep.value.prompt || studioCopy.placeholders.uploadEmpty);
@@ -259,10 +260,11 @@ async function handleFlowOption(option: StudioStepOption) {
 }
 
 function resetStudio() {
+  selectedContentId.value = '';
   studio.value = null;
-  selectedMintItem.value = null;
   uploadFile.value = null;
   assetBound.value = false;
+  mintedContentId.value = '';
   resetContentVersionState();
   resetDefinitionAuthoring();
   currentStepIndex.value = 0;
@@ -276,9 +278,10 @@ function resetStudio() {
 }
 
 function applyResolvedStudio(result: MintStudioRecipe, query: Record<string, string>) {
+  selectedContentId.value = '';
   studio.value = result;
-  selectedMintItem.value = null;
   assetBound.value = !!result.token.bound;
+  mintedContentId.value = '';
   currentStepIndex.value = 0;
   flowAnswers.value = {};
   router.replace({ path: '/mint', query });
@@ -325,9 +328,40 @@ function openPreview() {
   window.open(previewRoute.value, '_blank', 'noopener,noreferrer');
 }
 
+function openAuthoringPreview(payload: any) {
+  const draftId = crypto.randomUUID();
+  window.sessionStorage.setItem(`whatmint:player-draft:${draftId}`, JSON.stringify(payload));
+  window.open(`/play?draft=${encodeURIComponent(draftId)}`, '_blank', 'noopener,noreferrer');
+}
+
 function openLibraryDetail(item: MintedItem) {
-  openLibraryDetailBase(item);
+  selectedContentId.value = item.rawId;
+  uploadFile.value = null;
+  tokenInput.value = '';
+  router.replace({ path: '/mint', query: { detail_content_id: item.rawId } });
   if (window.innerWidth <= 760) sidebarOpen.value = false;
+}
+
+function editContentFromDetail(contentId: string) {
+  selectedContentId.value = '';
+  resolveContentAuthoring(contentId, 'revise');
+}
+
+function handleDetailDeleted(contentId: string) {
+  selectedContentId.value = '';
+  removeContentItem({
+    id: `content:${contentId}`,
+    rawId: contentId,
+    title: '',
+    appName: '',
+    previewRoute: '',
+    detailRoute: '',
+    status: 'published',
+    source: 'content',
+    createdAt: '',
+  });
+  loadStudioLibrary();
+  router.replace('/mint');
 }
 
 function goBack() {
@@ -413,7 +447,22 @@ async function collectAsset() {
   }
 
   phase.value = 'saving';
-  addMessage('user', studioCopy.messages.collectAsset);
+  addMessage('user', mintedContentId.value ? studioCopy.messages.bindContentToEntity : studioCopy.messages.collectAsset);
+  if (mintedContentId.value) {
+    const bindContentResult = await setIpInstanceContentByToken(studio.value.token.token, mintedContentId.value);
+    phase.value = 'done';
+    if (!bindContentResult.success) {
+      addMessage('assistant', bindContentResult.error || studioCopy.messages.contentBindFailed);
+      return;
+    }
+
+    assetBound.value = true;
+    mintedContentId.value = '';
+    addMessage('assistant', studioCopy.messages.contentBoundToEntity);
+    toast?.show(studioCopy.toast.collected, 1600, 'success');
+    return;
+  }
+
   const bindResult = await bindEntity(studio.value.token.token);
   if (!bindResult.success) {
     phase.value = 'done';
@@ -428,7 +477,7 @@ async function collectAsset() {
 }
 
 function openAssets() {
-  const routePath = studio.value?.nextRoutes?.asset || '/assets';
+  const routePath = studio.value?.nextRoutes?.ipInstance || '/assets';
   window.open(routePath, '_blank', 'noopener,noreferrer');
 }
 
@@ -475,7 +524,6 @@ function handleLoginSuccess() {
 
 function refreshStudioLibraryForSession() {
   navKey.value += 1;
-  if (!isLoggedIn()) closeLibraryDetail();
   loadStudioLibrary();
 }
 
@@ -490,11 +538,14 @@ onMounted(() => {
   window.addEventListener(CONTENT_CHANGED_EVENT, refreshStudioLibraryForContentChange);
   const key = typeof route.query.key === 'string' ? route.query.key : '';
   const contentId = typeof route.query.content_id === 'string' ? route.query.content_id : '';
+  const detailContentId = typeof route.query.detail_content_id === 'string' ? route.query.detail_content_id : '';
   const contentMode = typeof route.query.mode === 'string' ? route.query.mode : 'revise';
   const officialIpId = typeof route.query.official_ip_definition_id === 'string'
     ? route.query.official_ip_definition_id
     : '';
-  if (contentId) {
+  if (detailContentId) {
+    selectedContentId.value = detailContentId;
+  } else if (contentId) {
     resolveContentAuthoring(contentId, contentMode);
   } else if (key) {
     tokenInput.value = key;
@@ -525,6 +576,7 @@ onUnmounted(() => {
         v-model:open="sidebarOpen"
         :items="mintedItems"
         :loading="libraryLoading"
+        :active-item-id="selectedContentId"
         @new-mint="resetStudio"
         @open-item="openLibraryDetail"
         @delete-item="deleteMintedItem"
@@ -538,18 +590,15 @@ onUnmounted(() => {
       ></button>
 
       <main class="studio">
-        <MintStudioDetailPanel
-          v-if="selectedMintItem"
-          :item="selectedMintItem"
-          :can-delete="detailCanDelete"
-          :busy="detailBusy"
-          @close="closeLibraryDetail"
-          @preview="openSelectedPreview"
-          @delete="deleteSelectedItem"
+        <MintStudioContentDetailPanel
+          v-if="isStudioDetailMode"
+          :content-id="selectedContentId"
+          @edit="editContentFromDetail"
+          @deleted="handleDetailDeleted"
         />
 
         <MintStudioThread
-          v-if="!selectedMintItem"
+          v-else
           ref="threadRef"
           :messages="messages"
           :phase="phase"
@@ -569,7 +618,7 @@ onUnmounted(() => {
         />
 
         <MintStudioComposer
-          v-if="!selectedMintItem"
+          v-if="!isStudioDetailMode"
           ref="composerInputRef"
           v-model:token-input="tokenInput"
           :phase="phase"
