@@ -1,5 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import initSqlJs from 'sql.js';
 import { findAppManifest, getAppManifests } from '../../server/contracts/appManifests.js';
 import { buildCoreContentLibraryItems } from '../../server/routes/mintStudio.js';
@@ -30,6 +33,20 @@ import {
   getContentDefinitionBindingConfig,
   hydrateAuthoringResources,
 } from '../../server/services/contentResourceBinding.js';
+import { ensureApplicationRegistry } from '../../server/services/applicationRegistry.js';
+import { ensureCoreOfficialIpSeed } from '../../server/services/coreOfficialIpSeed.js';
+import { ensureEarphoneGirlSeed } from '../../server/services/earphoneGirlSeed.js';
+import { listShopIpDefinitions } from '../../server/services/shopCatalog.js';
+import { backfillCoreTables } from '../../server/db/coreBackfill.js';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+function runSqlFile(db, relativePath) {
+  const sql = fs.readFileSync(path.join(__dirname, '..', '..', relativePath), 'utf-8');
+  for (const statement of sql.split(';').map(item => item.trim()).filter(Boolean)) {
+    db.run(`${statement};`);
+  }
+}
 
 async function createMintStudioLibraryDb() {
   const SQL = await initSqlJs();
@@ -173,6 +190,17 @@ async function createMintStudioLibraryDb() {
   return db;
 }
 
+async function createCoreSeedDb() {
+  const SQL = await initSqlJs();
+  const db = new SQL.Database();
+  runSqlFile(db, 'server/db/core-schema.sql');
+  ensureApplicationRegistry(db);
+  backfillCoreTables(db);
+  ensureCoreOfficialIpSeed(db);
+  ensureEarphoneGirlSeed(db);
+  return db;
+}
+
 test('mint studio profiles exist for light app manifests that need UI recipes', () => {
   const adapters = getRegisteredAppAdapters();
   for (const adapter of adapters) {
@@ -244,6 +272,20 @@ test('desktop secret enters Mint Studio through the OS AR image renderer definit
   assert.ok(profile.creationModes.some(mode => mode.code === 'claim_entity'));
   assert.ok(!manifest.mintStudio?.primaryActions?.includes('collect_asset'));
   assert.ok(!profile.creationModes.some(mode => mode.code === 'collect_asset'));
+});
+
+test('shop catalog contains the three new-core public IP entries after seed', async () => {
+  const db = await createCoreSeedDb();
+  const items = listShopIpDefinitions(db);
+  const byCode = new Map(items.map(item => [item.code, item]));
+
+  for (const code of ['tissue-puppy', 'earphone-girl', 'desktop-secret']) {
+    assert.ok(byCode.has(code), `${code} should be visible in shop catalog`);
+  }
+  assert.equal(byCode.get('tissue-puppy')?.name, '纸巾小狗');
+  assert.equal(byCode.get('tissue-puppy')?.application_code, 'tissue-puppy');
+  assert.equal(byCode.get('tissue-puppy')?.official_experiences?.[0]?.id, 'content-tissue-puppy-ar-placeholder');
+  assert.equal(byCode.get('desktop-secret')?.official_experiences?.[0]?.id, 'content-desktop-secret-ar-snow-realm');
 });
 
 test('legacy collect_asset action is only allowed on frozen light apps', () => {

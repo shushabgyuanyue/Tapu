@@ -106,6 +106,76 @@ function upsertDesktopSecretIpDefinition(db) {
   return firstRow(db, 'SELECT * FROM ip_definitions WHERE id = ? LIMIT 1', ['ipdef_desktop_secret']);
 }
 
+function upsertTissuePuppyIpDefinition(db) {
+  const existing = findIpDefinitionForApp(db, 'tissue-puppy', ['纸巾小狗', 'tissue-puppy']);
+  const id = existing?.id || 'ipdef_tissue_puppy';
+  db.run(
+    `INSERT INTO ip_definitions
+     (id, code, name, primary_series_key, primary_series_name, description, story, personality, designer,
+      material, nfc_type, size_label, rarity_label, cover_url, hero_url, product_image_url,
+      display_tags_json, theme_color, physical_spec_json, extra_json, status)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active')
+     ON CONFLICT(id) DO UPDATE SET
+       code = excluded.code,
+       name = excluded.name,
+       primary_series_key = excluded.primary_series_key,
+       primary_series_name = excluded.primary_series_name,
+       description = excluded.description,
+       story = excluded.story,
+       personality = excluded.personality,
+       designer = excluded.designer,
+       material = excluded.material,
+       nfc_type = excluded.nfc_type,
+       size_label = excluded.size_label,
+       rarity_label = excluded.rarity_label,
+       cover_url = excluded.cover_url,
+       hero_url = excluded.hero_url,
+       product_image_url = excluded.product_image_url,
+       display_tags_json = excluded.display_tags_json,
+       theme_color = excluded.theme_color,
+       physical_spec_json = excluded.physical_spec_json,
+       extra_json = excluded.extra_json,
+       status = excluded.status,
+       updated_at = CURRENT_TIMESTAMP`,
+    [
+      id,
+      'tissue-puppy',
+      '纸巾小狗',
+      'forever-friends',
+      '永远系列',
+      '一只总会在你需要时递上一点温柔的小狗。',
+      '纸巾小狗把安慰藏在很小的动作里。它不急着解释，也不试图替你解决一切，只是在你碰到它时，安静地来到身边。',
+      '温柔、克制、可靠，像一张被认真递来的纸巾。',
+      'WhatMint',
+      'NFC 贴纸 / 情绪摆件',
+      'NFC token',
+      '轻量贴纸 / 小摆件',
+      '官方核心 IP',
+      '/shop/figures/tissue-puppy.svg',
+      '/shop/figures/tissue-puppy.svg',
+      '/shop/figures/tissue-puppy.svg',
+      stringifyJson(['安慰', '温柔', 'AR', '可触碰']),
+      '#f4a261',
+      stringifyJson({
+        carrier: 'nfc_sticker_or_small_object',
+        coreMedium: ['camera', 'video_overlay'],
+        coreAction: 'touch_to_summon',
+      }),
+      stringifyJson({
+        spaceTraits: ['warm', 'soft', 'quiet'],
+        personalityAxes: {
+          warmth: 0.96,
+          mystery: 0.32,
+          ritual: 0.62,
+          playfulness: 0.54,
+        },
+        appCode: 'tissue-puppy',
+      }),
+    ]
+  );
+  return firstRow(db, 'SELECT * FROM ip_definitions WHERE id = ? LIMIT 1', [id]);
+}
+
 function linkIpDefinitionToApp(db, ipDefinitionId, appId, appCode) {
   if (!ipDefinitionId || !appId) return;
   db.run(
@@ -340,8 +410,9 @@ function ensureDesktopSecretSeed(db) {
 function ensureTissuePuppyArExampleUsesCurrentPlaceholder(db) {
   const app = appByCode(db, 'tissue-puppy');
   if (!app) return;
-  const ipDefinition = findIpDefinitionForApp(db, 'tissue-puppy', ['纸巾小狗', 'tissue-puppy']);
+  const ipDefinition = upsertTissuePuppyIpDefinition(db);
   if (!ipDefinition) return;
+  linkIpDefinitionToApp(db, ipDefinition.id, app.id, 'tissue-puppy');
   const officialInstance = ensureOfficialIpInstance(db, ipDefinition.id, app.id);
   upsertOfficialContent(db, {
     appCode: 'tissue-puppy',
