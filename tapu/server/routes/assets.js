@@ -216,7 +216,7 @@ registerRoutes(router, [
     method: 'put',
     path: '/default-content-by-token',
     permission: 'token_unbound_or_owner',
-    operation: 'content:token_update',
+    operation: 'content:entity_default_set',
     summary: 'Set owner default content through an editable IP instance token.',
     body: { key: 'string', content_id: 'string' },
     response: { success: 'boolean', entity_id: 'string' },

@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router';
-import { getProfile, isLoggedIn } from '../api';
+import { fetchAssetInstances, getProfile, isLoggedIn } from '../api';
+import { getDefaultEntryPath } from '../navigation/siteNavigation';
 
 const keyAllowedPaths = new Set([
   '/earphone-girl',
@@ -14,6 +15,20 @@ const keyAllowedPaths = new Set([
 const routes = [
   {
     path: '/',
+    name: 'entry',
+    component: () => import('../views/LandingPage.vue'),
+    beforeEnter: async (_to: any, _from: any, next: any) => {
+      if (!isLoggedIn()) return next(getDefaultEntryPath({ isLoggedIn: false, hasOwnedAssets: false }));
+      try {
+        const rows = await fetchAssetInstances();
+        return next(getDefaultEntryPath({ isLoggedIn: true, hasOwnedAssets: Array.isArray(rows) && rows.length > 0 }));
+      } catch {
+        return next(getDefaultEntryPath({ isLoggedIn: true, hasOwnedAssets: false }));
+      }
+    },
+  },
+  {
+    path: '/home',
     name: 'landing',
     component: () => import('../views/LandingPage.vue'),
   },
@@ -51,6 +66,11 @@ const routes = [
     path: '/content/:id',
     name: 'content-detail',
     component: () => import('../views/ContentDetailPage.vue'),
+  },
+  {
+    path: '/activities/:id',
+    name: 'activity-detail',
+    component: () => import('../views/ActivityDetailPage.vue'),
   },
   {
     path: '/shop',

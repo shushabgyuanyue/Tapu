@@ -2,10 +2,8 @@
 import { computed, inject, nextTick, onMounted, onUnmounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import {
-  bindAssetInstance,
   isLoggedIn,
   resolveMintStudio,
-  setIpInstanceContentByToken,
   type MintStudioRecipe,
 } from '../api';
 import LoginModal from '../components/LoginModal.vue';
@@ -23,6 +21,7 @@ import { useMintStudioContentVersion } from '../composables/useMintStudioContent
 import { useMintStudioDefinitionAuthoring } from '../composables/useMintStudioDefinitionAuthoring';
 import { useMintStudioAuthoringDrafts } from '../composables/useMintStudioAuthoringDrafts';
 import { useMintStudioOfficialResolve } from '../composables/useMintStudioOfficialResolve';
+import { useMintStudioEntityConnection } from '../composables/useMintStudioEntityConnection';
 import { studioCopy } from '../copy';
 import { AUTH_CHANGED_EVENT, CONTENT_CHANGED_EVENT } from '../events/appEvents';
 import '../styles/mintStudio.css';
@@ -30,7 +29,7 @@ import '../styles/mintStudio.css';
 type Toast = { show: (text: string, duration?: number, type?: string) => void };
 type Role = 'assistant' | 'user';
 type Phase = 'token' | 'resolving' | 'overview' | 'step' | 'saving' | 'readyToFinish' | 'done';
-type PendingLoginAction = '' | 'resource_upload' | 'collect';
+type PendingLoginAction = '' | 'resource_upload' | 'connect_entity';
 type StudioFlow = NonNullable<NonNullable<MintStudioRecipe['recipe']['studioFlow']>>;
 type StudioStep = StudioFlow['steps'][number];
 type StudioStepOption = NonNullable<StudioStep['options']>[number];
@@ -131,7 +130,6 @@ const hasUnsavedAuthoringDraft = computed(() => (
   && currentAuthoringDraftSignature.value !== savedAuthoringDraftSignature.value
 ));
 const canGoBack = computed(() => !['token', 'resolving', 'saving', 'done'].includes(phase.value));
-const canCollectAsset = computed(() => isEntityStudio.value && (!assetBound.value || !!mintedContentId.value));
 const composerPlaceholder = computed(() => {
   if (phase.value === 'step' && currentStep.value?.type === 'resource_upload') {
     return uploadFile.value ? studioCopy.placeholders.uploadWithFile : (currentStep.value.prompt || studioCopy.placeholders.uploadEmpty);
@@ -173,19 +171,39 @@ const {
   getAuthoringSnapshot: getDefinitionAuthoringSnapshot,
 });
 const { resolveOfficialStudioByIpDefinitionId } = useMintStudioOfficialResolve({ phase, addMessage, applyResolvedStudio });
+const {
+  canConnectEntity,
+  connectEntityLabel,
+  connectEntity,
+} = useMintStudioEntityConnection({
+  studio,
+  phase,
+  isEntityStudio,
+  assetBound,
+  mintedContentId,
+  pendingLoginAction,
+  showLogin,
+  toast,
+  addMessage,
+});
 
 function actionRequiresAuth(action: string) {
   return !!studio.value?.recipe.permissions?.actions?.[action]?.requiresAuth;
 }
 
-function pendingLoginActionFor(action: string): PendingLoginAction {
-  if (action === 'collect_asset') return 'collect';
+function isEntityConnectionAction(action: string, option?: Pick<StudioStepOption, 'legacy'>) {
+  if (['claim_entity', 'set_entity_default_content'].includes(action)) return true;
+  return action === 'collect_asset' && option?.legacy === true;
+}
+
+function pendingLoginActionFor(action: string, option?: Pick<StudioStepOption, 'legacy'>): PendingLoginAction {
+  if (isEntityConnectionAction(action, option)) return 'connect_entity';
   return '';
 }
 
-function ensureActionLogin(action: string) {
+function ensureActionLogin(action: string, option?: Pick<StudioStepOption, 'legacy'>) {
   if (!actionRequiresAuth(action) || isLoggedIn()) return true;
-  const pending = pendingLoginActionFor(action);
+  const pending = pendingLoginActionFor(action, option);
   if (pending) pendingLoginAction.value = pending;
   showLogin.value = true;
   return false;
@@ -270,7 +288,7 @@ function handleFlowTextSend() {
 }
 
 async function handleFlowOption(option: StudioStepOption) {
-  if (!ensureActionLogin(option.action)) return;
+  if (!ensureActionLogin(option.action, option)) return;
   addMessage('user', option.label);
   flowAnswers.value[currentStep.value?.id || option.id] = option.id;
 
@@ -279,8 +297,8 @@ async function handleFlowOption(option: StudioStepOption) {
     return;
   }
 
-  if (option.action === 'collect_asset') {
-    collectAsset();
+  if (isEntityConnectionAction(option.action, option)) {
+    connectEntity();
     return;
   }
   if (option.action === 'open_preview') {
@@ -550,47 +568,9 @@ async function finishMint() {
   phase.value = 'done';
   addMessage('assistant', isDefinitionDrivenFlow.value
     ? (studio.value.recipe.completionCopy || studioCopy.messages.guideDone)
-    : (canCollectAsset.value ? studioCopy.messages.mintDoneWithAsset : studioCopy.messages.mintDone));
+    : (canConnectEntity.value ? studioCopy.messages.mintDoneWithAsset : studioCopy.messages.mintDone));
   loadStudioLibrary();
   toast?.show(studioCopy.toast.minted, 1600, 'success');
-}
-
-async function collectAsset() {
-  if (!studio.value || phase.value === 'saving') return;
-  if (!isLoggedIn()) {
-    pendingLoginAction.value = 'collect';
-    showLogin.value = true;
-    return;
-  }
-
-  phase.value = 'saving';
-  addMessage('user', mintedContentId.value ? studioCopy.messages.bindContentToEntity : studioCopy.messages.collectAsset);
-  if (mintedContentId.value) {
-    const bindContentResult = await setIpInstanceContentByToken(studio.value.token.token, mintedContentId.value);
-    phase.value = 'done';
-    if (!bindContentResult.success) {
-      addMessage('assistant', bindContentResult.error || studioCopy.messages.contentBindFailed);
-      return;
-    }
-
-    assetBound.value = true;
-    mintedContentId.value = '';
-    addMessage('assistant', studioCopy.messages.contentBoundToEntity);
-    toast?.show(studioCopy.toast.collected, 1600, 'success');
-    return;
-  }
-
-  const bindResult = await bindAssetInstance(studio.value.token.token);
-  if (!bindResult.success) {
-    phase.value = 'done';
-    addMessage('assistant', bindResult.error || studioCopy.messages.collectFailed);
-    return;
-  }
-
-  assetBound.value = true;
-  phase.value = 'done';
-  addMessage('assistant', studioCopy.messages.collected);
-  toast?.show(studioCopy.toast.collected, 1600, 'success');
 }
 
 function openAssets() {
@@ -636,7 +616,7 @@ function handleLoginSuccess() {
   pendingLoginAction.value = '';
   nextTick(() => {
     if (action === 'resource_upload') handleSend();
-    if (action === 'collect') collectAsset();
+    if (action === 'connect_entity') connectEntity();
   });
 }
 
@@ -732,13 +712,14 @@ onUnmounted(() => {
           :current-preview-title="currentPreviewTitle"
           :current-step="currentStep"
           :ready-action-label="readyActionLabel"
-          :can-collect-asset="canCollectAsset"
+          :can-connect-entity="canConnectEntity"
+          :connect-entity-label="connectEntityLabel"
           :asset-bound="assetBound"
           @open-preview="openPreview"
           @continue-overview="continueFromOverview"
           @flow-option="handleFlowOption"
           @ready-action="handleReadyToFinish"
-          @collect-asset="collectAsset"
+          @connect-entity="connectEntity"
           @open-assets="openAssets"
         />
 

@@ -371,8 +371,8 @@ async function setOfficialDefault(req, res) {
   if (contentRows[0].group_id !== req.params.id) {
     return res.status(400).json({ error: serverMessages.routes.common.contentNotInIp });
   }
-  if (!['ready', 'published'].includes(contentRows[0].status)) {
-    return res.status(400).json({ error: serverMessages.routes.common.readyContentOnly });
+  if (contentRows[0].status !== 'published') {
+    return res.status(400).json({ error: serverMessages.routes.common.publishedContentOnly });
   }
 
   const application = getPrimaryApplicationForIpDefinition(db, req.params.id);

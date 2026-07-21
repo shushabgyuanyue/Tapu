@@ -134,7 +134,8 @@ img.ar-overlay-media {
 
 .error-btn,
 .tap-hint,
-.replay-btn {
+.replay-btn,
+.os-entry-prompt button {
   border: none;
   cursor: pointer;
   font: inherit;
@@ -183,6 +184,89 @@ img.ar-overlay-media {
   box-shadow: 0 18px 40px rgba(0, 0, 0, 0.28);
 }
 
+.os-entry-prompt {
+  position: absolute;
+  z-index: 24;
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.os-entry-prompt--bottom_card {
+  left: 50%;
+  bottom: 22px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 14px;
+  width: min(720px, calc(100% - 28px));
+  padding: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 24px;
+  background: linear-gradient(135deg, rgba(7, 16, 24, 0.76), rgba(15, 30, 36, 0.54));
+  box-shadow: 0 22px 60px rgba(0, 0, 0, 0.34);
+  transform: translateX(-50%);
+  backdrop-filter: blur(18px);
+}
+
+.os-entry-prompt--corner_link {
+  right: 18px;
+  bottom: 18px;
+}
+
+.os-entry-prompt strong {
+  display: block;
+  font-size: 15px;
+  font-weight: 950;
+}
+
+.os-entry-prompt p {
+  margin: 5px 0 0;
+  color: rgba(255, 255, 255, 0.66);
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.os-entry-prompt__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.os-entry-prompt__actions button {
+  padding: 10px 14px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #071018;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.os-entry-prompt__actions .os-entry-prompt__secondary {
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.10);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.os-entry-prompt--corner_link .os-entry-prompt__actions button {
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.28);
+}
+
+.os-entry-prompt--corner_link > div:first-of-type {
+  display: none;
+}
+
+.os-entry-prompt__close {
+  position: absolute;
+  top: -10px;
+  right: -8px;
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #071018;
+  font-weight: 950;
+}
+
 .fade-enter-active,
 .fade-leave-active {
   transition: opacity 0.24s ease;
@@ -212,5 +296,14 @@ img.ar-overlay-media {
 
   video.ar-overlay-media {
     border-radius: 20px;
+  }
+
+  .os-entry-prompt--bottom_card {
+    grid-template-columns: 1fr;
+    bottom: 14px;
+  }
+
+  .os-entry-prompt__actions {
+    justify-content: flex-start;
   }
 }

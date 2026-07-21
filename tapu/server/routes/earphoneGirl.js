@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { saveDb } from '../db/index.js';
 import { registerRoutes, tokenRoute } from '../services/routePermissions.js';
 import { buildAppRuntimeContext } from '../services/appAdapters.js';
-import { recordObjectOperation, upsertMeaningfulState } from '../services/contentOperation.js';
+import { recordObjectOperation, runOperationPipeline, upsertMeaningfulState } from '../services/contentOperation.js';
 import { buildTapResponse } from '../services/tapRuntime.js';
 import {
   buildEarphoneGirlBlocks,
@@ -43,7 +43,7 @@ async function resolveEarphoneGirl(req, res) {
     const raw = resolvedObject.raw || {};
     const progressState = resolveNextEarphoneGirlStory(db, raw.id);
 
-    recordObjectOperation(db, {
+    const operationId = recordObjectOperation(db, {
       operationType: 'object.touch',
       objectType: resolvedObject.object.type,
       objectId: resolvedObject.object.id,
@@ -57,6 +57,7 @@ async function resolveEarphoneGirl(req, res) {
         nextContentInstanceId: progressState.story?.id || null,
       },
     });
+    runOperationPipeline(db, { operationIds: [operationId] });
     saveDb();
 
     const runtimeContext = buildAppRuntimeContext(db, resolvedObject, {

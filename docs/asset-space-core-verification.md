@@ -55,7 +55,7 @@
 - 资产读取使用 `login_required` + `asset:read`。
 - token 认领使用 `claimable_asset` + `asset:claim`。
 - 解绑、转赠、已绑定实体默认内容维护使用 `entity_owner` + `asset:owner_manage`。
-- 通过 token 设置默认内容使用 `token_unbound_or_owner` + `content:token_update`。
+- 通过 token 设置默认内容使用 `token_unbound_or_owner` + `content:entity_default_set`，且只能写入 `published` 内容，避免后台设置成功但 NFC 播放失败。
 - handler 只能读取 `req.permission` 的 subject 后执行业务，不重复写登录、owner、admin 判断。
 
 ### 旧接口处理
@@ -84,8 +84,11 @@
 - 已拥有用户看到灵境合照、我的伙伴、灵境杂记。
 - 纸巾小狗实例以伙伴节点展示，点击进入 `/assets/:instanceId`，再处理体验、创作、默认内容、转赠和解绑。
 - 未拥有用户看到“Mint Space 尚未点亮”的引导，不展示仓库式空列表。
-- 普通 token 绑定只显示“接入数字空间”。
+- 登录后无资产用户直接进入 `/assets` 时，应看到空灵境接入页：可输入 token、可去商城探索、可看到默认世界观杂记。
+- 普通 token 绑定只显示“接入 Mint Space”。
 - 从内容详情带 `defaultContentId` 进入时，显示“接入并设为默认体验 / 仅绑定实体 IP”的分流。
+- token 已绑定但非本人时，前端必须按 OS 权限错误展示“换账号 / 提交申诉”恢复路径，不只显示普通失败 toast。
+- 转赠进入当前账号的实体，应在接收方第一次进入 Mint Space 时出现“新存在进入灵境”的确认提示。
 - 解绑、转赠必须有防误操作确认。
 - 高价值事件作为 OS 历史上下文保留，不进入 Mint Space 首页列表。
 - Mint Space profile 只由后端 `mintSpaceProfile` OS service 聚合；前端不再在接口异常时自行推导空间人格、伙伴和杂记。
@@ -164,6 +167,7 @@ npm run test:contracts
 - `/api/assets/*` 关键路由权限和 operation 固定。
 - 同一 IP 实例同一 relation role 只能有一个 primary 内容。
 - `/play?key=<token>` 解析默认内容时优先 owner default，再回退官方默认。
+- 默认内容写入必须拒绝 `draft` / `processing` 内容，只允许 `published` 内容进入 NFC 播放链路。
 - 非 owner 无法读取或写入实例默认内容。
 - token 认领幂等，已绑定其他账号时防抢绑。
 

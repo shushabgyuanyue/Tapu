@@ -10,7 +10,7 @@ export const mintStudioProfiles = {
     introMessages: ['耳机小姐已识别。'],
     creationModes: [
       { code: 'open_app', label: '听她讲故事', tone: 'primary' },
-      { code: 'collect_asset', label: '保存到展馆', tone: 'quiet', requiresAuth: true },
+      { code: 'collect_asset', label: '接入 Mint Space', tone: 'quiet', requiresAuth: true, legacy: true },
     ],
   },
   'answer-book': {
@@ -23,7 +23,7 @@ export const mintStudioProfiles = {
     introMessages: ['答案之书已识别。'],
     creationModes: [
       { code: 'open_app', label: '获取答案', tone: 'primary' },
-      { code: 'collect_asset', label: '保存到展馆', tone: 'quiet', requiresAuth: true },
+      { code: 'collect_asset', label: '接入 Mint Space', tone: 'quiet', requiresAuth: true, legacy: true },
     ],
   },
   'tissue-puppy': {
@@ -33,10 +33,10 @@ export const mintStudioProfiles = {
     route: '/play',
     studioTitle: '纸巾小狗创作中心',
     objectFallback: '这只会递出温柔的小狗',
-    introMessages: ['纸巾小狗已识别。', '先为它创建一个视频内容节点。'],
+    introMessages: ['纸巾小狗已识别。', '先为它创建一个 AR 召唤内容节点。'],
     creationModes: [
       { code: 'open_preview', label: '预览当前内容', tone: 'primary' },
-      { code: 'collect_asset', label: '保存到展馆', tone: 'quiet', requiresAuth: true },
+      { code: 'claim_entity', label: '接入 Mint Space', tone: 'quiet', requiresAuth: true },
     ],
   },
   moment: {
@@ -49,7 +49,7 @@ export const mintStudioProfiles = {
     introMessages: ['纪念瞬间已识别。'],
     creationModes: [
       { code: 'open_app', label: '打开这个瞬间', tone: 'primary' },
-      { code: 'collect_asset', label: '保存到展馆', tone: 'quiet', requiresAuth: true },
+      { code: 'collect_asset', label: '接入 Mint Space', tone: 'quiet', requiresAuth: true, legacy: true },
     ],
   },
   'travel-trail': {
@@ -62,7 +62,7 @@ export const mintStudioProfiles = {
     introMessages: ['旅行轨迹已识别。'],
     creationModes: [
       { code: 'open_app', label: '写下下一站', tone: 'primary' },
-      { code: 'collect_asset', label: '保存到展馆', tone: 'quiet', requiresAuth: true },
+      { code: 'collect_asset', label: '接入 Mint Space', tone: 'quiet', requiresAuth: true, legacy: true },
     ],
   },
   check: {
@@ -75,7 +75,7 @@ export const mintStudioProfiles = {
     introMessages: ['检查清单已识别。'],
     creationModes: [
       { code: 'open_app', label: '开始检查', tone: 'primary' },
-      { code: 'collect_asset', label: '保存到展馆', tone: 'quiet', requiresAuth: true },
+      { code: 'collect_asset', label: '接入 Mint Space', tone: 'quiet', requiresAuth: true, legacy: true },
     ],
   },
 };
@@ -96,7 +96,8 @@ export const mintStudioCopy = {
     noContent: '暂无内容',
     previewCurrent: '预览当前内容',
     previewObject: '查看物件',
-    collectAsset: '保存到展馆',
+    claimEntity: '接入 Mint Space',
+    setEntityDefaultContent: '写入实体默认体验',
     completed: '已完成。',
     objectIntro: name => [`${name}已识别。`, '会按它的内容定义继续创作。'],
     objectPrompt: '选择这件物品要打开的内容。',

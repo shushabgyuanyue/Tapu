@@ -10,7 +10,6 @@ import contentCollectionsRouter from '../routes/contentCollections.js';
 import earphoneGirlRouter from '../routes/earphoneGirl.js';
 import entitiesRouter from '../routes/entities.js';
 import groupsRouter from '../routes/groups.js';
-import interactionsRouter from '../routes/interactions.js';
 import mintStudioRouter from '../routes/mintStudio.js';
 import momentsRouter from '../routes/moments.js';
 import ordersRouter from '../routes/orders.js';
@@ -29,7 +28,6 @@ const ROUTE_MODULES = [
   { basePath: '/api/series', router: seriesRouter },
   { basePath: '/api/applications', router: applicationsRouter },
   { basePath: '/api/stats', router: statsRouter },
-  { basePath: '/api/interactions', router: interactionsRouter },
   { basePath: '/api/auth', router: authRouter },
   { basePath: '/api/assets', router: assetsRouter },
   { basePath: '/api/orders', router: ordersRouter },
@@ -58,8 +56,6 @@ const LEGACY_ROUTE_PERMISSIONS = [
   { method: 'get', path: '/api/config/:key', permission: 'public', permissionType: 'public', legacy: true },
   { method: 'get', path: '/api/groups', permission: 'public', permissionType: 'public', legacy: true },
   { method: 'get', path: '/api/groups/:id', permission: 'public', permissionType: 'public', legacy: true },
-  { method: 'post', path: '/api/interactions/:videoId/default', permission: 'public', permissionType: 'public', legacy: true },
-  { method: 'get', path: '/api/interactions/popular/:groupId', permission: 'public', permissionType: 'public', legacy: true },
   { method: 'get', path: '/api/mint-studio/resolve', permission: 'public', permissionType: 'public', operation: 'view:open', query: { key: 'string' }, response: { token: 'object', app: 'object', recipe: 'object' }, legacy: true },
   { method: 'get', path: '/api/moments/resolve', permission: 'public', permissionType: 'public', operation: 'view:open', query: { key: 'string' }, response: { moment: 'object', runtime_context: 'object' }, legacy: true },
   { method: 'get', path: '/api/series', permission: 'public', permissionType: 'public', legacy: true },

@@ -25,9 +25,9 @@ export const APPLICATION_MANIFESTS = [
     },
     mintStudio: {
       profile: 'entity-recipe',
-      primaryActions: ['open_preview', 'save_definition_content_by_token', 'collect_asset'],
+      primaryActions: ['open_preview', 'save_definition_content_by_token', 'set_entity_default_content', 'claim_entity'],
     },
-    permissionOperations: ['view:open', 'view:preview', 'content:token_update', 'content:account_create', 'asset:claim'],
+    permissionOperations: ['view:open', 'view:preview', 'content:token_update', 'content:entity_default_set', 'content:account_create', 'asset:claim'],
     operationDefinitions: [
       {
         key: 'object.touch',
@@ -83,9 +83,9 @@ export const APPLICATION_MANIFESTS = [
     },
     mintStudio: {
       profile: 'tissue-puppy',
-      primaryActions: ['open_preview', 'save_definition_content_by_token', 'collect_asset'],
+      primaryActions: ['open_preview', 'save_definition_content_by_token', 'set_entity_default_content', 'claim_entity'],
     },
-    permissionOperations: ['view:open', 'view:preview', 'content:token_update', 'content:account_create', 'asset:claim'],
+    permissionOperations: ['view:open', 'view:preview', 'content:token_update', 'content:entity_default_set', 'content:account_create', 'asset:claim'],
     operationDefinitions: [
       {
         key: 'object.touch',
@@ -126,6 +126,8 @@ export const APPLICATION_MANIFESTS = [
               label: 'AR 召唤视频',
               required: true,
               accept: 'video/*',
+              resourceProfile: 'ar_alpha_overlay',
+              requiresAlpha: true,
             },
           ],
         },
@@ -135,6 +137,8 @@ export const APPLICATION_MANIFESTS = [
             type: 'video',
             label: 'AR 召唤视频',
             required: true,
+            resourceProfile: 'ar_alpha_overlay',
+            requiresAlpha: true,
           },
         ],
       },
@@ -166,9 +170,22 @@ export const APPLICATION_MANIFESTS = [
       capabilities: ['ar', 'video'],
       defaultModality: 'video',
     },
+    entryPrompts: {
+      nfc_player: {
+        unbound: {
+          display: 'bottom_card',
+          frequency: 'once_per_token',
+        },
+        bound: {
+          display: 'corner_link',
+          frequency: 'always',
+        },
+      },
+    },
   },
   {
     code: 'earphone-girl',
+    legacyFrozen: true,
     type: 'meaning',
     objectPrinciple: 'An earphone sticker opens a traveler-listener who brings back stories from the IP world.',
     behavior: 'touch_to_listen_then_follow_story',
@@ -216,6 +233,7 @@ export const APPLICATION_MANIFESTS = [
   },
   {
     code: 'answer-book',
+    legacyFrozen: true,
     type: 'state',
     objectPrinciple: 'A touched object returns a restrained answer for the current inner state.',
     behavior: 'touch_to_receive_answer',
@@ -237,6 +255,7 @@ export const APPLICATION_MANIFESTS = [
   },
   {
     code: 'moment',
+    legacyFrozen: true,
     type: 'meaning',
     objectPrinciple: 'A concrete keepsake preserves one moment worth returning to.',
     behavior: 'touch_to_revisit_saved_moment',
@@ -258,6 +277,7 @@ export const APPLICATION_MANIFESTS = [
   },
   {
     code: 'travel-trail',
+    legacyFrozen: true,
     type: 'state',
     objectPrinciple: 'A moving object such as luggage becomes the carrier of a life journey.',
     behavior: 'touch_before_departure_or_after_return',
@@ -279,6 +299,7 @@ export const APPLICATION_MANIFESTS = [
   },
   {
     code: 'check',
+    legacyFrozen: true,
     type: 'behavior',
     objectPrinciple: 'A specific object exposes the checklist needed before using or moving it.',
     behavior: 'touch_to_check_before_action',

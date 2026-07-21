@@ -1,4 +1,5 @@
 import { emitAuthChanged } from '../events/appEvents';
+import { commonCopy } from '../copy/common';
 
 const BASE = '/api';
 
@@ -28,7 +29,7 @@ export function isLoggedIn(): boolean {
 
 function authHeaders(): Record<string, string> {
   const token = getToken();
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  const headers: Record<string, string> = {};
   if (token) headers.Authorization = `Bearer ${token}`;
   return headers;
 }
@@ -43,7 +44,6 @@ function getFingerprint(): string {
 }
 
 const fpHeaders = () => ({
-  'Content-Type': 'application/json',
   'x-fingerprint': getFingerprint(),
 });
 
@@ -84,14 +84,14 @@ export async function request(path: string, options: RequestOptions = {}) {
       data = JSON.parse(text);
     } catch {
       data = {
-        error: res.ok ? 'Response is not valid JSON' : `Request failed with status ${res.status}`,
+        error: res.ok ? commonCopy.errors.invalidJson : commonCopy.errors.requestFailed(res.status),
         status: res.status,
       };
     }
   }
 
   if (!res.ok && !('error' in data)) {
-    return { ...data, error: `Request failed with status ${res.status}`, status: res.status };
+    return { ...data, error: commonCopy.errors.requestFailed(res.status), status: res.status };
   }
 
   return data;

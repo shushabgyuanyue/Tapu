@@ -2,6 +2,7 @@ import { computed, onMounted, ref } from 'vue';
 import type { RouteLocationNormalizedLoaded, Router } from 'vue-router';
 import {
   bindAssetInstance,
+  clearToken,
   fetchAssetInstanceDefaultContent,
   fetchAssetInstances,
   fetchMintSpaceProfile,
@@ -30,6 +31,7 @@ export function useAssetSpace(params: {
   const bindKey = ref('');
   const bindMsg = ref('');
   const bindError = ref(false);
+  const bindErrorCode = ref('');
   const suggestedDefaultContentId = ref('');
 
   const transferTargets = ref<Record<string, string>>({});
@@ -46,6 +48,17 @@ export function useAssetSpace(params: {
   });
   const selectedInstance = computed(() => assetInstances.value.find(instance => instance.id === selectedPartner.value?.id) || null);
   const isMintSpaceEmpty = computed(() => (mintSpaceProfile.value?.partners || []).length === 0);
+  const permissionRecovery = computed(() => {
+    if (!['ENTITY_ALREADY_BOUND', 'OBJECT_BOUND_TO_OTHER_ACCOUNT'].includes(bindErrorCode.value)) return null;
+    return {
+      title: userCopy.assets.permissionRecovery.title,
+      body: userCopy.assets.permissionRecovery.body,
+    };
+  });
+  const transferredInInstance = computed(() => assetInstances.value.find((instance) => {
+    if (!instance.received_transfer_at) return false;
+    return localStorage.getItem(`whatmint:transfer-welcome:${instance.id}:${instance.received_transfer_at}`) !== 'seen';
+  }) || null);
 
   function isMintSpaceProfile(value: any): value is MintSpaceProfile {
     return !!value?.profile && Array.isArray(value.partners) && Array.isArray(value.notes);
@@ -157,6 +170,7 @@ export function useAssetSpace(params: {
   async function handleSmartBind(rawKey = bindKey.value) {
     bindMsg.value = '';
     bindError.value = false;
+    bindErrorCode.value = '';
     const key = rawKey.trim();
     if (!key) {
       bindMsg.value = userCopy.assets.bind.emptySmart;
@@ -172,12 +186,14 @@ export function useAssetSpace(params: {
     }
 
     bindMsg.value = result.error || userCopy.assets.bind.failed;
+    bindErrorCode.value = result.code || '';
     bindError.value = true;
   }
 
   async function handleBindEntity() {
     bindMsg.value = '';
     bindError.value = false;
+    bindErrorCode.value = '';
     if (!bindKey.value.trim()) {
       bindMsg.value = userCopy.assets.bind.entityEmpty;
       bindError.value = true;
@@ -189,8 +205,34 @@ export function useAssetSpace(params: {
       bindKey.value = '';
     } else {
       bindMsg.value = data.error || userCopy.assets.bind.failed;
+      bindErrorCode.value = data.code || '';
       bindError.value = true;
     }
+  }
+
+  function openAppealForCurrentToken() {
+    const token = bindKey.value.trim();
+    params.router.push({
+      path: '/appeals',
+      query: token ? { token } : {},
+    });
+  }
+
+  function switchAccountForCurrentToken() {
+    const token = bindKey.value.trim();
+    clearToken();
+    loginRequired.value = true;
+    params.router.replace({
+      path: '/assets',
+      query: token ? { key: token } : {},
+    });
+  }
+
+  function acknowledgeTransferWelcome() {
+    const instance = transferredInInstance.value;
+    if (!instance?.id || !instance.received_transfer_at) return;
+    localStorage.setItem(`whatmint:transfer-welcome:${instance.id}:${instance.received_transfer_at}`, 'seen');
+    params.toast?.show(userCopy.assets.transferWelcome.action, 1600, 'success');
   }
 
   async function handleUnbind(instanceId: string) {
@@ -374,6 +416,9 @@ export function useAssetSpace(params: {
     bindKey,
     bindMsg,
     bindError,
+    bindErrorCode,
+    permissionRecovery,
+    transferredInInstance,
     suggestedDefaultContentId,
     transferTargets,
     instanceDefaults,
@@ -385,6 +430,9 @@ export function useAssetSpace(params: {
     loadAssets,
     handleSmartBind,
     handleBindEntity,
+    openAppealForCurrentToken,
+    switchAccountForCurrentToken,
+    acknowledgeTransferWelcome,
     handleUnbind,
     copyToken,
     handleTransfer,

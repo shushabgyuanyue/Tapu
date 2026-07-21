@@ -1,4 +1,4 @@
-import { getToken, isLoggedIn, request } from './http';
+import { isLoggedIn, request } from './http';
 
 export type MintStudioRecipe = {
   token: {
@@ -33,6 +33,7 @@ export type MintStudioRecipe = {
       requiresAuth?: boolean;
       accept?: string;
       action?: string;
+      legacy?: boolean;
     }>;
     preview?: any;
     requirements?: any;
@@ -159,18 +160,11 @@ export async function uploadAuthoringResource(params: {
   if (params.contentDefinitionId) form.append('content_definition_id', params.contentDefinitionId);
   if (params.contentDefinitionCode) form.append('content_definition_code', params.contentDefinitionCode);
 
-  const headers: Record<string, string> = {};
-  const token = getToken();
-  if (token) headers.Authorization = `Bearer ${token}`;
-
-  const res = await fetch('/api/authoring/resources', {
+  return request('/authoring/resources', {
     method: 'POST',
-    headers,
+    auth: true,
     body: form,
   });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok && !data.error) return { ...data, error: `Request failed with status ${res.status}` };
-  return data;
 }
 
 export async function createDefinitionContentByToken(params: {

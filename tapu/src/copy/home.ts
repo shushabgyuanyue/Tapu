@@ -1,82 +1,138 @@
 // Landing page copy: customer-facing brand narrative, hero sections, and homepage entry actions.
 export const homeCopy = {
   hero: {
-    eyebrow: 'WhatMint Object Space',
-    titlePrefix: '给现实里的物，',
-    titleAccent: '安装情绪应用。',
-    subtitle: '一枚贴纸、一个摆件、一件作品，被触碰后进入自己的 Mint Space。我们用轻应用把物的特性延展出来，形成新的交互范式和情绪表达。',
+    eyebrow: 'WhatMint',
+    title: '邀请有灵的存在，慢慢形成你的 Mint Space。',
+    subtitle: '现实里的一个小物，可以承载安慰、祝愿、答案和关系。WhatMint 让这些被赋予意义的存在进入数字灵境，并在触碰、创作和相遇中继续生长。',
     primaryShop: '邀请新的存在',
+    secondarySpace: '进入 Mint Space',
   },
-  demo: {
-    app: '答案之书',
-    answer: '今天先别急着证明自己。把手松开一点，答案会浮上来。',
-    chip: '碰一下进入',
-    heroAriaLabel: 'WhatMint 触碰体验示意',
-  },
-  objectSection: {
-    eyebrow: 'Objects As IP',
-    title: '用户先理解一个物，再慢慢理解一个系统。',
-    subtitle: '贴纸、摆件、手作和礼物天然像 IP。我们把复杂的应用、内容、权限和运行时藏在后面。',
+  activity: {
+    detailBack: '回到首页',
+    detailMissing: '这个相遇还在整理中。',
+    detailPrimary: '进入相关入口',
+    title: '这个世界正在出现新的相遇',
+    subtitle: '首页不是货架，而是 WhatMint 正在呼吸的入口。新的 IP、官方体验和用户创作会让这个世界持续变得不同。',
+    featured: {
+      id: 'mint-space-notes',
+      label: 'World Update',
+      title: '关系杂记开始进入 Mint Space',
+      body: 'IP 之间的情绪关系会以小故事的方式被看见。',
+    },
     cards: [
       {
+        id: 'paper-puppy-ar',
+        label: '新抵达',
+        title: '纸巾小狗正在测试 AR 召唤',
+        body: '一次触碰，把一个温柔的小存在带到屏幕中央。',
+        hero: '纸巾小狗不是一段视频，而是一个可以被召唤到眼前的小小存在。AR 只是渲染方式，真正重要的是：实体触碰后，它开始拥有自己的出场。',
+        sections: [
+          {
+            title: '为什么是 AR',
+            body: '纸巾小狗的情绪价值不是“看完一段内容”，而是它真的来到你身边。我们会先用轻量的摄像头叠加和透明视频完成体验验证，再逐步升级到更稳定的空间渲染。',
+          },
+          {
+            title: '它如何稳定出现',
+            body: '用户只需要触碰实体，看见纸巾小狗以合适的方式出现。背后的资源处理、播放适配和权限判断会尽量藏起来，前台只保留它的出场气质、节奏和表达。',
+          },
+        ],
+        actionLabel: '认识纸巾小狗',
+        actionRoute: '/shop',
+      },
+      {
+        id: 'mint-space-notes',
+        label: '世界观',
+        title: '关系杂记开始进入 Mint Space',
+        body: 'IP 之间的情绪关系会以小故事的方式被看见。',
+        hero: '灵境杂记不是日志，也不是任务提醒。它是一种很轻的世界观回声，让用户感觉自己的 Mint Space 里真的住着一些正在彼此靠近的存在。',
+        sections: [
+          {
+            title: '杂记表达什么',
+            body: '它表达 IP 之间的关系、用户空间的气质，以及这个世界正在发生的小事。比如纸巾小狗靠近答案之书，因为它发现许多悲伤来自没有想明白。',
+          },
+          {
+            title: '为什么先由官方提供',
+            body: '第一版先用官方文案保证调性：有灵气、有个性、成熟克制。后续再根据 IP 设定、关系矩阵和用户拥有组合，生成更丰富的版本。',
+          },
+        ],
+        actionLabel: '进入 Mint Space',
+        actionRoute: '/assets',
+      },
+    ],
+  },
+  ipSection: {
+    eyebrow: 'Invitation Hall',
+    title: '认识可以进入你生活的存在',
+    subtitle: '这里展示的不是商品参数，而是每个 IP 的人格、场景和触碰后的应用体验。',
+    action: '去商城看看',
+    fallbackCards: [
+      {
         name: '纸巾小狗',
-        label: '情绪 IP',
-        desc: '把一句祝福、一段关系、一份陪伴，安放进一个长期存在的实体里。',
+        label: '安慰与温柔',
+        description: '总会在你需要的时候递上一点温柔。',
         imageName: '永远系列-纸巾小狗-合集.png',
       },
       {
-        name: '守护小狗',
-        label: '关系载体',
-        desc: '不是扫码看内容，而是触碰一个被赋予性格的物，进入它的小世界。',
-        imageName: '永远系列-守护小狗-合集.png',
+        name: '答案之书',
+        label: '自我回应',
+        description: '一本帮助你听见自己答案的书。',
+        imageName: '永远系列-祈福小狗-合集.png',
       },
       {
         name: '祈福小狗',
-        label: '礼物入口',
-        desc: '适合礼物、纪念日、企业伴手礼，也适合一个人安静地想起另一个人。',
+        label: '祝愿与仪式',
+        description: '把一句祝福变成可以被触碰的长期陪伴。',
         imageName: '永远系列-祈福小狗-合集.png',
       },
     ],
   },
-  appsSection: {
-    eyebrow: 'Light Apps First',
-    title: '先做爆款轻应用，再把共性抽成平台能力。',
-    subtitle: 'WhatMint 不是先教育用户什么是 OS，而是让用户碰到一个好玩的物，然后自然进入它的应用。',
-    apps: [
+  mintSpaceSection: {
+    eyebrow: 'Mint Space',
+    title: '拥有之后，你得到的是一个会变化的灵境',
+    subtitle: 'Mint Space 是用户最终想打造的个人世界。每一次邀请、绑定和创作，都会让它拥有不同的气质。',
+    action: '进入我的 Mint Space',
+    inviteAction: '邀请新的伙伴',
+    portraitTitle: '初晴后的安静房间',
+    portraitBody: '这里住着三位小小的存在：一个负责温柔，一个负责答案，一个负责祝愿。它们让这个空间显得清透、克制，也有一点不声张的浪漫。',
+    traits: ['温柔型', '留白感', '轻仪式', '适合分享'],
+    partners: [
       {
-        index: '01',
-        name: '耳机小姐',
-        desc: '一枚耳机贴纸打开会旅行、会倾听、会带回故事的朋友，也把不同 IP 的关系轻轻连起来。',
-        tag: '关系入口',
+        name: '纸巾小狗',
+        status: '正在练习一次 AR 出场',
       },
       {
-        index: '02',
         name: '答案之书',
-        desc: '碰一下，得到一张克制、正念、带一点黑色幽默的回应卡。',
-        tag: '轻交互',
+        status: '今天给出了一句很轻的回答',
       },
       {
-        index: '03',
-        name: '情绪 IP',
-        desc: '把数字祝福重新变成一个可触碰、可收藏、可复访的关系载体。',
-        tag: '商业化',
+        name: '祈福小狗',
+        status: '把祝愿收在房间角落',
       },
     ],
-  },
-  osSection: {
-    eyebrow: 'WhatMint OS',
-    title: '真正的系统感，应该让使用者感觉不到系统。',
-    body: '管理端负责应用目录、内容集合、对象事件和绑定关系。用户端只需要一次触碰，一个恰到好处的回应，和一个愿意再次打开的小空间。',
-    principles: [
-      'NFC 是入口，不是产品本身。',
-      '实体是载体，内容是应用。',
-      '每个贴纸、摆件、作品，都可以进入一个属于它的 Mint Space。',
-      '后台隐藏复杂路由与权限，前台只保留一次轻轻的触碰。',
+    notes: [
+      '纸巾小狗总喜欢靠近答案之书，因为它发现，很多悲伤其实来自没有想明白的事情。',
+      '祈福小狗不常说话，但每次天光变亮，它都会把房间整理得更温柔一点。',
     ],
   },
-  finalCta: {
-    tone: '有灵气，有个性，歌颂美好，同时成熟克制，兼具商业性。',
-    title: '让物开始表达，让触碰重新变得有意义。',
+  studioSection: {
+    eyebrow: 'Mint Studio',
+    title: '关系可以继续被赋予新的意义',
+    subtitle: 'WhatMint 不是买完结束。用户可以通过创作中心，把祝福、声音、影像和专属内容铸造成新的内容资产。',
+    action: '开始创作',
+    examples: [
+      {
+        title: '给朋友做一只纸巾小狗',
+        body: '上传一段影像或 AR 资源，让这只小狗在对方触碰时出现。',
+      },
+      {
+        title: '把一句祝福留在实体里',
+        body: '让一个小物在生日、告别或重逢时，承担更轻、更长久的表达。',
+      },
+      {
+        title: '为一个 IP 续写新的体验',
+        body: '内容节点可以更新，关系也可以随着使用慢慢生长。',
+      },
+    ],
   },
   footer: {
     disclaimer: '免责声明',

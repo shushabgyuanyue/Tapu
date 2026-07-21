@@ -1,4 +1,5 @@
 import { request } from './http';
+import { emitAssetChanged } from '../events/appEvents';
 
 export type MintSpaceAxis = {
   key: string;
@@ -66,26 +67,32 @@ export async function fetchAssetInstances() {
 }
 
 export async function bindAssetInstance(key: string) {
-  return request('/assets/claim', {
+  const result = await request('/assets/claim', {
     method: 'POST',
     auth: true,
     jsonBody: { key },
   });
+  if (result?.success !== false && !result?.error) emitAssetChanged();
+  return result;
 }
 
 export async function unbindAssetInstance(instanceId: string) {
-  return request(`/assets/instances/${instanceId}/unbind`, {
+  const result = await request(`/assets/instances/${instanceId}/unbind`, {
     method: 'POST',
     auth: true,
   });
+  if (result?.success !== false && !result?.error) emitAssetChanged();
+  return result;
 }
 
 export async function transferAssetInstance(instanceId: string, toUsername: string) {
-  return request(`/assets/instances/${instanceId}/transfer`, {
+  const result = await request(`/assets/instances/${instanceId}/transfer`, {
     method: 'POST',
     auth: true,
     jsonBody: { to_username: toUsername },
   });
+  if (result?.success !== false && !result?.error) emitAssetChanged();
+  return result;
 }
 
 export async function fetchAssetInstanceDefaultContent(instanceId: string) {

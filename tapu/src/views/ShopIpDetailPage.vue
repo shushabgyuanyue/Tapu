@@ -85,6 +85,16 @@ const openExperience = () => {
   router.push(routePath);
 };
 
+const openSpaceEntry = () => {
+  router.push({
+    path: '/assets',
+    query: {
+      source: 'shop_ip',
+      ip: ipId.value,
+    },
+  });
+};
+
 onMounted(loadData);
 </script>
 
@@ -107,7 +117,7 @@ onMounted(loadData);
           :has-experience="!!officialContent"
           @invite="openInvite"
           @experience="openExperience"
-          @open-space="router.push('/assets')"
+          @open-space="openSpaceEntry"
         />
 
         <ShopIpInfoPanels

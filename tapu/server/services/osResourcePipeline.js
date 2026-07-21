@@ -94,9 +94,18 @@ function assertSlotResourceCompatible(resourceType, slot) {
   throw error;
 }
 
-async function processUploadedResourceFile(file, resourceId, resourceType) {
+function getResourceProcessingProfile(slot, resourceType) {
+  if (slot?.requiresAlpha || slot?.resourceProfile === 'ar_alpha_overlay') return 'ar_alpha_overlay';
+  return resourceType === 'video' ? 'browser_video' : 'passthrough';
+}
+
+async function processUploadedResourceFile(file, resourceId, resourceType, slotDefinition) {
   if (resourceType === 'video') {
-    return transcodeAuthoringVideo(file.path, resourceId);
+    const resourceProfile = getResourceProcessingProfile(slotDefinition, resourceType);
+    return transcodeAuthoringVideo(file.path, resourceId, {
+      resourceProfile,
+      preserveAlpha: resourceProfile === 'ar_alpha_overlay',
+    });
   }
   return movePassthroughResource(file.path, resourceId, file.originalname, resourceType);
 }
@@ -133,7 +142,7 @@ export async function createProcessedAuthoringResource(db, params = {}) {
   );
   assertSlotResourceCompatible(resourceType, slotDefinition);
 
-  const processed = await processUploadedResourceFile(file, resourceId, resourceType);
+  const processed = await processUploadedResourceFile(file, resourceId, resourceType, slotDefinition);
   const mimeType = processed.mimeType || file.mimetype;
   const metadata = {
     source: 'mint-studio-authoring',
@@ -149,7 +158,10 @@ export async function createProcessedAuthoringResource(db, params = {}) {
       role: slotDefinition.role || null,
       type: slotDefinition.type || null,
       label: slotDefinition.label || null,
+      resourceProfile: slotDefinition.resourceProfile || null,
+      requiresAlpha: !!slotDefinition.requiresAlpha,
     } : null,
+    resourceProfile: processed.resourceProfile || 'passthrough',
     transcoded: resourceType === 'video',
   };
 
@@ -189,6 +201,7 @@ export async function createProcessedAuthoringResource(db, params = {}) {
     unit_index: normalizedUnitIndex,
     content_definition_id: cleanString(contentDefinitionId) || null,
     content_definition_code: cleanString(contentDefinitionCode) || null,
+    resource_profile: processed.resourceProfile || 'passthrough',
     duration: processed.duration,
     width: processed.width,
     height: processed.height,

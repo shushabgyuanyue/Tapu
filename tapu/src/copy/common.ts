@@ -2,7 +2,9 @@
 export const commonCopy = {
   brand: 'whatmint',
   nav: {
+    home: '首页',
     shop: '商城',
+    studio: 'Mint Studio',
     official: '官方',
     officialTitle: '官方管理',
     assets: 'Mint Space',
@@ -21,6 +23,10 @@ export const commonCopy = {
     empty: '暂无内容',
     noMore: '没有更多了',
   },
+  errors: {
+    invalidJson: '服务返回格式异常，请稍后再试',
+    requestFailed: (status: number) => `请求失败，请稍后再试（${status}）`,
+  },
   actions: {
     continue: '继续',
     cancel: '取消',
@@ -32,6 +38,7 @@ export const commonCopy = {
     copy: '复制',
     remove: '移除',
     retry: '重试',
+    close: '关闭',
   },
   content: {
     fallbackTitle: '当前内容',

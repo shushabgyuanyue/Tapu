@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { inject, ref } from 'vue';
+import { inject, onMounted, ref } from 'vue';
+import { useRoute } from 'vue-router';
 import { createUnbindAppeal } from '../api';
 import NavBar from '../components/NavBar.vue';
 import { userCopy } from '../copy';
 
+const route = useRoute();
 const toast = inject<{ show: (text: string, duration?: number, type?: string) => void }>('toast');
 
 const orderNo = ref('');
@@ -43,6 +45,10 @@ const submit = async () => {
   token.value = '';
   reason.value = '';
 };
+
+onMounted(() => {
+  if (typeof route.query.token === 'string') token.value = route.query.token;
+});
 </script>
 
 <template>

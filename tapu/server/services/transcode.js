@@ -211,11 +211,12 @@ export function transcodeVideo(inputPath, videoId) {
   });
 }
 
-export function transcodeAuthoringVideo(inputPath, resourceId) {
+export function transcodeAuthoringVideo(inputPath, resourceId, options = {}) {
   const authoringDir = path.join(getUploadsDir(), 'authoring');
   if (!fs.existsSync(authoringDir)) fs.mkdirSync(authoringDir, { recursive: true });
 
-  const outputFilename = `${resourceId}.mp4`;
+  const preserveAlpha = options.resourceProfile === 'ar_alpha_overlay' || options.preserveAlpha;
+  const outputFilename = `${resourceId}.${preserveAlpha ? 'webm' : 'mp4'}`;
   const posterFilename = `${resourceId}.jpg`;
   const outputPath = path.join(authoringDir, outputFilename);
   const posterPath = path.join(authoringDir, posterFilename);
@@ -224,17 +225,27 @@ export function transcodeAuthoringVideo(inputPath, resourceId) {
     try {
       const probe = await probeVideo(inputPath);
       const vf = getVideoFilter(probe.width, probe.height);
-      const outputOptions = [
-        '-c:v', 'libx264',
-        '-profile:v', 'high',
-        '-level', '4.0',
-        '-preset', 'medium',
-        '-crf', '23',
-        '-movflags', '+faststart',
-        '-pix_fmt', 'yuv420p',
-        '-vf', vf,
-        ...(probe.hasAudio ? ['-c:a', 'aac', '-b:a', '128k', '-ac', '2'] : ['-an']),
-      ];
+      const outputOptions = preserveAlpha
+        ? [
+          '-c:v', 'libvpx-vp9',
+          '-b:v', '0',
+          '-crf', '32',
+          '-auto-alt-ref', '0',
+          '-pix_fmt', 'yuva420p',
+          '-vf', `${vf},format=yuva420p`,
+          ...(probe.hasAudio ? ['-c:a', 'libopus', '-b:a', '96k'] : ['-an']),
+        ]
+        : [
+          '-c:v', 'libx264',
+          '-profile:v', 'high',
+          '-level', '4.0',
+          '-preset', 'medium',
+          '-crf', '23',
+          '-movflags', '+faststart',
+          '-pix_fmt', 'yuv420p',
+          '-vf', vf,
+          ...(probe.hasAudio ? ['-c:a', 'aac', '-b:a', '128k', '-ac', '2'] : ['-an']),
+        ];
 
       ffmpeg(inputPath)
         .outputOptions(outputOptions)
@@ -248,7 +259,7 @@ export function transcodeAuthoringVideo(inputPath, resourceId) {
             let previewUrl = fs.existsSync(posterPath) ? `/uploads/authoring/${posterFilename}` : null;
 
             if (isR2Configured()) {
-              storageUrl = await uploadToR2(outputPath, `authoring/${outputFilename}`, 'video/mp4');
+              storageUrl = await uploadToR2(outputPath, `authoring/${outputFilename}`, preserveAlpha ? 'video/webm' : 'video/mp4');
               if (previewUrl && fs.existsSync(posterPath)) {
                 previewUrl = await uploadToR2(posterPath, `authoring-posters/${posterFilename}`, 'image/jpeg');
                 fs.unlinkSync(posterPath);
@@ -262,13 +273,15 @@ export function transcodeAuthoringVideo(inputPath, resourceId) {
               previewUrl,
               storageKey: `authoring/${outputFilename}`,
               storageProvider: isR2Configured() ? 'remote' : 'local',
-              mimeType: 'video/mp4',
+              mimeType: preserveAlpha ? 'video/webm' : 'video/mp4',
               fileSize: size,
               duration: outputProbe.duration || probe.duration || null,
               width: outputProbe.width || null,
               height: outputProbe.height || null,
               originalCodec: probe.codec || null,
               originalPixFmt: probe.pixFmt || null,
+              resourceProfile: preserveAlpha ? 'ar_alpha_overlay' : 'browser_video',
+              processor: preserveAlpha ? 'video_transcode_vp9_alpha' : 'video_transcode_h264',
             });
           } catch (postErr) {
             reject(postErr);

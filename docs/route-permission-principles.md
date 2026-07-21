@@ -219,6 +219,8 @@
 
 原因：这个交易的主体是“物件 token 是否允许被当前调用者编辑”。内容资产是否属于同一 IP，是业务有效性，不属于调用权限。
 
+操作语义：`content:entity_default_set`。它不同于普通内容更新，业务层必须继续校验内容属于同一 IP，且内容状态为 `published`，否则会出现默认内容设置成功但 NFC 播放不可用的断点。
+
 ### 已绑定实体设置默认内容
 
 接口：`PUT /api/assets/instances/:entityId/default-content`

@@ -104,6 +104,24 @@ export const userCopy = {
       entityEmpty: '请输入实体 token',
       entitySuccess: '实体绑定成功',
     },
+    emptyGateway: {
+      eyebrow: 'Mint Space Access',
+      title: '这里正等第一位存在进来',
+      body: '你的 Mint Space 还很安静。输入实体随附的 token，把第一位伙伴接入这里；它会带来这个空间最初的光线、温度和性格。',
+      bind: '接入第一个存在',
+      shop: '先去认识新的存在',
+    },
+    permissionRecovery: {
+      title: '这个实体已经在别人的 Mint Space 里',
+      body: '如果它原本属于你，可以先确认是否登录了正确账号；如果 token 疑似被抢先绑定，可以提交订单号申诉，由官方人工核验。',
+      switchAccount: '换账号登录',
+      appeal: '提交申诉',
+    },
+    transferWelcome: {
+      title: '有一位新的存在进入了你的 Mint Space',
+      body: '它是通过转赠来到这里的。你可以先看看它的当前体验，也可以稍后为它重新设置默认内容。',
+      action: '我知道了',
+    },
     hero: {
       eyebrow: 'Mint Space',
       title: '我的 Mint Space',

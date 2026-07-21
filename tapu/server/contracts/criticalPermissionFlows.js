@@ -27,7 +27,7 @@ export const CRITICAL_PERMISSION_FLOWS = [
       { method: 'post', path: '/api/assets/instances/:entityId/transfer', permissionType: 'entity_owner', operation: 'asset:owner_manage' },
       { method: 'get', path: '/api/assets/instances/:entityId/default-content', permissionType: 'entity_owner', operation: 'asset:owner_manage' },
       { method: 'put', path: '/api/assets/instances/:entityId/default-content', permissionType: 'entity_owner', operation: 'asset:owner_manage' },
-      { method: 'put', path: '/api/assets/default-content-by-token', permissionType: 'token_unbound_or_owner', operation: 'content:token_update' },
+      { method: 'put', path: '/api/assets/default-content-by-token', permissionType: 'token_unbound_or_owner', operation: 'content:entity_default_set' },
     ],
   },
   {

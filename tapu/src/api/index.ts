@@ -468,34 +468,6 @@ export async function fetchLeaderboard(params?: { page?: number; pageSize?: numb
   return request(`/stats/leaderboard${qs ? '?' + qs : ''}`);
 }
 
-// ===== Interactions =====
-export async function interact(videoId: string, type: 'like' | 'favorite' | 'share') {
-  return request(`/interactions/${videoId}`, {
-    method: 'POST',
-    auth: type === 'like' || type === 'favorite',
-    fingerprint: type === 'share',
-    jsonBody: { type },
-  });
-}
-
-export async function batchInteractions(ids: string[]) {
-  return request('/interactions/batch', {
-    method: 'POST',
-    auth: true,
-    jsonBody: { ids },
-  });
-}
-
-export async function setDefault(videoId: string) {
-  await request(`/interactions/${videoId}/default`, {
-    method: 'POST',
-  });
-}
-
-export async function getPopular(groupId: string) {
-  return request(`/interactions/popular/${groupId}`);
-}
-
 // ===== Entities =====
 export async function fetchEntitiesByGroup(groupId: string) {
   return request(`/entities/by-group/${groupId}`, { auth: true });

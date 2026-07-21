@@ -2,21 +2,21 @@
 import { onMounted, ref } from 'vue';
 import { getConfig, setConfig } from '../../api';
 
-const adEnabled = ref(true);
-const adInterval = ref(5);
+const entryPromptEnabled = ref(true);
+const entryPromptInterval = ref(5);
 const saving = ref(false);
 const msg = ref('');
 const msgError = ref(false);
 
 onMounted(async () => {
   try {
-    const [ad, interval] = await Promise.all([
-      getConfig('ad_enabled'),
-      getConfig('ad_interval'),
+    const [entryPrompt, interval] = await Promise.all([
+      getConfig('entry_prompt_enabled'),
+      getConfig('entry_prompt_interval'),
     ]);
 
-    if (ad.value !== undefined) adEnabled.value = ad.value === 'true' || ad.value === true;
-    if (interval.value !== undefined) adInterval.value = parseInt(interval.value) || 5;
+    if (entryPrompt.value !== undefined) entryPromptEnabled.value = entryPrompt.value === 'true' || entryPrompt.value === true;
+    if (interval.value !== undefined) entryPromptInterval.value = parseInt(interval.value) || 5;
   } catch {
     // Use safe defaults for early-stage modules.
   }
@@ -29,8 +29,8 @@ const save = async () => {
 
   try {
     await Promise.all([
-      setConfig('ad_enabled', String(adEnabled.value)),
-      setConfig('ad_interval', String(adInterval.value)),
+      setConfig('entry_prompt_enabled', String(entryPromptEnabled.value)),
+      setConfig('entry_prompt_interval', String(entryPromptInterval.value)),
     ]);
     msg.value = '保存成功';
   } catch {
@@ -47,23 +47,23 @@ const save = async () => {
     <h2 class="settings-title">系统设置</h2>
 
     <section class="setting-group">
-      <h3>播放器发现引导</h3>
-      <p class="setting-desc">在播放器中按间隔展示克制的发现引导，用于让游客了解更多可邀请的存在。</p>
+      <h3>Space 入口提示</h3>
+      <p class="setting-desc">用于控制触碰或应用结束后的克制入口提示，帮助未接入用户进入 Mint Space。</p>
 
       <label class="setting-row">
         <span>
-          <strong>启用广告卡</strong>
-          <small>用于引导用户发现更多内容。</small>
+          <strong>启用入口提示</strong>
+          <small>未绑定前可提示接入 Mint Space，绑定后只保留必要入口。</small>
         </span>
-        <input type="checkbox" v-model="adEnabled" class="toggle" />
+        <input type="checkbox" v-model="entryPromptEnabled" class="toggle" />
       </label>
 
       <label class="setting-row">
         <span>
-          <strong>广告间隔</strong>
-          <small>按滑动次数计算。</small>
+          <strong>提示间隔</strong>
+          <small>用于后续支持需要频控的应用入口提示。</small>
         </span>
-        <input type="number" v-model.number="adInterval" min="2" max="50" class="input-num" />
+        <input type="number" v-model.number="entryPromptInterval" min="2" max="50" class="input-num" />
       </label>
     </section>
 

@@ -29,6 +29,6 @@ defineEmits<{
       @bind="$emit('bind')"
       @select="item => $emit('select', item)"
     />
-    <MintSpaceNotes :notes="profile?.partners?.length ? profile?.notes || [] : []" />
+    <MintSpaceNotes :notes="profile?.notes || []" />
   </section>
 </template>

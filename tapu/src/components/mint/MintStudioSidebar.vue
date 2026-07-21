@@ -143,7 +143,7 @@ function draftSubtitle(item: MintStudioDraftItem) {
         >
           <span class="minted-icon">
             <img v-if="item.thumb && !item.thumb.startsWith('blob:')" :src="item.thumb" :alt="item.title" />
-            <span v-else>{{ item.status === 'collected' ? 'A' : 'M' }}</span>
+            <span v-else>M</span>
           </span>
           <span class="minted-copy">
             <strong>{{ item.title }}</strong>
