@@ -26,4 +26,17 @@ export const osEntryPromptCopy = {
       primaryLabel: '进入 Mint Space',
     },
   },
+  'desktop-secret': {
+    nfcUnbound: {
+      title: '把这片桌面秘境接入你的 Mint Space',
+      body: '如果这枚桌面贴纸属于你，可以把它接入空间。以后每次触碰，它都会在你的桌面打开默认秘境。',
+      primaryLabel: '接入桌面秘境',
+      secondaryLabel: '了解 WhatMint',
+    },
+    nfcBound: {
+      title: '回到桌面秘境的空间',
+      body: '这片秘境已经住进 Mint Space。需要替换默认场景时，可以回到空间处理。',
+      primaryLabel: '进入 Mint Space',
+    },
+  },
 };

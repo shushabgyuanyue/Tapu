@@ -7,6 +7,7 @@ import { ensureEarphoneGirlSeed } from '../services/earphoneGirlSeed.js';
 import { ensureAnswerBookSeed } from '../services/answerBookSeed.js';
 import { ensureApplicationRegistry } from '../services/applicationRegistry.js';
 import { ensureCheckTemplatesSeed } from '../services/checkTemplateSeed.js';
+import { ensureCoreOfficialIpSeed } from '../services/coreOfficialIpSeed.js';
 import { ensureTravelTrailDemoSeed } from '../services/travelTrailSeed.js';
 import { backfillCoreTables } from './coreBackfill.js';
 
@@ -577,6 +578,10 @@ export async function getDb() {
   try {
     backfillCoreTables(db);
   } catch (e) { /* core backfill should not block startup while routes are transitioning */ }
+
+  try {
+    ensureCoreOfficialIpSeed(db);
+  } catch (e) { /* core official IP seed should never block startup */ }
 
   try {
     normalizePrimaryIpInstanceContentLinks(db);

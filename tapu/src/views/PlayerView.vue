@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import {
   fetchContentInstance,
   resolveByKey,
 } from '../api';
 import OsEntryPrompt from '../components/os/OsEntryPrompt.vue';
+import OsArRenderer from '../components/os/OsArRenderer.vue';
 import { contentCopy } from '../copy';
 import '../styles/player.css';
 
@@ -32,14 +33,19 @@ type PlayableContent = {
   };
   ar: {
     mode: string;
+    engine?: string;
     placement: string;
+    tracking?: string;
+    markerImageUrl?: string;
+    markerTargetUrl?: string;
     scale: number;
     cameraFacingMode: 'environment' | 'user';
+    shadow?: boolean;
+    perspective?: boolean;
   };
 };
 
 const mediaRef = ref<HTMLVideoElement | null>(null);
-const cameraRef = ref<HTMLVideoElement | null>(null);
 const content = ref<PlayableContent | null>(null);
 const entryPrompt = ref<any | null>(null);
 const isLoaded = ref(false);
@@ -47,10 +53,8 @@ const loadFailed = ref(false);
 const showTapHint = ref(true);
 const userHasUnmuted = ref(false);
 const videoEnded = ref(false);
-const cameraUnavailable = ref(false);
 
 let autoplayAttempted = false;
-let cameraStream: MediaStream | null = null;
 
 const title = computed(() => content.value?.title || contentCopy.detail.renderer.videoFullscreen);
 const isArRenderer = computed(() => content.value?.renderer === 'ar.camera-overlay');
@@ -62,14 +66,6 @@ const showReplay = computed(() => (
   && !shouldLoop.value
 ));
 const mediaObjectFit = computed(() => content.value?.playback.objectFit || 'cover');
-const arOverlayStyle = computed(() => {
-  const scale = Math.max(0.36, Math.min(1.1, Number(content.value?.ar.scale || 0.72)));
-  return {
-    width: `${Math.round(scale * 100)}vmin`,
-    maxWidth: '86vw',
-    maxHeight: '72vh',
-  };
-});
 
 function normalizePlayback(raw: any = {}) {
   const playback = raw?.playback || raw?.payload?.playback || {};
@@ -88,9 +84,15 @@ function normalizeAr(raw: any = {}) {
   const ar = raw?.ar || raw?.payload?.ar || {};
   return {
     mode: ar.mode || 'camera_overlay',
+    engine: ar.engine || 'os-web-camera-overlay',
     placement: ar.placement || 'screen_center',
+    tracking: ar.tracking || '',
+    markerImageUrl: ar.markerImageUrl || ar.marker_image_url || '',
+    markerTargetUrl: ar.markerTargetUrl || ar.marker_target_url || '',
     scale: Number(ar.scale || 0.72),
     cameraFacingMode: ar.cameraFacingMode === 'user' || ar.camera_facing_mode === 'user' ? 'user' : 'environment',
+    shadow: ar.shadow !== false,
+    perspective: !!ar.perspective,
   };
 }
 
@@ -196,15 +198,10 @@ function resetPlaybackState() {
   showTapHint.value = true;
   userHasUnmuted.value = false;
   videoEnded.value = false;
-  cameraUnavailable.value = false;
-  stopCamera();
 }
 
 async function prepareRenderer() {
   if (content.value?.renderer === 'ar.camera-overlay') {
-    await nextTick();
-    await startCamera();
-    if (content.value.resourceType === 'image') isLoaded.value = true;
     return;
   }
   if (content.value?.resourceType === 'image') isLoaded.value = true;
@@ -233,34 +230,6 @@ async function loadPlayableContent() {
     console.error('OS content playback failed:', error);
     loadFailed.value = true;
   }
-}
-
-async function startCamera() {
-  if (!navigator.mediaDevices?.getUserMedia || !content.value) {
-    cameraUnavailable.value = true;
-    return;
-  }
-
-  try {
-    cameraStream = await navigator.mediaDevices.getUserMedia({
-      video: {
-        facingMode: { ideal: content.value.ar.cameraFacingMode },
-      },
-      audio: false,
-    });
-    if (cameraRef.value) {
-      cameraRef.value.srcObject = cameraStream;
-      await cameraRef.value.play();
-    }
-  } catch {
-    cameraUnavailable.value = true;
-  }
-}
-
-function stopCamera() {
-  if (!cameraStream) return;
-  for (const track of cameraStream.getTracks()) track.stop();
-  cameraStream = null;
 }
 
 async function tryAutoplay() {
@@ -344,7 +313,6 @@ onMounted(() => {
 onUnmounted(() => {
   document.removeEventListener('touchstart', onFirstInteraction);
   document.removeEventListener('click', onFirstInteraction);
-  stopCamera();
 });
 </script>
 
@@ -362,61 +330,13 @@ onUnmounted(() => {
       <button class="error-btn" type="button" @click="router.push('/shop')">{{ contentCopy.player.error.shop }}</button>
     </section>
 
-    <section
+    <OsArRenderer
       v-else-if="content && isArRenderer"
-      class="ar-stage"
-      :aria-label="title"
-      @click="handleStageClick"
-    >
-      <video
-        ref="cameraRef"
-        class="camera-feed"
-        autoplay
-        muted
-        playsinline
-        webkit-playsinline
-      ></video>
-      <div v-if="cameraUnavailable" class="camera-fallback">
-        <span>{{ contentCopy.player.ar.cameraFallback }}</span>
-      </div>
-
-      <div class="ar-reticle" aria-hidden="true"></div>
-
-      <video
-        v-if="content.resourceType === 'video'"
-        ref="mediaRef"
-        class="ar-overlay-media"
-        :style="arOverlayStyle"
-        :src="content.url"
-        :poster="content.poster || undefined"
-        autoplay
-        muted
-        :loop="shouldLoop"
-        playsinline
-        webkit-playsinline
-        preload="auto"
-        @canplay="onLoaded"
-        @loadeddata="onLoaded"
-        @ended="onVideoEnded"
-        @error="onMediaError"
-      ></video>
-      <img
-        v-else
-        class="ar-overlay-media"
-        :style="arOverlayStyle"
-        :src="content.url"
-        :alt="content.title"
-        @load="onImageLoaded"
-        @error="onMediaError"
-      />
-
-      <transition name="fade">
-        <button v-if="showTapHint && isLoaded && content.resourceType === 'video'" class="tap-hint" type="button" @click.stop="unmute">
-          <span>{{ contentCopy.player.sound }}</span>
-        </button>
-      </transition>
-      <OsEntryPrompt :prompt="entryPrompt" />
-    </section>
+      :content="content"
+      :entry-prompt="entryPrompt"
+      @loaded="onImageLoaded"
+      @error="onMediaError"
+    />
 
     <section v-else-if="content" class="video-stage" :aria-label="title" @click="handleStageClick">
       <video

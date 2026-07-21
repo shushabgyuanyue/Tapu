@@ -221,6 +221,31 @@ test('tissue puppy enters Mint Studio through a single AR content definition', (
   assert.ok(!profile.creationModes.some(mode => mode.code === 'collect_asset'));
 });
 
+test('desktop secret enters Mint Studio through the OS AR image renderer definition', () => {
+  const manifest = findAppManifest('desktop-secret');
+  const profile = getMintStudioProfile('desktop-secret');
+
+  assert.ok(manifest, 'desktop-secret manifest should exist');
+  assert.ok(profile, 'desktop-secret Studio profile should exist');
+  assert.equal(manifest.contentDefinition?.code, 'desktop-secret-ar-realm');
+  assert.equal(manifest.contentDefinition?.contentKind, 'ar');
+  assert.equal(manifest.contentDefinition?.primaryModality, 'image');
+  assert.equal(manifest.contentDefinition?.authoringSchema?.authoringProtocol?.createFlow, 'single_resource_node');
+  assert.equal(manifest.contentDefinition?.authoringSchema?.contentShape?.slots?.[0]?.type, 'image');
+  assert.equal(manifest.contentDefinition?.authoringSchema?.contentShape?.slots?.[0]?.role, 'ar_overlay');
+  assert.equal(manifest.contentDefinition?.authoringSchema?.contentShape?.slots?.[0]?.resourceProfile, 'ar_image_overlay');
+  assert.equal(manifest.contentDefinition?.template?.renderer, 'ar.camera-overlay');
+  assert.equal(manifest.contentDefinition?.template?.ar?.engine, 'mindar-image-tracking');
+  assert.equal(manifest.contentDefinition?.template?.ar?.placement, 'marker_anchor');
+  assert.equal(manifest.contentDefinition?.template?.ar?.tracking, 'marker_image');
+  assert.equal(manifest.contentDefinition?.template?.ar?.markerImageUrl, '/ar-placeholders/desktop-secret-marker.png');
+  assert.equal(manifest.contentDefinition?.template?.ar?.shadow, true);
+  assert.equal(manifest.contentDefinition?.template?.ar?.perspective, true);
+  assert.ok(profile.creationModes.some(mode => mode.code === 'claim_entity'));
+  assert.ok(!manifest.mintStudio?.primaryActions?.includes('collect_asset'));
+  assert.ok(!profile.creationModes.some(mode => mode.code === 'collect_asset'));
+});
+
 test('legacy collect_asset action is only allowed on frozen light apps', () => {
   for (const manifest of getAppManifests()) {
     const hasLegacyAction = manifest.mintStudio?.primaryActions?.includes('collect_asset');
@@ -309,6 +334,29 @@ test('OS entry prompt uses app manifest display rules for Tissue Puppy NFC surfa
   assert.equal(boundPrompt.display, 'corner_link');
   assert.equal(boundPrompt.frequency, 'always');
   assert.ok(boundPrompt.title.includes('Mint Space') || boundPrompt.primary_action.label.includes('Mint Space'));
+});
+
+test('OS entry prompt uses app manifest display rules for Desktop Secret NFC surfaces', () => {
+  const unboundPrompt = buildOsEntryPrompt({
+    surface: 'nfc_player',
+    appCode: 'desktop-secret',
+    token: 'token-desk',
+    object: { id: 'ipinst-desk', owner_user_id: null },
+  });
+  const boundPrompt = buildOsEntryPrompt({
+    surface: 'nfc_player',
+    appCode: 'desktop-secret',
+    token: 'token-desk',
+    object: { id: 'ipinst-desk', owner_user_id: 'user-1' },
+  });
+
+  assert.equal(unboundPrompt.display, 'bottom_card');
+  assert.equal(unboundPrompt.frequency, 'once_per_token');
+  assert.equal(unboundPrompt.primary_action.target, '/assets?key=token-desk&source=nfc_player');
+  assert.equal(boundPrompt.display, 'corner_link');
+  assert.equal(boundPrompt.frequency, 'always');
+  assert.ok(unboundPrompt.title.includes('桌面秘境'));
+  assert.ok(boundPrompt.title.includes('桌面秘境'));
 });
 
 test('Mint Studio library only lists definition-authored content assets', async () => {
