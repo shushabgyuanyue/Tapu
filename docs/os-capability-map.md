@@ -57,7 +57,7 @@
 - 当前已支持：
   - `video.fullscreen`：全屏视频播放器，默认静音自动播放，点击开启声音，支持循环或手动重播。
   - `content.blocks`：内容块详情渲染，适合图文音频组合。
-  - `ar.camera-overlay`：摄像头背景 + 中心叠加视频/图片的轻量 AR 渲染器。
+  - `ar.camera-overlay`：摄像头背景 + 视频/图片叠加的轻量 AR 渲染器；由内容定义里的 `ar.placement` 决定屏幕中心召唤或 marker anchor 表达。
 - `/play/:contentId` 和 `/play?key=<token>` 都通过 OS 内容协议解析，不走单个应用私有播放器。
 
 ### 操作、事件、状态雏形
@@ -88,13 +88,20 @@ content_instance 绑定资源节点
 第一版适合测试：
 
 - 纸巾小狗：碰一下 token，打开摄像头，在屏幕中心召唤 2.5D 视频或透明 WebM alpha 叠加层。
-- 桌面秘籍：后续可复用同一 renderer，再增加 marker / anchor 配置，把雪山贴近标记位置。
+- 桌面秘境：碰一下桌面贴纸，打开摄像头，用 `desktop-secret-marker.png` 作为识别 marker，用 `ar.png` 作为官方默认图片模型，在 marker anchor 位置展示带阴影和轻微透视变化的悬浮秘境。
+
+当前 `OsArRenderer` 已按 engine adapter 收口：
+
+- `os-web-camera-overlay`：摄像头 + 资源叠加的轻量模拟层，负责兜底体验。
+- `mindar-image-tracking`：基于 MindAR + Three.js 的图片 marker tracking 试验层，桌面秘境优先使用该引擎，把 `ar.png` 平面模型锚定到 `desktop-secret-marker.png` 对应位置。
+
+MindAR 目前以 vendored browser build 接入，避免 `mind-ar` npm 包在 Windows / Node 22 下拉起 `canvas` 原生编译。后续如果稳定引入离线 target 编译流程，可以把运行时 marker 编译替换为构建期 `.mind` target 生成，但 `content_definitions.template.ar` 协议不需要改变。
 
 ## 待补足能力
 
 ### AR / 空间渲染
 
-- Marker tracking：识别贴纸标记后把内容锚定在标记附近。
+- Marker target pipeline：把官方 marker 图在构建期或后台编译成 `.mind` target，减少首次打开桌面秘境时的运行时编译等待。
 - 3D model：支持 `.glb` / `.gltf` 模型资源、模型压缩和 `<model-viewer>` / WebGL 渲染。
 - AR resource fallbacks：按设备能力继续补 MP4 fallback、图片 fallback 和可配置降级策略。
 - Camera permission fallback：用户拒绝摄像头时提供平面预览或引导。

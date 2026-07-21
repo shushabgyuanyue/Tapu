@@ -16,6 +16,14 @@ const BUILT_IN_APPLICATIONS = [
     status: 'active',
   },
   {
+    name: '桌面秘境',
+    code: 'desktop-secret',
+    app_type: 'meaning',
+    interaction_type: 'tap_to_reveal_desktop_realm',
+    description: '触碰桌面贴纸，打开摄像头，在桌面锚点上召唤一处悬浮小秘境。',
+    status: 'active',
+  },
+  {
     name: '耳机小姐',
     code: 'earphone-girl',
     app_type: 'meaning',

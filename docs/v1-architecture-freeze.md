@@ -175,6 +175,7 @@ V1 的边界已经基本成立：
 - 内容默认写入必须使用 `content:entity_default_set` 语义，只允许 `published` 内容成为实体默认体验。
 - Studio 新核心动作使用 `claim_entity` 和 `set_entity_default_content`，不再使用旧 `collect_asset` 表达纸巾小狗主链路。
 - AR 资源由 `content_definitions` 的 slot profile 驱动，纸巾小狗透明叠加资源使用 `ar_alpha_overlay`，不在单个页面里写死转码策略。
+- 桌面秘境走同一套新核心范式：通过 `desktop-secret-ar-realm` 内容定义声明图片模型、`ar.camera-overlay` 渲染器和 `marker_anchor` 放置策略，而不是新增单独 AR 页面或私有播放器。
 - 尚未迁入新骨架的轻应用必须在 manifest 中显式标记 `legacyFrozen`；它们可以暂时保留 legacy 动作，但不得反向影响新核心 IP 的 Studio 动作、权限和内容默认语义。
 
 我的判断是：对第一版业务来说，核心架构已经成熟到足以进入产品建设阶段。

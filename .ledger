@@ -403,3 +403,24 @@ entrypoint: tapu/src/main.ts
 - post-mortem:
   - `/api/groups` remains as a management/compatibility route for official IP configuration, but the public Shop surface no longer calls it directly.
   - Remaining large-file warnings are pre-existing soft reports outside this Shop slice.
+
+## 2026-07-22 Codex Increment 20
+
+- domain: ar-rendering, whatmint-os, app-manifest, content-assets, docs
+- ref: `550004e`
+- branch_context: `evo/desktop-secret-ar`; this round closes the Desktop Secret AR app and OS renderer adapter before merging back to `tapu-master`.
+- todo:
+  - [x] Add Desktop Secret as a new-core IP/application sample with IP definition seed, application definition, content definition, official IP instance, official default content, and public token demo.
+  - [x] Replace the paper puppy AR placeholder with the new `/ar-placeholders/ar.mp4` asset while keeping it under the same OS AR renderer protocol.
+  - [x] Add a printable Desktop Secret marker image and SVG source, and register its URL in the app/content AR definition.
+  - [x] Extract AR rendering into `OsArRenderer` so `/play` stays the OS content renderer entry instead of growing app-specific AR pages.
+  - [x] Add `mindar-image-tracking` as an OS AR engine adapter with a camera-overlay fallback, using MindAR + Three.js vendored browser runtime to avoid local `canvas` native compilation.
+  - [x] Update contracts and documentation so Desktop Secret cannot regress to legacy `collect_asset` or app-private rendering.
+- evidence:
+  - `npm run check:quality`
+  - `npm run build`
+  - API smoke: `/api/contents/resolve-by-token?key=desktop-secret-demo-token` returns `renderer: ar.camera-overlay`, `engine: mindar-image-tracking`, `markerImageUrl: /ar-placeholders/desktop-secret-marker.png`.
+  - Browser smoke: `/play?key=desktop-secret-demo-token` mounts the MindAR stage and cleanly falls back to `/ar-placeholders/ar.png` when the in-app browser cannot grant camera permission.
+- post-mortem:
+  - Installing `mind-ar` directly failed on Windows / Node 22 because the package pulls `canvas` and requires native Visual Studio build tooling. The first stable product path is vendored browser runtime plus a later build-time `.mind` target pipeline.
+  - The current OS AR layer supports flat image/video models. Real 3D volume should be added later through a separate model renderer profile rather than changing Desktop Secret's core business model.

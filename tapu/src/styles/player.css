@@ -41,6 +41,54 @@
   object-fit: cover;
 }
 
+.mindar-stage {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  overflow: hidden;
+  background: #000;
+  opacity: 0;
+  transition: opacity 0.26s ease;
+}
+
+.mindar-stage--active {
+  opacity: 1;
+}
+
+.mindar-stage video,
+.mindar-stage canvas {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover;
+}
+
+.mindar-stage canvas {
+  z-index: 2;
+}
+
+.ar-tracking-hint {
+  position: absolute;
+  left: 50%;
+  top: 20px;
+  z-index: 21;
+  transform: translateX(-50%);
+  padding: 10px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.48);
+  color: rgba(255, 255, 255, 0.86);
+  font-size: 13px;
+  font-weight: 850;
+  letter-spacing: 0.02em;
+  backdrop-filter: blur(12px);
+}
+
+.ar-tracking-hint--scanning {
+  background: rgba(8, 28, 28, 0.48);
+}
+
 .camera-fallback {
   position: absolute;
   inset: 0;
@@ -54,28 +102,79 @@
   font-weight: 800;
 }
 
-.ar-reticle {
+.ar-marker-plane {
   position: absolute;
-  width: 34vmin;
-  height: 34vmin;
-  max-width: 260px;
-  max-height: 260px;
+  left: 50%;
+  top: 58%;
+  z-index: 2;
+  width: 38vmin;
+  height: 18vmin;
+  max-width: 320px;
+  max-height: 150px;
+  min-width: 150px;
+  min-height: 62px;
   border: 1px solid rgba(255, 255, 255, 0.18);
-  border-radius: 999px;
+  border-radius: 50%;
   box-shadow:
     0 0 0 22px rgba(255, 255, 255, 0.02),
     inset 0 0 48px rgba(255, 255, 255, 0.08);
+  transform: translate(-50%, -50%) perspective(620px) rotateX(62deg);
   animation: ar-reticle-breathe 2.8s ease-in-out infinite;
 }
 
+.ar-marker-plane span {
+  position: absolute;
+  inset: 35% 18%;
+  border-radius: inherit;
+  background: radial-gradient(ellipse at center, rgba(255, 255, 255, 0.28), transparent 68%);
+}
+
+.ar-stage--marker-anchor .ar-marker-plane {
+  top: 63%;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.ar-model-anchor {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 4;
+  display: grid;
+  place-items: center;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+  transform-style: preserve-3d;
+}
+
+.ar-stage--marker-anchor .ar-model-anchor {
+  top: 46%;
+}
+
+.ar-model-shadow {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: min(46vmin, 380px);
+  height: min(13vmin, 104px);
+  border-radius: 50%;
+  background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.34), rgba(0, 0, 0, 0.12) 44%, transparent 72%);
+  filter: blur(8px);
+  transform: translate(-50%, min(25vmin, 190px)) perspective(580px) rotateX(68deg);
+}
+
 .ar-overlay-media {
-  position: relative;
-  z-index: 3;
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 5;
   height: auto;
-  object-fit: contain;
+  object-fit: var(--ar-object-fit, contain);
   filter:
-    drop-shadow(0 18px 30px rgba(0, 0, 0, 0.32))
-    drop-shadow(0 0 34px rgba(255, 255, 255, 0.18));
+    drop-shadow(0 22px 28px rgba(0, 0, 0, 0.28))
+    drop-shadow(0 0 34px rgba(255, 255, 255, 0.16));
+  transform: var(--ar-model-transform, translate(-50%, -50%));
+  transform-origin: center bottom;
 }
 
 video.ar-overlay-media {
@@ -85,6 +184,7 @@ video.ar-overlay-media {
 
 img.ar-overlay-media {
   max-height: 72vh;
+  max-width: 88vw;
   user-select: none;
   pointer-events: none;
 }

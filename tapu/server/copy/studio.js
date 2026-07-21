@@ -39,6 +39,19 @@ export const mintStudioProfiles = {
       { code: 'claim_entity', label: '接入 Mint Space', tone: 'quiet', requiresAuth: true },
     ],
   },
+  'desktop-secret': {
+    code: 'desktop-secret',
+    name: '桌面秘境',
+    appType: 'meaning',
+    route: '/play',
+    studioTitle: '桌面秘境创作中心',
+    objectFallback: '这枚会在桌面打开秘境的贴纸',
+    introMessages: ['桌面秘境已识别。', '先为它创建一个 AR 秘境模型节点。'],
+    creationModes: [
+      { code: 'open_preview', label: '预览当前秘境', tone: 'primary' },
+      { code: 'claim_entity', label: '接入 Mint Space', tone: 'quiet', requiresAuth: true },
+    ],
+  },
   moment: {
     code: 'moment',
     name: '纪念瞬间',
@@ -85,6 +98,7 @@ export const mintStudioCopy = {
     fallbackLabels: {
       'emotion-ip': '情绪 IP',
       'tissue-puppy': '纸巾小狗',
+      'desktop-secret': '桌面秘境',
       'earphone-girl': '耳机小姐',
       content: '内容',
     },

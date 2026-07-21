@@ -32,3 +32,5 @@
 *.db binary
 *.sqlite binary
 *.sqlite3 binary
+
+tapu/public/vendor/** -whitespace
