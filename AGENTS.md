@@ -49,6 +49,7 @@ Before making non-trivial changes, read:
 - Apps own voice, ritual, pacing, story expression, and domain-specific experience.
 - Do not add a new core table just to represent Mint Space; it is a user-facing aggregation of core objects and OS capabilities.
 - When old-architecture logic conflicts with the current core object model, replace it with the new core/OS pattern directly. Do not add compatibility shells, fallback branches, or parallel legacy flows unless the user explicitly asks for temporary migration support.
+- Legacy light apps that have not been reconnected to the new OS skeleton may be frozen, but they must not drive new core design, leak old action names into new IP flows, or reintroduce old content/default/asset semantics. New IP work should follow the core-driven Tissue Puppy pattern unless the user explicitly reopens a legacy app migration.
 
 ## Development Rules
 

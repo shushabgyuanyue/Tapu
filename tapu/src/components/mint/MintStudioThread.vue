@@ -11,7 +11,8 @@ defineProps<{
   currentPreviewTitle: string;
   currentStep: any;
   readyActionLabel: string;
-  canCollectAsset: boolean;
+  canConnectEntity: boolean;
+  connectEntityLabel: string;
   assetBound: boolean;
 }>();
 
@@ -20,7 +21,7 @@ const emit = defineEmits<{
   (event: 'continue-overview'): void;
   (event: 'flow-option', option: any): void;
   (event: 'ready-action'): void;
-  (event: 'collect-asset'): void;
+  (event: 'connect-entity'): void;
   (event: 'open-assets'): void;
 }>();
 
@@ -74,7 +75,7 @@ defineExpose({ scrollToBottom });
 
     <div v-if="studio && phase === 'done'" class="quick-actions">
       <button type="button" class="primary-step" @click="emit('open-preview')">{{ studioCopy.actions.previewNewPage }}</button>
-      <button v-if="canCollectAsset" type="button" @click="emit('collect-asset')">{{ studioCopy.actions.collectAsset }}</button>
+      <button v-if="canConnectEntity" type="button" @click="emit('connect-entity')">{{ connectEntityLabel }}</button>
       <button v-if="assetBound" type="button" @click="emit('open-assets')">{{ studioCopy.actions.viewAsset }}</button>
     </div>
   </section>

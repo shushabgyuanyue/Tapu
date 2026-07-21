@@ -2,27 +2,21 @@
 import { onMounted, ref } from 'vue';
 import { getConfig, setConfig } from '../../api';
 
-const adEnabled = ref(true);
-const adInterval = ref(5);
-const communityEnabled = ref(false);
-const wishlistEnabled = ref(false);
+const entryPromptEnabled = ref(true);
+const entryPromptInterval = ref(5);
 const saving = ref(false);
 const msg = ref('');
 const msgError = ref(false);
 
 onMounted(async () => {
   try {
-    const [ad, interval, community, wishlist] = await Promise.all([
-      getConfig('ad_enabled'),
-      getConfig('ad_interval'),
-      getConfig('community_enabled'),
-      getConfig('wishlist_enabled'),
+    const [entryPrompt, interval] = await Promise.all([
+      getConfig('entry_prompt_enabled'),
+      getConfig('entry_prompt_interval'),
     ]);
 
-    if (ad.value !== undefined) adEnabled.value = ad.value === 'true' || ad.value === true;
-    if (interval.value !== undefined) adInterval.value = parseInt(interval.value) || 5;
-    communityEnabled.value = community.value === 'true' || community.value === true;
-    wishlistEnabled.value = wishlist.value === 'true' || wishlist.value === true;
+    if (entryPrompt.value !== undefined) entryPromptEnabled.value = entryPrompt.value === 'true' || entryPrompt.value === true;
+    if (interval.value !== undefined) entryPromptInterval.value = parseInt(interval.value) || 5;
   } catch {
     // Use safe defaults for early-stage modules.
   }
@@ -35,10 +29,8 @@ const save = async () => {
 
   try {
     await Promise.all([
-      setConfig('ad_enabled', String(adEnabled.value)),
-      setConfig('ad_interval', String(adInterval.value)),
-      setConfig('community_enabled', String(communityEnabled.value)),
-      setConfig('wishlist_enabled', String(wishlistEnabled.value)),
+      setConfig('entry_prompt_enabled', String(entryPromptEnabled.value)),
+      setConfig('entry_prompt_interval', String(entryPromptInterval.value)),
     ]);
     msg.value = '保存成功';
   } catch {
@@ -55,44 +47,23 @@ const save = async () => {
     <h2 class="settings-title">系统设置</h2>
 
     <section class="setting-group">
-      <h3>前台模块</h3>
-      <p class="setting-desc">控制早期产品里是否展示社区和心愿单入口。两者默认关闭，商城默认独立展示。</p>
+      <h3>Space 入口提示</h3>
+      <p class="setting-desc">用于控制触碰或应用结束后的克制入口提示，帮助未接入用户进入 Mint Space。</p>
 
       <label class="setting-row">
         <span>
-          <strong>启用社区模块</strong>
-          <small>开启后顶部导航按“商城、社区”的顺序展示。</small>
+          <strong>启用入口提示</strong>
+          <small>未绑定前可提示接入 Mint Space，绑定后只保留必要入口。</small>
         </span>
-        <input type="checkbox" v-model="communityEnabled" class="toggle" />
+        <input type="checkbox" v-model="entryPromptEnabled" class="toggle" />
       </label>
 
       <label class="setting-row">
         <span>
-          <strong>启用心愿单模块</strong>
-          <small>开启后顶部导航展示独立心愿单页面，商城不会和心愿单共用页面。</small>
+          <strong>提示间隔</strong>
+          <small>用于后续支持需要频控的应用入口提示。</small>
         </span>
-        <input type="checkbox" v-model="wishlistEnabled" class="toggle" />
-      </label>
-    </section>
-
-    <section class="setting-group">
-      <h3>播放器社区广告</h3>
-      <p class="setting-desc">在播放器中每隔 N 次滑动插入社区引导卡。社区关闭时广告不会展示。</p>
-
-      <label class="setting-row">
-        <span>
-          <strong>启用广告卡</strong>
-          <small>用于引导用户发现更多内容。</small>
-        </span>
-        <input type="checkbox" v-model="adEnabled" class="toggle" />
-      </label>
-
-      <label class="setting-row">
-        <span>
-          <strong>广告间隔</strong>
-          <small>按滑动次数计算。</small>
-        </span>
-        <input type="number" v-model.number="adInterval" min="2" max="50" class="input-num" />
+        <input type="number" v-model.number="entryPromptInterval" min="2" max="50" class="input-num" />
       </label>
     </section>
 

@@ -5,6 +5,7 @@ import {
   fetchContentInstance,
   resolveByKey,
 } from '../api';
+import OsEntryPrompt from '../components/os/OsEntryPrompt.vue';
 import { contentCopy } from '../copy';
 import '../styles/player.css';
 
@@ -40,6 +41,7 @@ type PlayableContent = {
 const mediaRef = ref<HTMLVideoElement | null>(null);
 const cameraRef = ref<HTMLVideoElement | null>(null);
 const content = ref<PlayableContent | null>(null);
+const entryPrompt = ref<any | null>(null);
 const isLoaded = ref(false);
 const loadFailed = ref(false);
 const showTapHint = ref(true);
@@ -159,6 +161,7 @@ async function loadByContentId(contentId: string) {
   const playable = playableFromPayload(payload);
   if (!playable) throw new Error('NO_PLAYABLE_CONTENT');
   resetPlaybackState();
+  entryPrompt.value = null;
   content.value = playable;
   await prepareRenderer();
 }
@@ -169,6 +172,7 @@ async function loadByToken(key: string) {
   const playable = playableFromPayload(payload);
   if (!playable) throw new Error('NO_PLAYABLE_CONTENT');
   resetPlaybackState();
+  entryPrompt.value = payload.entry_prompt || null;
   content.value = playable;
   await prepareRenderer();
 }
@@ -180,6 +184,7 @@ async function loadByDraft(draftId: string) {
   const playable = playableFromPayload(payload);
   if (!playable) throw new Error('NO_PLAYABLE_CONTENT');
   resetPlaybackState();
+  entryPrompt.value = null;
   content.value = playable;
   await prepareRenderer();
 }
@@ -410,6 +415,7 @@ onUnmounted(() => {
           <span>{{ contentCopy.player.sound }}</span>
         </button>
       </transition>
+      <OsEntryPrompt :prompt="entryPrompt" />
     </section>
 
     <section v-else-if="content" class="video-stage" :aria-label="title" @click="handleStageClick">
@@ -443,6 +449,7 @@ onUnmounted(() => {
           {{ contentCopy.player.replay }}
         </button>
       </transition>
+      <OsEntryPrompt :prompt="entryPrompt" />
     </section>
   </main>
 </template>

@@ -1,20 +1,54 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
-import { clearToken, getConfig, getProfile, isLoggedIn } from '../api';
+import { clearToken, fetchAssetInstances, getProfile, isLoggedIn } from '../api';
 import { commonCopy } from '../copy';
+import { ASSET_CHANGED_EVENT, AUTH_CHANGED_EVENT } from '../events/appEvents';
+import { getPrimaryNavigation, PRIMARY_NAV_ROUTES, type PrimaryNavItemId } from '../navigation/siteNavigation';
 import LoginModal from './LoginModal.vue';
 
 const router = useRouter();
 const showLogin = ref(false);
 const username = ref('');
 const showDropdown = ref(false);
-const communityEnabled = ref(false);
-const wishlistEnabled = ref(false);
+const hasOwnedAssets = ref(false);
+
+const navLabelById: Record<PrimaryNavItemId, string> = {
+  home: commonCopy.nav.home,
+  space: commonCopy.nav.assets,
+  shop: commonCopy.nav.shop,
+  studio: commonCopy.nav.studio,
+  official: commonCopy.nav.official,
+};
+
+const navItems = computed(() => getPrimaryNavigation({
+  isLoggedIn: Boolean(username.value),
+  hasOwnedAssets: hasOwnedAssets.value,
+  isAdmin: username.value === 'admin',
+}).map(id => ({
+  id,
+  label: navLabelById[id],
+  to: PRIMARY_NAV_ROUTES[id],
+  title: id === 'official' ? commonCopy.nav.officialTitle : navLabelById[id],
+})));
+
+const refreshAssetState = async () => {
+  if (!isLoggedIn()) {
+    hasOwnedAssets.value = false;
+    return;
+  }
+  try {
+    const rows = await fetchAssetInstances();
+    hasOwnedAssets.value = Array.isArray(rows) && rows.length > 0;
+  } catch {
+    hasOwnedAssets.value = false;
+  }
+};
 
 const checkAuth = async () => {
   if (!isLoggedIn()) {
     username.value = '';
+    hasOwnedAssets.value = false;
     return;
   }
 
@@ -24,20 +58,7 @@ const checkAuth = async () => {
   } catch {
     username.value = '';
   }
-};
-
-const loadFeatureFlags = async () => {
-  try {
-    const [community, wishlist] = await Promise.all([
-      getConfig('community_enabled'),
-      getConfig('wishlist_enabled'),
-    ]);
-    communityEnabled.value = community.value === 'true' || community.value === true;
-    wishlistEnabled.value = wishlist.value === 'true' || wishlist.value === true;
-  } catch {
-    communityEnabled.value = false;
-    wishlistEnabled.value = false;
-  }
+  await refreshAssetState();
 };
 
 const logout = () => {
@@ -54,6 +75,7 @@ const openLogin = () => {
 const onLoginSuccess = (user: { username: string }) => {
   username.value = user.username;
   showLogin.value = false;
+  checkAuth();
 };
 
 const toggleDropdown = () => {
@@ -69,12 +91,15 @@ const closeDropdown = (e: MouseEvent) => {
 
 onMounted(() => {
   checkAuth();
-  loadFeatureFlags();
   document.addEventListener('click', closeDropdown);
+  window.addEventListener(AUTH_CHANGED_EVENT, checkAuth);
+  window.addEventListener(ASSET_CHANGED_EVENT, refreshAssetState);
 });
 
 onUnmounted(() => {
   document.removeEventListener('click', closeDropdown);
+  window.removeEventListener(AUTH_CHANGED_EVENT, checkAuth);
+  window.removeEventListener(ASSET_CHANGED_EVENT, refreshAssetState);
 });
 
 defineExpose({ openLogin });
@@ -86,33 +111,19 @@ defineExpose({ openLogin });
       <router-link to="/" class="navbar-brand">{{ commonCopy.brand }}</router-link>
 
       <nav class="navbar-links">
-        <router-link to="/assets" class="nav-link nav-link--space" :title="commonCopy.nav.assets">
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4 7v7c0 4 3.5 6.5 8 7 4.5-.5 8-3 8-7V7l-8-4Z"/><path d="M9 12h6"/><path d="M12 9v6"/></svg>
-          <span class="nav-label">{{ commonCopy.nav.assets }}</span>
-        </router-link>
-
-        <router-link to="/shop" class="nav-link" :title="commonCopy.nav.shop">
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
-          <span class="nav-label">{{ commonCopy.nav.shop }}</span>
-        </router-link>
-
-        <router-link v-if="communityEnabled" to="/community" class="nav-link" :title="commonCopy.nav.community">
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21l1.9-5.7a8.5 8.5 0 1 1 3.8 3.8z"/></svg>
-          <span class="nav-label">{{ commonCopy.nav.community }}</span>
-        </router-link>
-
-        <router-link v-if="wishlistEnabled" to="/wishlist" class="nav-link" :title="commonCopy.nav.wishlist">
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>
-          <span class="nav-label">{{ commonCopy.nav.wishlist }}</span>
-        </router-link>
-
-        <router-link to="/mint" class="nav-link nav-link--creator" title="Mint Studio">
-          <span class="nav-label">Mint Studio</span>
-        </router-link>
-
-        <router-link v-if="username === 'admin'" to="/official" class="nav-link nav-link--official" :title="commonCopy.nav.officialTitle">
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
-          <span class="nav-label">{{ commonCopy.nav.official }}</span>
+        <router-link
+          v-for="item in navItems"
+          :key="item.id"
+          :to="item.to"
+          class="nav-link"
+          :class="[`nav-link--${item.id}`]"
+          :title="item.title"
+        >
+          <svg v-if="item.id === 'home'" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11 12 3l9 8"/><path d="M5 10v10h14V10"/><path d="M9 20v-6h6v6"/></svg>
+          <svg v-else-if="item.id === 'space'" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4 7v7c0 4 3.5 6.5 8 7 4.5-.5 8-3 8-7V7l-8-4Z"/><path d="M9 12h6"/><path d="M12 9v6"/></svg>
+          <svg v-else-if="item.id === 'shop'" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+          <svg v-else-if="item.id === 'official'" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+          <span class="nav-label">{{ item.label }}</span>
         </router-link>
       </nav>
 
@@ -125,7 +136,6 @@ defineExpose({ openLogin });
           <Transition name="dropdown">
             <div v-if="showDropdown" class="nav-dropdown">
               <div class="dropdown-user">{{ username }}</div>
-              <router-link to="/assets" class="dropdown-item" @click="showDropdown = false">{{ commonCopy.nav.assets }}</router-link>
               <router-link to="/appeals" class="dropdown-item" @click="showDropdown = false">{{ commonCopy.nav.appeals }}</router-link>
               <router-link to="/account" class="dropdown-item" @click="showDropdown = false">{{ commonCopy.nav.account }}</router-link>
               <button class="dropdown-item dropdown-item--danger" @click="logout">{{ commonCopy.nav.logout }}</button>
@@ -209,7 +219,7 @@ defineExpose({ openLogin });
   color: var(--wm-accent);
 }
 
-.nav-link--creator {
+.nav-link--studio {
   border: 1px solid var(--wm-line);
   color: var(--wm-accent);
 }
@@ -223,7 +233,7 @@ defineExpose({ openLogin });
   background: var(--wm-surface-soft);
 }
 
-.nav-link--creator:hover {
+.nav-link--studio:hover {
   background: var(--wm-accent-soft);
 }
 

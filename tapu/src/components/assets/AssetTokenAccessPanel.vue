@@ -7,6 +7,7 @@ defineProps<{
   bindError: boolean;
   hasSuggestedDefault: boolean;
   isEmptySpace: boolean;
+  recovery?: { title: string; body: string } | null;
 }>();
 
 defineEmits<{
@@ -14,6 +15,8 @@ defineEmits<{
   (event: 'smart-bind'): void;
   (event: 'bind-entity'): void;
   (event: 'close'): void;
+  (event: 'appeal'): void;
+  (event: 'switch-account'): void;
 }>();
 </script>
 
@@ -52,7 +55,20 @@ defineEmits<{
       {{ userCopy.assets.bindCard.entityOnly }}
     </button>
 
-    <p v-if="bindMsg" :class="['asset-inline-message', { 'asset-inline-message--error': bindError }]">
+    <div v-if="recovery" class="mint-space-permission-recovery">
+      <strong>{{ recovery.title }}</strong>
+      <p>{{ recovery.body }}</p>
+      <div>
+        <button type="button" class="asset-small-primary" @click="$emit('switch-account')">
+          {{ userCopy.assets.permissionRecovery.switchAccount }}
+        </button>
+        <button type="button" class="asset-small-ghost" @click="$emit('appeal')">
+          {{ userCopy.assets.permissionRecovery.appeal }}
+        </button>
+      </div>
+    </div>
+
+    <p v-else-if="bindMsg" :class="['asset-inline-message', { 'asset-inline-message--error': bindError }]">
       {{ bindMsg }}
     </p>
   </section>

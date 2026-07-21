@@ -30,8 +30,8 @@ function ensureIpDefinitionBackfill(db) {
   db.run(
     `INSERT OR IGNORE INTO ip_definitions
      (id, code, name, creator_user_id, primary_series_key, primary_series_name, description, story, designer, material,
-      size_label, rarity_label, price, stock_limit, crowdfund_goal, crowdfund_deadline, cover_url, hero_url,
-      product_image_url, external_purchase_url, display_tags_json, theme_color, extra_json, status)
+      size_label, rarity_label, cover_url, hero_url, product_image_url, external_purchase_url, display_tags_json,
+      theme_color, extra_json, status)
      SELECT g.id,
             lower(replace(g.name, ' ', '-')),
             g.name,
@@ -44,10 +44,6 @@ function ensureIpDefinitionBackfill(db) {
             g.material,
             g.size_label,
             g.rarity_label,
-            COALESCE(g.price, 0),
-            COALESCE(g.stock_limit, 0),
-            COALESCE(g.crowdfund_goal, 0),
-            g.crowdfund_deadline,
             g.cover_url,
             g.hero_url,
             g.product_image_url,

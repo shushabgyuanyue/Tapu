@@ -24,6 +24,7 @@ import {
   buildContentPreviewRoute,
   inferContentRenderer,
 } from '../services/contentRenderingProtocol.js';
+import { buildOsEntryPrompt } from '../services/osEntryPrompt.js';
 import { resultToObjects } from '../services/tokens.js';
 
 const router = Router();
@@ -135,31 +136,31 @@ export function resolveDefaultContentForIpInstance(db, ipInstance) {
 async function getContentDetail(req, res) {
   try {
     const content = getContentInstance(req.permission.db, req.params.id);
-    if (!content) return res.status(404).json({ error: 'Content not found' });
+    if (!content) return res.status(404).json({ error: serverMessages.routes.common.contentNotFound });
     if (!canViewContent(req, content)) {
-      return res.status(403).json({ error: 'Content is not available' });
+      return res.status(403).json({ error: serverMessages.routes.common.contentUnavailable });
     }
 
     res.json(buildContentDetailPayload(req, content));
   } catch (error) {
     console.error('Get content detail error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: serverMessages.routes.common.internalServerError });
   }
 }
 
 async function resolvePlayableContentByToken(req, res) {
   try {
     const key = cleanString(req.query.key || req.body?.key);
-    if (!key) return res.status(400).json({ error: 'key is required', code: 'TOKEN_REQUIRED' });
+    if (!key) return res.status(400).json({ error: serverMessages.routes.common.keyRequired, code: 'TOKEN_REQUIRED' });
 
     const db = req.permission.db;
     const ipInstance = getIpInstanceByToken(db, key);
-    if (!ipInstance) return res.status(404).json({ error: 'IP instance not found', code: 'IP_INSTANCE_NOT_FOUND' });
+    if (!ipInstance) return res.status(404).json({ error: serverMessages.permissions.entityNotFound, code: 'IP_INSTANCE_NOT_FOUND' });
 
     const linkedContent = resolveDefaultContentForIpInstance(db, ipInstance);
     if (!linkedContent) {
       return res.status(404).json({
-        error: 'No playable content is bound to this IP instance',
+        error: serverMessages.routes.common.noPlayableContent,
         code: 'PLAYABLE_CONTENT_NOT_FOUND',
       });
     }
@@ -167,7 +168,7 @@ async function resolvePlayableContentByToken(req, res) {
     const content = getContentInstance(db, linkedContent.id);
     if (!content || content.status !== 'published') {
       return res.status(404).json({
-        error: 'Playable content is not available',
+        error: serverMessages.routes.common.playableContentUnavailable,
         code: 'PLAYABLE_CONTENT_NOT_AVAILABLE',
       });
     }
@@ -221,24 +222,32 @@ async function resolvePlayableContentByToken(req, res) {
         ip_definition_id: ipInstance.ip_definition_id,
         display_name: ipInstance.ip_definition_name || ipInstance.label || null,
         application_code: ipInstance.application_code || content.application_code || null,
+        bound: !!ipInstance.owner_user_id,
       },
       default_content_id: content.id,
       runtime_context: runtimeContext,
+      entry_prompt: buildOsEntryPrompt({
+        db,
+        surface: 'nfc_player',
+        appCode,
+        object: ipInstance,
+        token: ipInstance.token || ipInstance.entity_key || key,
+      }),
     });
   } catch (error) {
     console.error('Resolve playable content by token error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: serverMessages.routes.common.internalServerError });
   }
 }
 
 async function getContentAuthoringContext(req, res) {
   try {
     const recipe = buildContentAuthoringRecipe(req.permission.db, req.params.id, req.query.mode);
-    if (!recipe) return res.status(404).json({ error: 'Content not found' });
+    if (!recipe) return res.status(404).json({ error: serverMessages.routes.common.contentNotFound });
     res.json(recipe);
   } catch (error) {
     console.error('Get content authoring context error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: serverMessages.routes.common.internalServerError });
   }
 }
 
@@ -255,7 +264,7 @@ async function createDraftVersion(req, res) {
       createdBy: req.user?.id || null,
       allowAdmin: req.user?.username === 'admin',
     });
-    if (!draft) return res.status(404).json({ error: 'Content not found' });
+    if (!draft) return res.status(404).json({ error: serverMessages.routes.common.contentNotFound });
     saveDb();
     res.json({
       success: true,
@@ -275,7 +284,7 @@ async function createDraftVersion(req, res) {
     });
   } catch (error) {
     console.error('Create content version draft error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: serverMessages.routes.common.internalServerError });
   }
 }
 
@@ -286,7 +295,7 @@ async function publishDraftVersion(req, res) {
       versionId: req.params.versionId,
       publishedBy: req.user?.id || null,
     });
-    if (!version) return res.status(404).json({ error: 'Version not found' });
+    if (!version) return res.status(404).json({ error: serverMessages.routes.common.versionNotFound });
     saveDb();
     res.json({
       success: true,
@@ -304,7 +313,7 @@ async function publishDraftVersion(req, res) {
     });
   } catch (error) {
     console.error('Publish content version error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: serverMessages.routes.common.internalServerError });
   }
 }
 
@@ -316,7 +325,7 @@ async function deleteContentInstance(req, res) {
     res.json({ success: true, deleted });
   } catch (error) {
     console.error('Delete content instance error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: serverMessages.routes.common.internalServerError });
   }
 }
 
@@ -325,7 +334,7 @@ registerRoutes(router, [
     operation: 'view:open',
     summary: 'Resolve the default core content instance for an IP instance token.',
     query: { key: 'string' },
-    response: { content: 'object', object: 'object', default_content_id: 'string', runtime_context: 'object' },
+    response: { content: 'object', object: 'object', default_content_id: 'string', runtime_context: 'object', entry_prompt: 'object?' },
     errors: ['TOKEN_REQUIRED', 'IP_INSTANCE_NOT_FOUND', 'PLAYABLE_CONTENT_NOT_FOUND'],
     tags: ['content', 'touch', 'os'],
   }),

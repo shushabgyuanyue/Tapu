@@ -17,9 +17,7 @@ const form = reactive({
   carrier: 'NFC 贴纸',
   material: '',
   size: '',
-  price: '',
-  stock: '',
-  crowdfund: '否',
+  inviteChannel: '',
   shopFocus: '',
   visualNeeds: '',
   appName: '',
@@ -81,9 +79,7 @@ const intake = computed(() => ({
       carrier: form.carrier,
       material: yamlValue(form.material),
       size: yamlValue(form.size),
-      price: yamlValue(form.price, '待定'),
-      stock: yamlValue(form.stock, '待定'),
-      crowdfund: form.crowdfund,
+      invite_channel: yamlValue(form.inviteChannel, '外部渠道'),
     },
     shop: {
       focus: linesOf(form.shopFocus),
@@ -138,9 +134,7 @@ ${yamlList(linesOf(form.forbiddenTone))}
 - 实体媒介：${form.carrier}
 - 材质：${yamlValue(form.material)}
 - 规格：${yamlValue(form.size)}
-- 价格：${yamlValue(form.price, '待定')}
-- 库存：${yamlValue(form.stock, '待定')}
-- 是否众筹：${form.crowdfund}
+- 外部邀请渠道：${yamlValue(form.inviteChannel, '外部渠道')}
 - 商品展示重点：
 ${yamlList(linesOf(form.shopFocus))}
 - 封面 / 主视觉需求：
@@ -223,9 +217,7 @@ const loadEarphoneExample = () => {
     carrier: 'NFC 贴纸',
     material: 'NFC 贴纸 / 耳机贴纸',
     size: '轻量贴纸',
-    price: '待定',
-    stock: '待定',
-    crowdfund: '否',
+    inviteChannel: '外部渠道，用户拿到 token 后回到 Mint Space 接入',
     shopFocus: '声音陪伴\n手账感视觉\n跨 IP 关系入口',
     visualNeeds: '生活插画\n声音可视化\n留白\n柔和但不幼稚',
     appName: '耳机小姐 · 故事空间',
@@ -295,10 +287,8 @@ const loadEarphoneExample = () => {
           <div class="field-grid">
             <label>材质<input v-model="form.material" /></label>
             <label>规格<input v-model="form.size" /></label>
-            <label>价格<input v-model="form.price" placeholder="待定即可" /></label>
-            <label>库存<input v-model="form.stock" placeholder="待定即可" /></label>
           </div>
-          <label>是否众筹<select v-model="form.crowdfund"><option>否</option><option>是</option><option>待定</option></select></label>
+          <label>外部邀请渠道<input v-model="form.inviteChannel" placeholder="例如：外部渠道，收到 token 后回到 Mint Space 接入" /></label>
           <label>商品展示重点<textarea v-model="form.shopFocus" rows="3" placeholder="一行一个" /></label>
           <label>封面 / 主视觉需求<textarea v-model="form.visualNeeds" rows="3" placeholder="一行一个" /></label>
         </section>

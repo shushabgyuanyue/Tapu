@@ -2,6 +2,7 @@
 import { computed } from 'vue';
 import type { MintSpacePartner, MintSpaceProfile } from '../../api/assets';
 import { userCopy } from '../../copy';
+import mintSpacePortraitImage from '../../IPimg/img/mint-space-collage.jpg';
 
 const props = defineProps<{
   profile: MintSpaceProfile['profile'] | null;
@@ -22,14 +23,9 @@ const portraitStyle = computed(() => {
   };
 });
 
-function partnerStyle(partner: MintSpacePartner) {
-  return {
-    '--partner-x': `${partner.collage?.x ?? 50}%`,
-    '--partner-y': `${partner.collage?.y ?? 50}%`,
-    '--partner-scale': String(partner.collage?.scale ?? 1),
-    '--partner-tone': partner.themeColor || '#34c5d2',
-  };
-}
+const profileTitle = computed(() => props.profile?.title || userCopy.assets.mintSpace.title);
+
+const portraitAlt = computed(() => profileTitle.value || userCopy.assets.mintSpace.title);
 </script>
 
 <template>
@@ -40,23 +36,12 @@ function partnerStyle(partner: MintSpacePartner) {
     </button>
 
     <div class="mint-space-portrait__stage">
-      <div class="mint-space-portrait__avatar">
-        <span>{{ userCopy.assets.mintSpace.you }}</span>
-      </div>
-
-      <figure
-        v-for="partner in partners"
-        :key="partner.id"
-        class="mint-space-portrait__partner"
-        :style="partnerStyle(partner)"
-      >
-        <img :src="partner.image" :alt="partner.name" />
-      </figure>
+      <img class="mint-space-portrait__image" :src="mintSpacePortraitImage" :alt="portraitAlt" />
     </div>
 
     <div class="mint-space-portrait__body">
       <span class="asset-eyebrow">{{ userCopy.assets.mintSpace.portraitEyebrow }}</span>
-      <h2>{{ profile?.title || userCopy.assets.mintSpace.title }}</h2>
+      <h2>{{ profileTitle }}</h2>
       <p>{{ profile?.description || profile?.summary || userCopy.assets.mintSpace.emptySummary }}</p>
 
       <div class="mint-space-personality">

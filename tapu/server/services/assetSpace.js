@@ -22,14 +22,21 @@ export function listUserAssetInstances(db, userId) {
   return resultToObjects(db.exec(
     `SELECT e.*, d.name as group_name, d.primary_series_key as series_id, d.primary_series_name as series_name,
             d.cover_url, d.hero_url, d.product_image_url, d.description, d.rarity_label, d.theme_color,
-            a.code as application_code, a.name as application_name
+            a.code as application_code, a.name as application_name,
+            (
+              SELECT MAX(oe.created_at)
+              FROM entity_ownership_events oe
+              WHERE oe.entity_id = e.id
+                AND oe.event_type = 'transfer'
+                AND oe.to_user_id = ?
+            ) as received_transfer_at
      FROM ip_instances e
      LEFT JOIN ip_definitions d ON e.ip_definition_id = d.id
      LEFT JOIN application_definitions a ON a.id = e.application_definition_id
      WHERE e.owner_user_id = ?
        AND COALESCE(e.instance_type, 'physical') != 'official_demo'
      ORDER BY e.created_at DESC`,
-    [userId]
+    [userId, userId]
   ));
 }
 
@@ -161,8 +168,8 @@ export function setAssetInstanceDefaultContent(db, params = {}) {
     error.status = 400;
     throw error;
   }
-  if (!['published', 'processing', 'draft'].includes(contentRows[0].status)) {
-    const error = new Error(serverMessages.routes.common.contentUnavailableForDefault);
+  if (contentRows[0].status !== 'published') {
+    const error = new Error(serverMessages.routes.common.publishedContentOnly);
     error.status = 400;
     throw error;
   }

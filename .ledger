@@ -383,3 +383,23 @@ entrypoint: tapu/src/main.ts
 - post-mortem:
   - Copy governance needs to include backend error text because the frontend often surfaces API `error` directly.
   - The current branch remains `tapu-master`; this sprint follows the established direct closeout context from the previous merged increments rather than attempting a late branch split over an already accumulated worktree.
+
+## 2026-07-22 Codex Increment 19
+
+- domain: shop, frontend, backend, permissions, engineering-governance
+- ref: `71c5b7e`
+- branch_context: `evo/shop-core-refactor`; this round closes the Shop core refactor without merging or pushing.
+- todo:
+  - [x] Rebuild Shop around public IP discovery, application introduction, official experience preview, and external invitation entry.
+  - [x] Remove customer-facing community, wishlist, purchase, presale, stock, and crowdfunding flows that conflicted with the current Shop role.
+  - [x] Add meaningful Shop discovery filters for application, IP temperament tags, official experiences, invitation entry, and keyword search.
+  - [x] Move public Shop reads to `/api/shop/ips` and share the catalog query through `shopCatalog` instead of letting the frontend depend on legacy `/groups`.
+  - [x] Register `shop:discover` as a first-class operation contract and document it in the interface contract catalog.
+  - [x] Keep Shop copy in `tapu/src/copy/shop.ts` and keep touched Shop files under the 500-line governance threshold.
+- evidence:
+  - `npm run check:quality`
+  - `npm run build`
+  - HTTP smoke: `GET http://localhost:5173/shop` returned 200.
+- post-mortem:
+  - `/api/groups` remains as a management/compatibility route for official IP configuration, but the public Shop surface no longer calls it directly.
+  - Remaining large-file warnings are pre-existing soft reports outside this Shop slice.

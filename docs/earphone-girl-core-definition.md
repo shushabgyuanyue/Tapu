@@ -67,16 +67,10 @@
 | `size_label` | `轻量贴纸` | 实体规格标签。 |
 | `rarity_label` | `官方核心 IP` | 资产定位。 |
 | `nfc_type` | `sticker_nfc` | 物理识别类型。 |
-| `price` | `0` | 定义层先不冻结售价，商品售卖价格由正式发售配置覆盖。 |
-| `currency_code` | `CNY` | 币种。 |
-| `stock_limit` | `0` | `0` 表示未在定义层限制库存，后续按发售批次配置。 |
-| `crowdfund_goal` | `0` | 当前不走众筹时置 `0`。 |
-| `crowdfund_deadline` | `NULL` | 无众筹截止时间。 |
-| `sale_mode` | `direct` | 默认直售。 |
 | `cover_url` | `/ip/earphone-girl/cover.png` | 商城封面。 |
 | `hero_url` | `/ip/earphone-girl/hero.png` | 详情页主视觉。 |
 | `product_image_url` | `/ip/earphone-girl/product.png` | 实物展示图。 |
-| `external_purchase_url` | `NULL` | 站内售卖时为空。 |
+| `external_purchase_url` | `NULL` | 外部邀请入口，可为空；站内暂不承载交易、价格、库存和众筹状态。 |
 | `display_tags_json` | `["官方核心IP","故事空间","声音陪伴","关系联动"]` | 商城标签。 |
 | `theme_color` | `#D98FB7` | 主题色建议，偏茉莉雨声系。 |
 | `physical_spec_json` | 见下方 | 实体规格补充。 |
@@ -346,7 +340,7 @@
 ```json
 {
   "openRoute": "/sticker",
-  "shopDetailRoute": "/community/ip/:id",
+  "shopDetailRoute": "/shop/ip/:id",
   "studioRoute": "/mint-studio",
   "adminRoute": "/official/applications",
   "relatedIpOpenMode": "new_page",

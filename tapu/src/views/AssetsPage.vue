@@ -6,6 +6,7 @@ import AssetDefaultHint from '../components/assets/AssetDefaultHint.vue';
 import AssetLoginGuide from '../components/assets/AssetLoginGuide.vue';
 import AssetSpaceCanvas from '../components/assets/AssetSpaceCanvas.vue';
 import AssetTokenAccessPanel from '../components/assets/AssetTokenAccessPanel.vue';
+import MintSpaceEmptyGateway from '../components/assets/MintSpaceEmptyGateway.vue';
 import { useAssetSpace } from '../composables/useAssetSpace';
 import { userCopy } from '../copy';
 import '../styles/assetsSpace.css';
@@ -53,16 +54,32 @@ function openPartnerDetail(partner: { id: string }) {
       </section>
 
       <template v-else>
+        <MintSpaceEmptyGateway
+          v-if="assets.isMintSpaceEmpty.value"
+          v-model:bind-key="assets.bindKey.value"
+          :profile="assets.mintSpaceProfile.value"
+          :bind-msg="assets.bindMsg.value"
+          :bind-error="assets.bindError.value"
+          :recovery="assets.permissionRecovery.value"
+          @bind="assets.handleSmartBind"
+          @shop="assets.openShop"
+          @appeal="assets.openAppealForCurrentToken"
+          @switch-account="assets.switchAccountForCurrentToken"
+        />
+
         <AssetTokenAccessPanel
-          v-if="showTokenPanel || assets.bindKey.value || assets.suggestedDefaultContentId.value || assets.isMintSpaceEmpty.value"
+          v-else-if="showTokenPanel || assets.bindKey.value || assets.suggestedDefaultContentId.value"
           ref="tokenPanelRef"
           v-model:bind-key="assets.bindKey.value"
           :bind-msg="assets.bindMsg.value"
           :bind-error="assets.bindError.value"
           :has-suggested-default="!!assets.suggestedDefaultContentId.value"
           :is-empty-space="assets.isMintSpaceEmpty.value"
+          :recovery="assets.permissionRecovery.value"
           @smart-bind="assets.handleSmartBind"
           @bind-entity="assets.handleBindEntity"
+          @appeal="assets.openAppealForCurrentToken"
+          @switch-account="assets.switchAccountForCurrentToken"
           @close="showTokenPanel = false"
         />
 
@@ -71,7 +88,19 @@ function openPartnerDetail(partner: { id: string }) {
           :content-id-label="assets.formatContentId(assets.suggestedDefaultContentId.value)"
         />
 
+        <section v-if="assets.transferredInInstance.value" class="mint-space-panel asset-transfer-welcome">
+          <div>
+            <span class="asset-eyebrow asset-eyebrow--dark">Transfer</span>
+            <strong>{{ userCopy.assets.transferWelcome.title }}</strong>
+            <p>{{ userCopy.assets.transferWelcome.body }}</p>
+          </div>
+          <button type="button" class="asset-small-primary" @click="assets.acknowledgeTransferWelcome">
+            {{ userCopy.assets.transferWelcome.action }}
+          </button>
+        </section>
+
         <AssetSpaceCanvas
+          v-if="!assets.isMintSpaceEmpty.value"
           :profile="assets.mintSpaceProfile.value"
           @bind="focusBindEntrance"
           @shop="assets.openShop"

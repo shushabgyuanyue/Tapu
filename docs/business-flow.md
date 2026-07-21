@@ -32,7 +32,7 @@ WhatMint 不是单纯的 NFC 产品，而是帮助用户邀请有灵的存在进
 |------|----------|----------|
 | NFC 播放公开内容 | 否 | 只需要 token |
 | 查看私有内容 | 是 | 必须是实体持有账号或 admin |
-| 未绑定 token 设置默认内容 | 否 | 凭 token，只允许公开 ready 内容 |
+| 未绑定 token 设置默认内容 | 否 | 凭 token，只允许已发布且可播放内容 |
 | 已绑定实体设置默认内容 | 是 | 必须是实体持有账号或 admin |
 | 创建普通内容 | 是 | 通过创作中心和内容定义创建 |
 | 创建并绑定物件内容 | 是 | 未绑定物件需提供 token；已绑定物件需持有账号或 admin |
@@ -121,7 +121,7 @@ IP 定义，例如纸巾小狗、耳机小姐。包含实体信息、商品信�
 | API 封装 | `tapu/src/api/index.ts` |
 | Mint Space 页面 | `tapu/src/views/AssetsPage.vue` |
 | 内容详情直写 token | `tapu/src/views/ContentDetailPage.vue` |
-| 商城展示页 | `tapu/src/views/ShopPage.vue`、`tapu/src/components/shop/ShopFilterBar.vue`、`tapu/src/components/shop/ShopProductCard.vue` |
+| 商城展示页 | `tapu/src/views/ShopPage.vue`、`tapu/src/views/ShopIpDetailPage.vue`、`tapu/src/components/shop/ShopProductCard.vue` |
 | 耳机小姐故事空间 | `tapu/src/views/EarphoneGirlPage.vue` |
 | NFC 播放器 | `tapu/src/views/PlayerView.vue` |
 | 官方订单页 | `tapu/src/views/official/OrderManage.vue` |
@@ -157,10 +157,10 @@ IP 定义，例如纸巾小狗、耳机小姐。包含实体信息、商品信�
 - 私有内容必须登录对应账号才能看；匿名 NFC 不会直接播放私有内容。这是安全规则，不是 bug。
 - 外部订单真实买家信息暂未建模；当前订单的 `buyer_user_id` 表示后台录入人。
 - 订单状态目前只粗略表示 `pending/shipped/completed`，NFC 写入和 token 发放已用独立时间字段记录。
-- 购买不在平台内完成，商城和心愿单只做展示与用户教育。
-- 社区和心愿单默认关闭，由官方管理开关控制。
+- 购买不在平台内完成，商城只做 IP 介绍、应用体验和外部邀请入口。
+- 社区和心愿单已退出第一版主路径，不再保留前台开关和独立页面。
 - `/assets` 作为 Mint Space 路径保留，提供“接入新 IP / 接入 token”能力；同一输入框会围绕实体 IP token 处理绑定。
-- 商城页已拆出 `ShopFilterBar` 与 `ShopProductCard`，页面本体保留数据编排和业务动作；后续扩展商品信息时优先扩展组件，不要把卡片逻辑写回页面。
+- 商城页已收敛为 `ShopPage` + `ShopProductCard` + `ShopIpDetailPage`，后续扩展 IP 介绍、应用体验和邀请入口时优先扩展组件，不要恢复社区、心愿单或站内交易分支。
 - 耳机小姐故事空间按实例级故事队列推进，联动副轨不覆盖主故事队列。
 - 登录头像菜单中的 `/assets` 入口对客显示为 Mint Space；实体管理能力下沉到伙伴详情。
 - Mint Space 与 IP 详情页已收敛大图、阴影和 hero 高度，让 `/assets` 从展柜转向可进入体验、创作和管理的生态入口。
@@ -195,4 +195,4 @@ IP 定义，例如纸巾小狗、耳机小姐。包含实体信息、商品信�
 ### 前端维护建议
 
 - `AssetsPage.vue` 已拆为 Mint Space 编排层；后续继续开发资产域时复用 `components/assets/*` 和 `useAssetSpace`。
-- `IPDetailPage.vue` 仍超过 500 行，后续建议拆 hero、故事档案、规格、内容预览。
+- `ShopIpDetailPage.vue` 是新的核心商城详情页；后续扩展优先拆 hero、故事档案、规格、内容预览组件，不恢复旧社区详情。

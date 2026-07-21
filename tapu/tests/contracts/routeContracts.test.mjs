@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { CRITICAL_PERMISSION_FLOWS } from '../../server/contracts/criticalPermissionFlows.js';
 import { getOperationPolicy } from '../../server/contracts/operations.js';
 import { getRoutePermissionMap } from '../../server/contracts/routePermissionMap.js';
@@ -64,5 +65,20 @@ test('light app open routes declare standard runtime context', () => {
     assert.ok(route, `missing light app open route ${key}`);
     assert.equal(route.operation, 'view:open', `${key} should be a view:open operation`);
     assert.equal(route.response?.runtime_context, 'object', `${key} should declare runtime_context`);
+  }
+});
+
+test('core tap entry routes record operations before events', () => {
+  const routeFiles = [
+    'server/routes/contents.js',
+    'server/routes/earphoneGirl.js',
+    'server/routes/answerBook.js',
+  ];
+
+  for (const file of routeFiles) {
+    const source = readFileSync(new URL(`../../${file}`, import.meta.url), 'utf8');
+    assert.match(source, /recordObjectOperation/, `${file} should record touch facts as operations`);
+    assert.match(source, /runOperationPipeline/, `${file} should run the OS operation pipeline`);
+    assert.doesNotMatch(source, /recordObjectEvent/, `${file} should not write core events directly from tap resolve`);
   }
 });

@@ -2,71 +2,42 @@
 import { shopCopy } from '../../copy';
 
 defineProps<{
-  group: any;
+  ip: any;
   image: string;
   tags: string[];
-  statusText: string;
-  priceText: string;
-  progress: number;
-  wishlistEnabled: boolean;
-  inWishlist: boolean;
-  wishlistCount: number;
 }>();
 
 defineEmits<{
-  openDetail: [group: any];
-  externalPurchase: [group: any];
-  pledge: [group: any];
-  addWishlist: [group: any];
+  openDetail: [ip: any];
+  externalPurchase: [ip: any];
 }>();
 </script>
 
 <template>
   <article class="shop-card">
-    <button class="product-stage" @click="$emit('openDetail', group)">
-      <span class="status-tag" :class="group.sale_status">{{ statusText }}</span>
-      <img :src="image" :alt="group.name" />
+    <button class="product-stage" @click="$emit('openDetail', ip)">
+      <span class="status-tag">{{ ip.application_name || shopCopy.card.defaultApp }}</span>
+      <img :src="image" :alt="ip.name" />
     </button>
 
     <div class="card-body">
       <div class="card-title-row">
         <div>
-          <span class="series-name">{{ group.series_name || group.application_name || 'WhatMint' }}</span>
-          <h2>{{ group.name }}</h2>
+          <span class="series-name">{{ ip.series_name || ip.application_name || 'WhatMint' }}</span>
+          <h2>{{ ip.name }}</h2>
         </div>
-        <strong>{{ priceText }}</strong>
       </div>
 
-      <p>{{ group.description || shopCopy.card.fallbackDescription }}</p>
+      <p>{{ ip.description || shopCopy.card.fallbackDescription }}</p>
 
       <div class="tag-list">
         <span v-for="tag in tags" :key="tag">{{ tag }}</span>
       </div>
 
-      <div class="progress-row" v-if="group.stock_limit > 0 || group.crowdfund_goal > 0">
-        <div class="progress-track">
-          <div class="progress-fill" :class="{ crowd: group.sale_status === 'crowdfunding' }" :style="{ width: progress + '%' }"></div>
-        </div>
-        <span v-if="group.stock_limit > 0">{{ shopCopy.card.issued(group.entity_count || 0, group.stock_limit) }}</span>
-        <span v-else>{{ shopCopy.card.crowdfundProgress(group.pledge_count || 0, group.crowdfund_goal) }}</span>
-      </div>
-
       <div class="shop-actions">
-        <button class="primary-action" @click="$emit('openDetail', group)">{{ shopCopy.card.detail }}</button>
-        <button v-if="group.sale_status === 'purchasable'" class="secondary-action" @click="$emit('externalPurchase', group)">{{ shopCopy.card.externalPurchase }}</button>
-        <button v-else-if="group.sale_status === 'crowdfunding'" class="secondary-action" @click="$emit('pledge', group)">{{ shopCopy.card.pledge }}</button>
-        <button v-else class="secondary-action" disabled>{{ group.sale_status === 'sold_out' ? shopCopy.card.soldOut : shopCopy.card.unavailable }}</button>
+        <button class="primary-action" @click="$emit('openDetail', ip)">{{ shopCopy.card.detail }}</button>
+        <button class="secondary-action" @click="$emit('externalPurchase', ip)">{{ shopCopy.card.externalPurchase }}</button>
       </div>
-
-      <button
-        v-if="wishlistEnabled"
-        class="wish-action"
-        :class="{ active: inWishlist }"
-        @click="$emit('addWishlist', group)"
-      >
-        <span>{{ inWishlist ? shopCopy.card.wishlistAdded : shopCopy.card.wishlistAdd }}</span>
-        <strong>{{ wishlistCount || 0 }}</strong>
-      </button>
     </div>
   </article>
 </template>
@@ -156,17 +127,6 @@ defineEmits<{
   font-weight: 950;
 }
 
-.status-tag.purchasable,
-.status-tag.crowdfund_success {
-  background: rgba(38, 204, 118, 0.22);
-  color: #dfffea;
-}
-
-.status-tag.crowdfunding {
-  background: rgba(255, 184, 107, 0.22);
-  color: #ffe6c4;
-}
-
 .card-body {
   position: relative;
   z-index: 1;
@@ -192,12 +152,6 @@ defineEmits<{
   font-size: 19px;
   line-height: 1.2;
   letter-spacing: -0.03em;
-}
-
-.card-title-row strong {
-  color: #15131f;
-  font-size: 17px;
-  white-space: nowrap;
 }
 
 .card-body p {
@@ -227,31 +181,6 @@ defineEmits<{
   font-weight: 900;
 }
 
-.progress-row {
-  display: grid;
-  gap: 6px;
-  color: #887a90;
-  font-size: 12px;
-  font-weight: 800;
-}
-
-.progress-track {
-  height: 6px;
-  overflow: hidden;
-  border-radius: 999px;
-  background: #f0e7f2;
-}
-
-.progress-fill {
-  height: 100%;
-  border-radius: inherit;
-  background: linear-gradient(90deg, #ff4fd8, #7c4dff);
-}
-
-.progress-fill.crowd {
-  background: linear-gradient(90deg, #ffb86b, #ff4fd8);
-}
-
 .shop-actions {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -259,8 +188,7 @@ defineEmits<{
 }
 
 .primary-action,
-.secondary-action,
-.wish-action {
+.secondary-action {
   min-height: 40px;
   border-radius: 14px;
   font-size: 12px;
@@ -275,42 +203,10 @@ defineEmits<{
   box-shadow: 0 12px 22px rgba(124, 77, 255, 0.20);
 }
 
-.secondary-action,
-.wish-action {
+.secondary-action {
   border: 1px solid #eee5f2;
   color: #34203c;
   background: rgba(255, 255, 255, 0.82);
-}
-
-.secondary-action:disabled {
-  color: #aaa0af;
-  background: #f4eff5;
-  cursor: not-allowed;
-}
-
-.wish-action {
-  display: inline-flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 0 12px;
-  color: #c45193;
-}
-
-.wish-action.active {
-  border-color: #ffd0ef;
-  background: #fff4fb;
-}
-
-.wish-action strong {
-  min-width: 22px;
-  height: 22px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 999px;
-  background: rgba(255, 79, 216, 0.12);
-  font-size: 11px;
 }
 
 @media (max-width: 640px) {

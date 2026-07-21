@@ -18,8 +18,8 @@
 职责：
 
 - 维护 WhatMint 当前情绪 IP 业务闭环。
-- 定义外部购买、官方录入、token 发放、NFC 写入、用户绑定、内容写入、播放体验。
-- 避免把购买、社区、应用技术层过早混进用户主流程。
+- 定义外部邀请、官方录入、token 发放、NFC 写入、用户绑定、内容写入、播放体验。
+- 避免把站内交易、社区和应用技术层过早混进用户主流程。
 
 关键文档：[docs/business-flow.md](docs/business-flow.md)
 
@@ -50,8 +50,8 @@
 职责：
 
 - 首页与用户主路径保持黑/紫/粉情绪 IP 风格。
-- 商城、社区、心愿单拆成独立顶部导航；社区和心愿单默认关闭。
-- 商城商品卡与筛选条已拆为组件，页面本体只负责数据编排和动作分发。
+- 商城是 IP 发现与转化入口，不再保留社区、心愿单和无信息量顶部 tab。
+- 商城卡片已拆为组件，页面本体只负责数据编排和动作分发。
 - 内容详情支持预览、跳转 Mint Space 接入实体、直接输入 token 写入实体默认内容。
 - Mint Space 提供 token 接入、灵境合照、伙伴入口、创作入口、默认内容维护、转赠和解绑；高价值事件留在 OS 历史上下文，不作为 Space 首页列表展示。
 - 日常贴纸触碰页支持分钟级 cron 自动静默刷新，刷新后重新触发内容卡动画。
@@ -62,11 +62,10 @@
 
 - `tapu/src/views/LandingPage.vue`
 - `tapu/src/views/ShopPage.vue`
-- `tapu/src/components/shop/ShopFilterBar.vue`
 - `tapu/src/components/shop/ShopProductCard.vue`
 - `tapu/src/views/AssetsPage.vue`
 - `tapu/src/views/DailyStickerPage.vue`
-- `tapu/src/views/IPDetailPage.vue`
+- `tapu/src/views/ShopIpDetailPage.vue`
 - `tapu/src/views/ContentDetailPage.vue`
 - `tapu/src/views/PlayerView.vue`
 
@@ -131,5 +130,5 @@
 
 ### frontend
 
-- 商城、Mint Space、IP 详情页已继续靠近“高端商城 + 生态空间入口”的视觉方向，并保持首页品牌氛围。
-- 仍需关注体量：`IPDetailPage.vue` 仍是硬债，部分官方管理页和 OS 服务超过 500 行。`AssetsPage.vue` 已拆为 Mint Space 编排、composable、组件和独立样式，后续不要再把流程逻辑写回页面文件。
+- 商城、Mint Space、IP 详情页已继续靠近“邀请新存在 + 生态空间入口”的视觉方向，并保持首页品牌氛围。
+- 仍需关注体量：部分官方管理页和 OS 服务超过 500 行。`AssetsPage.vue` 已拆为 Mint Space 编排、composable、组件和独立样式，后续不要再把流程逻辑写回页面文件。

@@ -3,7 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { getDb, saveDb } from '../db/index.js';
 import { adminRoute, registerRoutes } from '../services/routePermissions.js';
 import { createUniqueToken, normalizeEntityToken, resultToObjects } from '../services/tokens.js';
-import { recordObjectEvent } from '../services/objectEvents.js';
+import { recordObjectOperation, runOperationPipeline } from '../services/contentOperation.js';
 import { resolveObjectByToken } from '../services/objectRegistry.js';
 import { buildAppRuntimeContext } from '../services/appAdapters.js';
 import { buildContentBlocksForAnswerCard, buildTapResponse } from '../services/tapRuntime.js';
@@ -76,20 +76,23 @@ router.get('/resolve', async (req, res) => {
     if (!card) return res.status(404).json({ error: serverMessages.routes.answerBook.emptyDeck });
 
     recordDraw(db, tokenRow, card, req);
-    recordObjectEvent(db, {
+    const operationId = recordObjectOperation(db, {
+      operationType: 'object.touch',
       objectType: resolvedObject.object.type,
       objectId: resolvedObject.object.id,
       tokenId: tokenRow.id,
       token: tokenRow.token,
       appCode: resolvedObject.app.code,
-      eventType: 'answer_draw',
       contentId: card.id,
+      userId: req.user?.id || tokenRow.user_id || null,
       userAgent: req.headers['user-agent'] || null,
       metadata: {
         deckId: tokenRow.deck_id,
+        cardId: card.id,
         excludedCardId: cleanString(req.query.exclude) || null,
       },
     });
+    runOperationPipeline(db, { operationIds: [operationId] });
     saveDb();
     const runtimeContext = buildAppRuntimeContext(db, resolvedObject, {
       userId: req.user?.id || tokenRow.user_id || null,
@@ -137,7 +140,7 @@ router.get('/resolve', async (req, res) => {
     });
   } catch (error) {
     console.error('Resolve answer book error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: serverMessages.routes.common.internalServerError });
   }
 });
 

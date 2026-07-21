@@ -106,7 +106,7 @@ export function buildEarphoneGirlBlocks(content) {
       kind: 'link',
       role: 'gateway',
       label: payload.cta.label,
-      href: payload.cta.href || (targetIpDefinitionId ? `/community/ip/${targetIpDefinitionId}` : ''),
+      href: payload.cta.href || (targetIpDefinitionId ? `/shop/ip/${targetIpDefinitionId}` : ''),
       metadata: {
         targetIpDefinitionId,
         targetType: payload.cta.targetType || null,

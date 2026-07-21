@@ -235,8 +235,8 @@ function buildEntityRecipe(db, row, token) {
           tone: 'primary',
         },
         {
-          code: 'collect_asset',
-          label: mintStudioCopy.entityRecipe.collectAsset,
+          code: 'claim_entity',
+          label: mintStudioCopy.entityRecipe.claimEntity,
           tone: 'quiet',
           requiresAuth: true,
         },

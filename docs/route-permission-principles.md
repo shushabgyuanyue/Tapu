@@ -189,7 +189,6 @@
 
 适合：
 
-- 游客心愿单。
 - 匿名互动统计。
 
 注意：这类接口不是资产权限，不能用于修改有 owner 的内容资产。
@@ -219,6 +218,8 @@
 权限：`token_unbound_or_owner`
 
 原因：这个交易的主体是“物件 token 是否允许被当前调用者编辑”。内容资产是否属于同一 IP，是业务有效性，不属于调用权限。
+
+操作语义：`content:entity_default_set`。它不同于普通内容更新，业务层必须继续校验内容属于同一 IP，且内容状态为 `published`，否则会出现默认内容设置成功但 NFC 播放不可用的断点。
 
 ### 已绑定实体设置默认内容
 
@@ -333,19 +334,12 @@ npm run check:permissions
 - `POST /api/authoring/content-by-token`
 - `DELETE /api/videos/:id`
 - `PUT /api/config/:key`
-- `GET /api/purchases`
-- `POST /api/purchases/by-group`
 - `POST /api/checks/items`
 - `PUT /api/checks/items/:itemId`
 - `POST /api/checks/reset`
 - `POST /api/travel-trails/places`
 - `POST /api/travel-trails/next-destination`
 - `POST /api/travel-trails/return`
-- `GET /api/wishlist`
-- `GET /api/wishlist/:groupId/status`
-- `POST /api/wishlist/:groupId`
-- `DELETE /api/wishlist/:groupId`
-- `PUT /api/wishlist/:groupId/default`
 
 优先迁移下一批：
 

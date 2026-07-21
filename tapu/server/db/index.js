@@ -43,6 +43,13 @@ function getTableInfo(database, tableName) {
   }
 }
 
+function removeLegacyCommerceTables(database) {
+  database.run('DROP TABLE IF EXISTS wishlist');
+  database.run('DROP TABLE IF EXISTS purchases');
+  database.run('DROP TABLE IF EXISTS crowdfund_pledges');
+  database.run("DELETE FROM site_config WHERE key IN ('community_enabled', 'wishlist_enabled')");
+}
+
 function resetContentBindingSchemaIfNeeded(database) {
   const bindingColumns = getTableInfo(database, 'app_bindings');
   const hasOldBindingShape = bindingColumns.some(column => column.name === 'content_collection_id')
@@ -109,8 +116,10 @@ export async function getDb() {
   runSchemaSafely(db, schema);
   runSchemaSafely(db, coreSchema);
   resetContentBindingSchemaIfNeeded(db);
+  removeLegacyCommerceTables(db);
   runSchemaSafely(db, schema);
   runSchemaSafely(db, coreSchema);
+  removeLegacyCommerceTables(db);
 
   // Migrations: add columns if missing
   const migrations = [
@@ -120,10 +129,6 @@ export async function getDb() {
     'ALTER TABLE videos ADD COLUMN owner_user_id TEXT',
     'ALTER TABLE groups ADD COLUMN series_id TEXT',
     'ALTER TABLE groups ADD COLUMN official_default_video_id TEXT',
-    'ALTER TABLE groups ADD COLUMN crowdfund_goal INTEGER DEFAULT 0',
-    'ALTER TABLE groups ADD COLUMN crowdfund_deadline TEXT',
-    'ALTER TABLE groups ADD COLUMN price REAL DEFAULT 0',
-    'ALTER TABLE groups ADD COLUMN stock_limit INTEGER DEFAULT 0',
     'ALTER TABLE groups ADD COLUMN cover_url TEXT',
     'ALTER TABLE groups ADD COLUMN hero_url TEXT',
     'ALTER TABLE groups ADD COLUMN product_image_url TEXT',
@@ -150,15 +155,6 @@ export async function getDb() {
     'ALTER TABLE users ADD COLUMN profile_json TEXT',
     'ALTER TABLE users ADD COLUMN updated_at DATETIME',
     'ALTER TABLE interactions ADD COLUMN user_id TEXT',
-    'ALTER TABLE wishlist ADD COLUMN fingerprint TEXT',
-    'ALTER TABLE wishlist ADD COLUMN default_video_id TEXT',
-    `CREATE TABLE IF NOT EXISTS crowdfund_pledges (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id TEXT NOT NULL,
-      group_id TEXT NOT NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      UNIQUE(user_id, group_id)
-    )`,
     `CREATE TABLE IF NOT EXISTS site_config (
       key TEXT PRIMARY KEY,
       value TEXT
@@ -566,8 +562,7 @@ export async function getDb() {
   }
 
   try {
-    db.run(`INSERT OR IGNORE INTO site_config (key, value) VALUES ('community_enabled', 'false')`);
-    db.run(`INSERT OR IGNORE INTO site_config (key, value) VALUES ('wishlist_enabled', 'false')`);
+    removeLegacyCommerceTables(db);
   } catch (e) { /* ignore */ }
 
   try {

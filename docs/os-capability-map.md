@@ -26,6 +26,7 @@
 - `/api/assets` 是 IP 实例和资产交易的唯一正式 OS 入口；`/api/auth` 只保留身份、账户资料和申诉职责。
 - `assetSpace` service 统一负责：账号下 IP 实例读取、token 认领、解绑、转赠、读取/设置实例默认内容、通过 token 设置默认内容。
 - `mintSpaceProfile` service 统一负责：根据账号持有的 `ip_instances`、对应 `ip_definitions` 和 `application_definitions` 推导 Mint Space 的伙伴、空间人格轴、氛围、合照布局提示和规则化灵境杂记；前端不再维护第二套 profile fallback。
+- `osEntryPrompt` service 统一负责触碰 / 应用入口后的 Space Invitation Prompt：OS 判断登录、绑定状态、展示频率、关闭状态和跳转目标；应用 manifest 只声明展示形式与频率，官方文案集中在 `server/copy/osEntryPrompts.js`。
 - `ip_instance_content_links` 约束同一 `ip_instance_id + relation_role` 只能有一个 primary 内容，避免默认体验出现多重业务真相。
 - 前端 Mint Space 只通过 `src/api/assets.ts` / `src/api/index.ts` 的资产 helper 访问接口，不在页面或组件里散写请求。
 - Mint Space 页面作为 OS 聚合入口，负责灵境合照、伙伴展示、灵境杂记、进入体验、创作中心、商城和伙伴二级管理；`/assets/:instanceId` 是统一伙伴详情页，具体 IP 的表达和渲染继续由应用定义、内容定义与 `/play` 渲染协议承接。
@@ -45,6 +46,7 @@
 
 - 上传资源统一进入 OS Resource Pipeline。
 - 视频上传会转码为浏览器友好的 H.264 MP4，并生成 poster。
+- 如果 `content_definitions` 的资源槽声明 `resourceProfile: ar_alpha_overlay` 或 `requiresAlpha: true`，视频会按 AR 透明叠加 profile 输出 WebM VP9 alpha，避免纸巾小狗这类 AR overlay 被普通 MP4 转码丢失透明通道。
 - 图片、音频等资源作为 `resources` 资产落表。
 - 发布内容时从 `resources` 表水合可信资源，不相信前端拼出的 URL。
 - 资源按 `content_definitions` 的 slot / role / type 校验后绑定到 `content_instance_resource_links`。
@@ -74,7 +76,7 @@ content_definition.authoring_schema.contentShape.slots = video / image
         ↓
 Mint Studio 上传资源
         ↓
-OS Resource Pipeline 转码 / 适配 / 落 resources
+OS Resource Pipeline 按 slot profile 转码 / 适配 / 落 resources
         ↓
 content_instance 绑定资源节点
         ↓
@@ -85,7 +87,7 @@ content_instance 绑定资源节点
 
 第一版适合测试：
 
-- 纸巾小狗：碰一下 token，打开摄像头，在屏幕中心召唤 2.5D 视频或透明 WebM / MP4 叠加层。
+- 纸巾小狗：碰一下 token，打开摄像头，在屏幕中心召唤 2.5D 视频或透明 WebM alpha 叠加层。
 - 桌面秘籍：后续可复用同一 renderer，再增加 marker / anchor 配置，把雪山贴近标记位置。
 
 ## 待补足能力
@@ -94,7 +96,7 @@ content_instance 绑定资源节点
 
 - Marker tracking：识别贴纸标记后把内容锚定在标记附近。
 - 3D model：支持 `.glb` / `.gltf` 模型资源、模型压缩和 `<model-viewer>` / WebGL 渲染。
-- AR resource profiles：按设备能力选择 WebM alpha、MP4 fallback、图片 fallback。
+- AR resource fallbacks：按设备能力继续补 MP4 fallback、图片 fallback 和可配置降级策略。
 - Camera permission fallback：用户拒绝摄像头时提供平面预览或引导。
 
 ### 内容编辑
@@ -118,5 +120,5 @@ content_instance 绑定资源节点
 
 ### 工程治理
 
-- 继续拆分历史大文件：`IPDetailPage.vue`、`server/services/osPipeline.js`；`AssetsPage.vue` 已收口为 Mint Space 编排层。
+- 继续拆分历史大文件与 OS 服务：`server/services/osPipeline.js`；`AssetsPage.vue` 已收口为 Mint Space 编排层，商城详情已切到 `ShopIpDetailPage.vue`。
 - 新 OS 能力必须补契约测试，至少覆盖 manifest、route、renderer 或 permission 的关键闭环。

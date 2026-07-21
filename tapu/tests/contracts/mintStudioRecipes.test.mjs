@@ -1,10 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import initSqlJs from 'sql.js';
-import { findAppManifest } from '../../server/contracts/appManifests.js';
+import { findAppManifest, getAppManifests } from '../../server/contracts/appManifests.js';
 import { buildCoreContentLibraryItems } from '../../server/routes/mintStudio.js';
 import { resolveDefaultContentForIpInstance } from '../../server/routes/contents.js';
 import { upsertIpInstanceContentLink } from '../../server/services/coreStore.js';
+import { setAssetInstanceDefaultContent } from '../../server/services/assetSpace.js';
 import { getRegisteredAppAdapters } from '../../server/services/appAdapters.js';
 import {
   getMintStudioOpenPath,
@@ -16,6 +17,7 @@ import {
   buildContentPreviewRoute,
   inferContentRenderer,
 } from '../../server/services/contentRenderingProtocol.js';
+import { buildOsEntryPrompt } from '../../server/services/osEntryPrompt.js';
 import {
   buildContentAuthoringRecipe,
   createContentVersionDraft,
@@ -57,7 +59,7 @@ async function createMintStudioLibraryDb() {
   db.run('CREATE TABLE content_definitions (id TEXT PRIMARY KEY, code TEXT, name TEXT, content_kind TEXT, primary_modality TEXT, authoring_schema_json TEXT, template_json TEXT)');
   db.run('CREATE TABLE ip_definitions (id TEXT PRIMARY KEY, name TEXT, primary_series_name TEXT)');
   db.run('CREATE TABLE application_definitions (id TEXT PRIMARY KEY, code TEXT, name TEXT)');
-  db.run('CREATE TABLE ip_instances (id TEXT PRIMARY KEY, owner_user_id TEXT, token TEXT, entity_key TEXT)');
+  db.run('CREATE TABLE ip_instances (id TEXT PRIMARY KEY, ip_definition_id TEXT, application_definition_id TEXT, owner_user_id TEXT, token TEXT, entity_key TEXT, instance_type TEXT, label TEXT, status TEXT)');
   db.run(`CREATE TABLE content_instance_resource_links (
     id TEXT,
     content_instance_id TEXT,
@@ -150,7 +152,7 @@ async function createMintStudioLibraryDb() {
     )`);
   db.run("INSERT INTO ip_definitions (id, name, primary_series_name) VALUES ('ip-puppy', '纸巾小狗', '永远系列')");
   db.run("INSERT INTO application_definitions (id, code, name) VALUES ('app-puppy', 'tissue-puppy', '纸巾小狗')");
-  db.run("INSERT INTO ip_instances (id, owner_user_id, token, entity_key) VALUES ('ipinst-puppy', 'user-1', 'token-1', 'token-1')");
+  db.run("INSERT INTO ip_instances (id, ip_definition_id, application_definition_id, owner_user_id, token, entity_key, instance_type, label, status) VALUES ('ipinst-puppy', 'ip-puppy', 'app-puppy', 'user-1', 'token-1', 'token-1', 'mint_entity', '纸巾小狗', 'active')");
   db.run("INSERT INTO resources (id, owner_user_id, resource_type, storage_url, preview_url, status) VALUES ('res-puppy', 'user-1', 'video', '/video.mp4', '/poster.jpg', 'ready')");
   db.run("INSERT INTO resources (id, owner_user_id, resource_type, storage_url, preview_url, status) VALUES ('res-puppy-new', 'user-1', 'video', '/new-video.mp4', '/new-poster.jpg', 'ready')");
   db.run("INSERT INTO content_instance_resource_links (content_instance_id, resource_id, is_primary, relation_role) VALUES ('content-puppy', 'res-puppy', 1, 'ar_overlay')");
@@ -208,12 +210,29 @@ test('tissue puppy enters Mint Studio through a single AR content definition', (
   assert.equal(manifest.contentDefinition?.code, 'tissue-puppy-comfort-ar');
   assert.equal(manifest.contentDefinition?.authoringSchema?.authoringProtocol?.createFlow, 'single_resource_node');
   assert.equal(manifest.contentDefinition?.authoringSchema?.contentShape?.slots?.[0]?.type, 'video');
+  assert.equal(manifest.contentDefinition?.authoringSchema?.contentShape?.slots?.[0]?.resourceProfile, 'ar_alpha_overlay');
+  assert.equal(manifest.contentDefinition?.authoringSchema?.contentShape?.slots?.[0]?.requiresAlpha, true);
   assert.equal(manifest.contentDefinition?.template?.renderer, 'ar.camera-overlay');
   assert.equal(manifest.contentDefinition?.template?.ar?.placement, 'screen_center');
   assert.equal(manifest.contentDefinition?.template?.playback?.mutedByDefault, true);
   assert.equal(manifest.contentDefinition?.template?.playback?.tapToUnmute, true);
   assert.equal(manifest.contentDefinition?.template?.playback?.replayMode, 'loop');
-  assert.ok(profile.creationModes.some(mode => mode.code === 'collect_asset'));
+  assert.ok(profile.creationModes.some(mode => mode.code === 'claim_entity'));
+  assert.ok(!profile.creationModes.some(mode => mode.code === 'collect_asset'));
+});
+
+test('legacy collect_asset action is only allowed on frozen light apps', () => {
+  for (const manifest of getAppManifests()) {
+    const hasLegacyAction = manifest.mintStudio?.primaryActions?.includes('collect_asset');
+    if (hasLegacyAction) {
+      assert.equal(manifest.legacyFrozen, true, `${manifest.code} must be marked frozen before using collect_asset`);
+      const profile = getMintStudioProfile(manifest.mintStudio.profile);
+      assert.ok(profile?.creationModes?.some(mode => mode.code === 'collect_asset' && mode.legacy === true));
+      continue;
+    }
+
+    assert.equal(hasLegacyAction, false);
+  }
 });
 
 test('definition-driven Studio flow can switch publish actions by permission subject', () => {
@@ -270,6 +289,28 @@ test('content rendering protocol routes AR content to runtime preview', () => {
   assert.equal(buildContentPreviewRoute(content), '/play/content-ar');
 });
 
+test('OS entry prompt uses app manifest display rules for Tissue Puppy NFC surfaces', () => {
+  const unboundPrompt = buildOsEntryPrompt({
+    surface: 'nfc_player',
+    appCode: 'tissue-puppy',
+    token: 'token-puppy',
+    object: { id: 'ipinst-puppy', owner_user_id: null },
+  });
+  const boundPrompt = buildOsEntryPrompt({
+    surface: 'nfc_player',
+    appCode: 'tissue-puppy',
+    token: 'token-puppy',
+    object: { id: 'ipinst-puppy', owner_user_id: 'user-1' },
+  });
+
+  assert.equal(unboundPrompt.display, 'bottom_card');
+  assert.equal(unboundPrompt.frequency, 'once_per_token');
+  assert.equal(unboundPrompt.primary_action.target, '/assets?key=token-puppy&source=nfc_player');
+  assert.equal(boundPrompt.display, 'corner_link');
+  assert.equal(boundPrompt.frequency, 'always');
+  assert.ok(boundPrompt.title.includes('Mint Space') || boundPrompt.primary_action.label.includes('Mint Space'));
+});
+
 test('Mint Studio library only lists definition-authored content assets', async () => {
   const db = await createMintStudioLibraryDb();
   const items = buildCoreContentLibraryItems(db, { user: { id: 'user-1', username: 'creator' } });
@@ -292,6 +333,29 @@ test('core token playback resolves the IP instance default content through relat
   assert.equal(content.id, 'content-puppy');
   assert.equal(content.relation_role, 'owner_default');
   assert.equal(inferContentRenderer(content), 'ar.camera-overlay');
+});
+
+test('IP instance default content only accepts published playable content', async () => {
+  const db = await createMintStudioLibraryDb();
+  db.run(`INSERT INTO content_instances
+    (id, ip_definition_id, content_definition_id, application_definition_id, owner_user_id, creator_user_id,
+     origin_ip_instance_id, title, summary, content_kind, primary_modality, source_type, visibility, access_scope,
+     status, payload_json, created_at, updated_at)
+    VALUES
+    ('content-puppy-draft', 'ip-puppy', 'cntdef-puppy', 'app-puppy', 'user-1', 'user-1',
+     'ipinst-puppy', '纸巾小狗 · 草稿', '草稿内容', 'ar', 'video', 'user', 'private', 'owner',
+     'draft', '{"source":"mint-studio-definition-authoring"}', '2026-07-20', '2026-07-20')`);
+
+  assert.throws(() => setAssetInstanceDefaultContent(db, {
+    entity: {
+      id: 'ipinst-puppy',
+      ip_definition_id: 'ip-puppy',
+      owner_user_id: 'user-1',
+      token: 'token-1',
+    },
+    contentId: 'content-puppy-draft',
+    actorUser: { id: 'user-1', username: 'user' },
+  }), /已发布/);
 });
 
 test('OS asset links keep only one primary content per IP instance relation role', async () => {

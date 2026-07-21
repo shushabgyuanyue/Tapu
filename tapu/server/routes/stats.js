@@ -186,13 +186,13 @@ router.get('/leaderboard', async (req, res) => {
     const sql = `
       SELECT g.id, g.name, g.primary_series_key as series_id, g.primary_series_name as series_name,
              COUNT(DISTINCT p.id) as play_count,
-             COUNT(DISTINCT o.id) as purchase_count
+             COUNT(DISTINCT o.id) as external_order_count
       FROM ip_definitions g
       LEFT JOIN content_instances v ON v.ip_definition_id = g.id AND v.content_kind = 'video'
       LEFT JOIN play_events p ON p.video_id = v.id
       LEFT JOIN orders o ON o.group_id = g.id
       GROUP BY g.id
-      ORDER BY play_count DESC, purchase_count DESC, g.created_at DESC
+      ORDER BY play_count DESC, external_order_count DESC, g.created_at DESC
       LIMIT ? OFFSET ?
     `;
     const result = db.exec(sql, [pageSize, (page - 1) * pageSize]);

@@ -1,0 +1,212 @@
+.home-space-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(320px, 0.9fr);
+  gap: 18px;
+  align-items: stretch;
+  border: 1px solid var(--wm-line);
+  border-radius: 40px;
+  padding: 18px;
+  background:
+    linear-gradient(120deg, rgba(255, 255, 255, 0.72), rgba(255, 250, 244, 0.46)),
+    radial-gradient(circle at 20% 0%, rgba(47, 111, 94, 0.13), transparent 32%);
+  box-shadow: var(--wm-shadow-md);
+}
+
+.home-space-portrait {
+  position: relative;
+  min-height: 520px;
+  overflow: hidden;
+  border-radius: 32px;
+  background:
+    radial-gradient(circle at 50% 24%, rgba(255, 255, 255, 0.78), transparent 28%),
+    radial-gradient(circle at 20% 20%, rgba(201, 39, 82, 0.18), transparent 30%),
+    radial-gradient(circle at 82% 24%, rgba(47, 111, 94, 0.22), transparent 28%),
+    linear-gradient(180deg, #dae7df 0%, #fff8ef 48%, #d8c7ae 100%);
+}
+
+.home-space-avatar {
+  position: absolute;
+  left: 50%;
+  top: 28%;
+  width: 150px;
+  height: 190px;
+  border-radius: 46% 46% 42% 42%;
+  background:
+    radial-gradient(circle at 50% 24%, #fffaf4 0 18%, transparent 19%),
+    linear-gradient(180deg, #274139, #16120f);
+  box-shadow: 0 34px 70px rgba(32, 27, 34, 0.16);
+  transform: translateX(-50%);
+}
+
+.home-space-orb {
+  position: absolute;
+  display: inline-flex;
+  align-items: center;
+  min-height: 38px;
+  padding: 0 14px;
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  border-radius: var(--wm-radius-pill);
+  color: var(--wm-ink);
+  background: rgba(255, 255, 255, 0.58);
+  box-shadow: var(--wm-shadow-xs);
+  backdrop-filter: blur(14px);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.home-space-orb:nth-of-type(1) {
+  left: 12%;
+  top: 24%;
+}
+
+.home-space-orb:nth-of-type(2) {
+  right: 12%;
+  top: 31%;
+}
+
+.home-space-orb:nth-of-type(3) {
+  left: 18%;
+  bottom: 30%;
+}
+
+.home-space-caption {
+  position: absolute;
+  left: 22px;
+  right: 22px;
+  bottom: 22px;
+  padding: 20px;
+  border-radius: 24px;
+  color: var(--wm-inverse);
+  background: linear-gradient(180deg, rgba(22, 18, 15, 0.72), rgba(22, 18, 15, 0.46));
+  backdrop-filter: blur(14px);
+}
+
+.home-space-caption h3 {
+  margin: 0;
+  font-size: 28px;
+  letter-spacing: -0.05em;
+}
+
+.home-space-caption p {
+  margin: 10px 0 0;
+  color: rgba(255, 250, 247, 0.78);
+  line-height: 1.8;
+}
+
+.home-space-side {
+  display: grid;
+  gap: 14px;
+  padding: 10px;
+}
+
+.home-trait-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.home-trait-list span {
+  padding: 8px 12px;
+  border-radius: var(--wm-radius-pill);
+  color: var(--wm-accent);
+  background: var(--wm-accent-soft);
+  font-size: 12px;
+  font-weight: 950;
+}
+
+.home-partner-list,
+.home-note-list {
+  display: grid;
+  gap: 10px;
+}
+
+.home-partner-list article,
+.home-note-list p {
+  padding: 16px;
+  border: 1px solid var(--wm-line);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.64);
+}
+
+.home-note-list p {
+  margin: 0;
+}
+
+.home-studio-panel {
+  padding: clamp(24px, 5vw, 48px);
+  border-radius: 40px;
+  color: var(--wm-inverse);
+  background:
+    radial-gradient(circle at 12% 14%, rgba(255, 255, 255, 0.22), transparent 30%),
+    radial-gradient(circle at 88% 10%, rgba(201, 39, 82, 0.24), transparent 34%),
+    linear-gradient(135deg, #171411, #2c493f 54%, #1d2018);
+  box-shadow: 0 30px 86px rgba(47, 41, 32, 0.18);
+}
+
+.home-section-head--light h2 {
+  color: var(--wm-inverse);
+}
+
+.home-studio-examples {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 30px;
+}
+
+.home-studio-examples article {
+  min-height: 210px;
+  padding: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 26px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.home-studio-examples span {
+  color: rgba(255, 255, 255, 0.42);
+  font-size: 30px;
+  letter-spacing: -0.08em;
+}
+
+.home-studio-examples strong {
+  margin-top: 24px;
+  color: var(--wm-inverse);
+  font-size: 21px;
+  letter-spacing: -0.04em;
+}
+
+.home-studio-examples p {
+  color: rgba(255, 255, 255, 0.68);
+}
+
+.home-studio-action {
+  margin-top: 26px;
+  background: linear-gradient(135deg, #fffaf4, #ead5b9);
+  color: var(--wm-ink);
+}
+
+@media (max-width: 940px) {
+  .home-space-card {
+    grid-template-columns: 1fr;
+  }
+
+  .home-studio-examples {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .home-space-portrait {
+    min-height: 500px;
+  }
+
+  .home-space-orb {
+    font-size: 12px;
+  }
+
+  .home-space-caption {
+    left: 14px;
+    right: 14px;
+    bottom: 14px;
+  }
+}

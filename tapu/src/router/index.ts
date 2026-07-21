@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router';
-import { getConfig, getProfile, isLoggedIn } from '../api';
+import { fetchAssetInstances, getProfile, isLoggedIn } from '../api';
+import { getDefaultEntryPath } from '../navigation/siteNavigation';
 
 const keyAllowedPaths = new Set([
   '/earphone-girl',
@@ -14,6 +15,20 @@ const keyAllowedPaths = new Set([
 const routes = [
   {
     path: '/',
+    name: 'entry',
+    component: () => import('../views/LandingPage.vue'),
+    beforeEnter: async (_to: any, _from: any, next: any) => {
+      if (!isLoggedIn()) return next(getDefaultEntryPath({ isLoggedIn: false, hasOwnedAssets: false }));
+      try {
+        const rows = await fetchAssetInstances();
+        return next(getDefaultEntryPath({ isLoggedIn: true, hasOwnedAssets: Array.isArray(rows) && rows.length > 0 }));
+      } catch {
+        return next(getDefaultEntryPath({ isLoggedIn: true, hasOwnedAssets: false }));
+      }
+    },
+  },
+  {
+    path: '/home',
     name: 'landing',
     component: () => import('../views/LandingPage.vue'),
   },
@@ -48,19 +63,14 @@ const routes = [
     component: () => import('../views/CheckPage.vue'),
   },
   {
-    path: '/community',
-    name: 'community',
-    component: () => import('../views/CommunityPage.vue'),
-  },
-  {
-    path: '/community/ip/:id',
-    name: 'ip-detail',
-    component: () => import('../views/IPDetailPage.vue'),
-  },
-  {
     path: '/content/:id',
     name: 'content-detail',
     component: () => import('../views/ContentDetailPage.vue'),
+  },
+  {
+    path: '/activities/:id',
+    name: 'activity-detail',
+    component: () => import('../views/ActivityDetailPage.vue'),
   },
   {
     path: '/shop',
@@ -70,12 +80,7 @@ const routes = [
   {
     path: '/shop/ip/:id',
     name: 'shop-ip-detail',
-    component: () => import('../views/IPDetailPage.vue'),
-  },
-  {
-    path: '/wishlist',
-    name: 'wishlist',
-    component: () => import('../views/WishlistPage.vue'),
+    component: () => import('../views/ShopIpDetailPage.vue'),
   },
   {
     path: '/play/:id',
@@ -155,32 +160,6 @@ const router = createRouter({
 // Key parameter handling: key is only used for playback resolve and asset binding
 router.beforeEach(async (to, _from, next) => {
   const key = to.query.key as string | undefined;
-  if (to.path === '/wishlist' && to.query.tab === 'shop') {
-    const query: Record<string, any> = {};
-    if (to.query.groupId) query.groupId = to.query.groupId;
-    if (to.query.defaultVideoId) query.defaultVideoId = to.query.defaultVideoId;
-    return next({ path: '/shop', query, replace: true });
-  }
-
-  if (to.path.startsWith('/community')) {
-    try {
-      const data = await getConfig('community_enabled');
-      const communityEnabled = data.value === 'true' || data.value === true;
-      if (!communityEnabled) return next('/shop');
-    } catch {
-      return next('/shop');
-    }
-  }
-
-  if (to.path === '/wishlist') {
-    try {
-      const data = await getConfig('wishlist_enabled');
-      const wishlistEnabled = data.value === 'true' || data.value === true;
-      if (!wishlistEnabled) return next('/shop');
-    } catch {
-      return next('/shop');
-    }
-  }
   if (key && (to.path.startsWith('/play') || keyAllowedPaths.has(to.path))) {
     // Public app open routes plus asset binding and Mint Studio explicitly preserve token context.
     return next();

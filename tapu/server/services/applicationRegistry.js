@@ -11,8 +11,8 @@ const BUILT_IN_APPLICATIONS = [
     name: '纸巾小狗',
     code: 'tissue-puppy',
     app_type: 'meaning',
-    interaction_type: 'tap_to_comfort_video',
-    description: '触碰纸巾小狗，打开一段温柔、克制、可被收藏和替换的视频内容。',
+    interaction_type: 'tap_to_comfort_ar',
+    description: '触碰纸巾小狗，在现实画面里召唤一段温柔、克制的陪伴内容。',
     status: 'active',
   },
   {

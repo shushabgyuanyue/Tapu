@@ -14,6 +14,11 @@ export const OPERATIONS = {
     studioPolicy: { login: 'when_bound', token: 'token_or_owner', contentAsset: 'account_if_logged_in' },
     description: 'Update content through an editable object token.',
   },
+  'content:entity_default_set': {
+    permissionType: 'token_unbound_or_owner',
+    studioPolicy: { login: 'when_bound', token: 'token_or_owner', contentAsset: 'published_content' },
+    description: 'Set a published content instance as the default experience for an editable IP instance token.',
+  },
   'content:account_create': {
     permissionType: 'login_required',
     studioPolicy: { login: 'always', token: 'token_or_owner', contentAsset: 'account' },
@@ -49,6 +54,11 @@ export const OPERATIONS = {
     studioPolicy: { login: 'always', token: 'owner', contentAsset: 'none' },
     description: 'Manage an owned object asset.',
   },
+  'shop:discover': {
+    permissionType: 'public',
+    studioPolicy: { login: 'never', token: 'none', contentAsset: 'none' },
+    description: 'Discover public IP definitions, applications, and official experiences in Shop.',
+  },
   'app:token_operate': {
     permissionType: 'app_token_active',
     studioPolicy: { login: 'never', token: 'active_app_token', contentAsset: 'none' },
@@ -68,9 +78,12 @@ export const STUDIO_ACTION_OPERATIONS = {
   upload_authoring_resource: 'content:account_create',
   save_definition_content_by_token: 'content:token_update',
   publish_definition_content: 'content:token_update',
+  set_entity_default_content: 'content:entity_default_set',
   save_official_definition_content: 'content:official_create',
   publish_official_definition_content: 'content:official_create',
   append_unit: 'view:preview',
+  claim_entity: 'asset:claim',
+  // Legacy light-app alias. New core apps should use claim_entity instead.
   collect_asset: 'asset:claim',
 };
 
