@@ -1,16 +1,9 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
-import { getConfig } from '../api';
 import NavBar from '../components/NavBar.vue';
 import { homeCopy } from '../copy';
 
 const router = useRouter();
-const communityEnabled = ref(false);
-const wishlistEnabled = ref(false);
-
-const primaryPath = computed(() => (communityEnabled.value ? '/community' : '/shop'));
-const primaryCtaLabel = computed(() => (communityEnabled.value ? homeCopy.hero.primaryCommunity : homeCopy.hero.primaryShop));
 
 const objectImages: Record<string, string> = {
   '永远系列-纸巾小狗-合集.png': new URL('../IPimg/永远系列-纸巾小狗-合集.png', import.meta.url).href,
@@ -24,22 +17,8 @@ const objectCards = homeCopy.objectSection.cards.map(card => ({
 }));
 
 const goPrimary = () => {
-  router.push(primaryPath.value);
+  router.push('/shop');
 };
-
-onMounted(async () => {
-  try {
-    const [community, wishlist] = await Promise.all([
-      getConfig('community_enabled'),
-      getConfig('wishlist_enabled'),
-    ]);
-    communityEnabled.value = community.value === 'true' || community.value === true;
-    wishlistEnabled.value = wishlist.value === 'true' || wishlist.value === true;
-  } catch {
-    communityEnabled.value = false;
-    wishlistEnabled.value = false;
-  }
-});
 </script>
 
 <template>
@@ -57,8 +36,7 @@ onMounted(async () => {
           <p class="hero-sub">{{ homeCopy.hero.subtitle }}</p>
 
           <div class="hero-actions">
-            <button class="primary-btn" @click="goPrimary">{{ primaryCtaLabel }}</button>
-            <button v-if="wishlistEnabled" class="secondary-btn" @click="router.push('/wishlist')">{{ homeCopy.hero.wishlist }}</button>
+            <button class="primary-btn" @click="goPrimary">{{ homeCopy.hero.primaryShop }}</button>
           </div>
         </div>
 
@@ -138,7 +116,7 @@ onMounted(async () => {
       <section class="final-cta">
         <p>{{ homeCopy.finalCta.tone }}</p>
         <h2>{{ homeCopy.finalCta.title }}</h2>
-        <button @click="goPrimary">{{ primaryCtaLabel }}</button>
+        <button @click="goPrimary">{{ homeCopy.hero.primaryShop }}</button>
       </section>
     </main>
 

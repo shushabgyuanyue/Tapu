@@ -82,9 +82,6 @@ export const serverMessages = {
     interactions: {
       loginRequired: '点赞和喜欢需要先登录',
     },
-    purchases: {
-      externalOnly: '购买将在外部平台完成。完成购买后，请使用实物 token 在账户资产页绑定。',
-    },
     works: {
       missing: '作品不存在',
       untitled: '未命名作品',

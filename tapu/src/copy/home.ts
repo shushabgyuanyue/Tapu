@@ -5,9 +5,7 @@ export const homeCopy = {
     titlePrefix: '给现实里的物，',
     titleAccent: '安装情绪应用。',
     subtitle: '一枚贴纸、一个摆件、一件作品，被触碰后进入自己的 Mint Space。我们用轻应用把物的特性延展出来，形成新的交互范式和情绪表达。',
-    primaryCommunity: '进入灵感社区',
-    primaryShop: '看看可以触碰的物',
-    wishlist: '打开心愿单',
+    primaryShop: '邀请新的存在',
   },
   demo: {
     app: '答案之书',

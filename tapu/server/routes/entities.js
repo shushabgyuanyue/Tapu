@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { getDb, saveDb } from '../db/index.js';
-import { adminRoute, loginRoute, registerRoutes } from '../services/routePermissions.js';
+import { adminRoute, registerRoutes } from '../services/routePermissions.js';
 import { createUniqueEntityToken } from '../services/tokens.js';
 import { recordOwnershipEvent } from '../services/ownership.js';
 import { stringifyJson } from '../services/coreStore.js';
@@ -195,67 +195,11 @@ async function deleteEntity(req, res) {
   }
 }
 
-// Pledge (crowdfund) for a group
-async function createPledge(req, res) {
-  try {
-    const db = await getDb();
-    const existing = db.exec(
-      'SELECT id FROM crowdfund_pledges WHERE user_id = ? AND group_id = ?',
-      [req.user.id, req.params.groupId]
-    );
-    if (resultToObjects(existing).length > 0) {
-      return res.status(400).json({ error: '你已经参与过众筹了' });
-    }
-    db.run(
-      'INSERT INTO crowdfund_pledges (user_id, group_id) VALUES (?, ?)',
-      [req.user.id, req.params.groupId]
-    );
-    saveDb();
-    res.json({ success: true });
-  } catch (error) {
-    console.error('Pledge error:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-}
-
-// Get pledge count for a group (public)
-router.get('/pledge-count/:groupId', async (req, res) => {
-  try {
-    const db = await getDb();
-    const results = db.exec(
-      'SELECT COUNT(*) as count FROM crowdfund_pledges WHERE group_id = ?',
-      [req.params.groupId]
-    );
-    const rows = resultToObjects(results);
-    res.json({ count: rows.length > 0 ? rows[0].count : 0 });
-  } catch (error) {
-    console.error('Pledge count error:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-// Get current user's pledge status for a group
-async function getPledgeStatus(req, res) {
-  try {
-    const db = await getDb();
-    const results = db.exec(
-      'SELECT id FROM crowdfund_pledges WHERE user_id = ? AND group_id = ?',
-      [req.user.id, req.params.groupId]
-    );
-    res.json({ pledged: resultToObjects(results).length > 0 });
-  } catch (error) {
-    console.error('Pledge status error:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-}
-
 registerRoutes(router, [
   adminRoute('get', '/by-group/:groupId', listEntitiesByGroup),
   adminRoute('post', '/', createEntity),
   adminRoute('get', '/ownership-events', listOwnershipEvents),
   adminRoute('delete', '/:id', deleteEntity),
-  loginRoute('post', '/pledge/:groupId', createPledge),
-  loginRoute('get', '/pledge-status/:groupId', getPledgeStatus),
 ]);
 
 export default router;

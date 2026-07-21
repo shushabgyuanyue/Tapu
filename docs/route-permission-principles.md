@@ -189,7 +189,6 @@
 
 适合：
 
-- 游客心愿单。
 - 匿名互动统计。
 
 注意：这类接口不是资产权限，不能用于修改有 owner 的内容资产。
@@ -333,19 +332,12 @@ npm run check:permissions
 - `POST /api/authoring/content-by-token`
 - `DELETE /api/videos/:id`
 - `PUT /api/config/:key`
-- `GET /api/purchases`
-- `POST /api/purchases/by-group`
 - `POST /api/checks/items`
 - `PUT /api/checks/items/:itemId`
 - `POST /api/checks/reset`
 - `POST /api/travel-trails/places`
 - `POST /api/travel-trails/next-destination`
 - `POST /api/travel-trails/return`
-- `GET /api/wishlist`
-- `GET /api/wishlist/:groupId/status`
-- `POST /api/wishlist/:groupId`
-- `DELETE /api/wishlist/:groupId`
-- `PUT /api/wishlist/:groupId/default`
 
 优先迁移下一批：
 

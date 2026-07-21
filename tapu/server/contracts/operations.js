@@ -49,6 +49,11 @@ export const OPERATIONS = {
     studioPolicy: { login: 'always', token: 'owner', contentAsset: 'none' },
     description: 'Manage an owned object asset.',
   },
+  'shop:discover': {
+    permissionType: 'public',
+    studioPolicy: { login: 'never', token: 'none', contentAsset: 'none' },
+    description: 'Discover public IP definitions, applications, and official experiences in Shop.',
+  },
   'app:token_operate': {
     permissionType: 'app_token_active',
     studioPolicy: { login: 'never', token: 'active_app_token', contentAsset: 'none' },

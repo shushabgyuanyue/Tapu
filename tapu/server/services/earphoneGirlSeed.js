@@ -118,9 +118,9 @@ function upsertIpDefinition(db) {
     `INSERT INTO ip_definitions
      (id, code, name, creator_user_id, primary_series_key, primary_series_name,
       description, story, personality, designer, material, size_label, rarity_label,
-      nfc_type, price, currency_code, stock_limit, sale_mode, cover_url, hero_url,
-      product_image_url, display_tags_json, theme_color, physical_spec_json, extra_json, status)
-     VALUES (?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 'CNY', 0, 'direct', ?, ?, ?, ?, ?, ?, ?, 'active')
+      nfc_type, cover_url, hero_url, product_image_url, display_tags_json, theme_color, physical_spec_json,
+      extra_json, status)
+     VALUES (?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active')
      ON CONFLICT(id) DO UPDATE SET
        code = excluded.code,
        name = excluded.name,

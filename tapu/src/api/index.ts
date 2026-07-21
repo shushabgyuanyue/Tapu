@@ -4,6 +4,7 @@ export { clearToken, isLoggedIn, setToken } from './http';
 export * from './mintStudio';
 export * from './lightApps';
 export * from './assets';
+export * from './shop';
 
 // ===== Auth =====
 export async function login(username: string, password: string) {
@@ -45,23 +46,6 @@ export async function fetchUserEvents(params?: { page?: number; pageSize?: numbe
   if (params?.eventType) query.set('event_type', params.eventType);
   const qs = query.toString();
   return request(`/auth/events${qs ? `?${qs}` : ''}`, { auth: true });
-}
-
-// ===== Purchases =====
-export async function purchase(entity_id: string, group_id: string) {
-  return request('/purchases', {
-    method: 'POST',
-    auth: true,
-    jsonBody: { entity_id, group_id },
-  });
-}
-
-export async function getPurchases() {
-  return request('/purchases', { auth: true });
-}
-
-export async function getPurchaseKey(purchaseId: string) {
-  return request(`/purchases/${purchaseId}/key`, { auth: true });
 }
 
 // ===== Series =====
@@ -114,10 +98,6 @@ export async function fetchGroup(id: string) {
 }
 
 export type GroupDisplayParams = {
-  crowdfund_goal?: number;
-  crowdfund_deadline?: string;
-  price?: number;
-  stock_limit?: number;
   cover_url?: string;
   hero_url?: string;
   product_image_url?: string;
@@ -516,38 +496,6 @@ export async function getPopular(groupId: string) {
   return request(`/interactions/popular/${groupId}`);
 }
 
-// ===== Wishlist =====
-export async function getWishlist() {
-  return request('/wishlist', { fingerprint: true });
-}
-
-export async function addToWishlist(groupId: string, defaultVideoId?: string) {
-  return request(`/wishlist/${groupId}`, {
-    method: 'POST',
-    fingerprint: true,
-    jsonBody: defaultVideoId ? { default_video_id: defaultVideoId } : {},
-  });
-}
-
-export async function removeFromWishlist(groupId: string) {
-  return request(`/wishlist/${groupId}`, {
-    method: 'DELETE',
-    fingerprint: true,
-  });
-}
-
-export async function setWishlistDefault(groupId: string, videoId: string) {
-  return request(`/wishlist/${groupId}/default`, {
-    method: 'PUT',
-    fingerprint: true,
-    jsonBody: { videoId },
-  });
-}
-
-export async function getWishlistStatus(groupId: string) {
-  return request(`/wishlist/${groupId}/status`, { fingerprint: true });
-}
-
 // ===== Entities =====
 export async function fetchEntitiesByGroup(groupId: string) {
   return request(`/entities/by-group/${groupId}`, { auth: true });
@@ -565,31 +513,6 @@ export async function deleteEntity(entityId: string) {
   return request(`/entities/${entityId}`, {
     method: 'DELETE',
     auth: true,
-  });
-}
-
-// ===== Crowdfund =====
-export async function pledgeGroup(groupId: string) {
-  return request(`/entities/pledge/${groupId}`, {
-    method: 'POST',
-    auth: true,
-  });
-}
-
-export async function getPledgeCount(groupId: string) {
-  return request(`/entities/pledge-count/${groupId}`);
-}
-
-export async function getPledgeStatus(groupId: string) {
-  return request(`/entities/pledge-status/${groupId}`, { auth: true });
-}
-
-export async function purchaseByGroup(groupId: string, addressInfo?: { recipient_name: string; phone: string; province?: string; city?: string; district?: string; address: string }, defaultVideoId?: string) {
-  return request('/purchases/by-group', {
-    method: 'POST',
-    auth: true,
-    fingerprint: true,
-    jsonBody: { group_id: groupId, ...addressInfo, default_video_id: defaultVideoId || undefined },
   });
 }
 

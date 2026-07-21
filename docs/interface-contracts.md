@@ -57,6 +57,7 @@ Use it as a shared vocabulary, not as an access-control shortcut:
 - `content:owner_manage`: manage owned content.
 - `asset:claim`: claim an object or account asset.
 - `asset:owner_manage`: manage an owned object asset.
+- `shop:discover`: discover public IP definitions, applications, and official experiences.
 - `app:token_operate`: mutate a light app through an active app token.
 - `admin:manage`: official management operation.
 

@@ -53,7 +53,7 @@
   - 内容详情放 `content.ts`
   - 创作中心放 `studio.ts`
   - 用户资产放 `user.ts`
-  - 社区 / 商品详情放 `community.ts` / `shop.ts`
+  - 商城 / IP 详情放 `shop.ts`
 
 ### 允许例外
 

@@ -3,8 +3,6 @@ export const commonCopy = {
   brand: 'whatmint',
   nav: {
     shop: '商城',
-    community: '社区',
-    wishlist: '心愿单',
     official: '官方',
     officialTitle: '官方管理',
     assets: 'Mint Space',

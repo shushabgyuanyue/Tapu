@@ -118,5 +118,5 @@ content_instance 绑定资源节点
 
 ### 工程治理
 
-- 继续拆分历史大文件：`IPDetailPage.vue`、`server/services/osPipeline.js`；`AssetsPage.vue` 已收口为 Mint Space 编排层。
+- 继续拆分历史大文件与 OS 服务：`server/services/osPipeline.js`；`AssetsPage.vue` 已收口为 Mint Space 编排层，商城详情已切到 `ShopIpDetailPage.vue`。
 - 新 OS 能力必须补契约测试，至少覆盖 manifest、route、renderer 或 permission 的关键闭环。

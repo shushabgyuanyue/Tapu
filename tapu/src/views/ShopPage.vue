@@ -1,183 +1,133 @@
 <script setup lang="ts">
-import { computed, inject, onMounted, ref } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
-import {
-  addToWishlist,
-  fetchGroups,
-  fetchSeries,
-  getConfig,
-  getWishlistStatus,
-  isLoggedIn,
-  pledgeGroup,
-} from '../api';
+import { computed, inject, onMounted, ref, watch } from 'vue';
+import { useRouter } from 'vue-router';
+import { fetchShopIps } from '../api';
 import NavBar from '../components/NavBar.vue';
 import InfiniteScrollTrigger from '../components/InfiniteScrollTrigger.vue';
-import ShopFilterBar from '../components/shop/ShopFilterBar.vue';
+import ShopDiscoveryFilters from '../components/shop/ShopDiscoveryFilters.vue';
 import ShopProductCard from '../components/shop/ShopProductCard.vue';
 import { shopCopy } from '../copy';
 
-const route = useRoute();
 const router = useRouter();
 const toast = inject<{ show: (text: string, duration?: number, type?: string) => void }>('toast');
 
-const groups = ref<any[]>([]);
-const seriesList = ref<any[]>([]);
-const activeSeries = ref('');
-const activeGroup = ref('');
+const ips = ref<any[]>([]);
 const loading = ref(true);
-const wishlistEnabled = ref(false);
-const wishlistStatus = ref<Record<string, boolean>>({});
-const wishlistCounts = ref<Record<string, number>>({});
 const page = ref(1);
 const chunkSize = 9;
+const selectedApplication = ref('');
+const selectedTag = ref('');
+const searchQuery = ref('');
+const experienceOnly = ref(false);
+const invitationOnly = ref(false);
 
-const filteredGroups = computed(() => {
-  if (activeGroup.value) return groups.value.filter(group => group.id === activeGroup.value);
-  if (activeSeries.value) return groups.value.filter(group => group.series_id === activeSeries.value);
-  return groups.value;
-});
-
-const featuredGroup = computed(() => filteredGroups.value[0] || null);
-const visibleGroups = computed(() => filteredGroups.value.slice(0, page.value * chunkSize));
-const hasMore = computed(() => visibleGroups.value.length < filteredGroups.value.length);
-
-const formatPrice = (price?: number) => {
-  const value = Number(price || 0);
-  return value > 0 ? `¥${value.toFixed(0)}` : shopCopy.product.externalSale;
+const rawTagsFor = (ip: any) => {
+  if (Array.isArray(ip.display_tags_list)) {
+    return ip.display_tags_list.map((tag: string) => String(tag).trim()).filter(Boolean);
+  }
+  return String(ip.display_tags || '')
+    .split(/[，,\s]+/)
+    .map(tag => tag.trim())
+    .filter(Boolean);
 };
 
-const productImage = (group: any) => {
-  if (group.product_image_url || group.cover_url || group.official_default_video_poster) {
-    return group.product_image_url || group.cover_url || group.official_default_video_poster;
+const filteredIps = computed(() => {
+  const query = searchQuery.value.trim().toLowerCase();
+  return ips.value.filter((ip) => {
+    const applicationKey = ip.application_code || ip.application_name || '';
+    const tagList = rawTagsFor(ip);
+    const hasExperience = Array.isArray(ip.official_experiences)
+      ? ip.official_experiences.length > 0
+      : Boolean(ip.official_default_video_id);
+    const hasInvitation = Boolean(ip.external_purchase_url);
+    const searchable = [
+      ip.name,
+      ip.description,
+      ip.story,
+      ip.personality,
+      ip.series_name,
+      ip.application_name,
+      ip.application_description,
+      tagList.join(' '),
+    ].filter(Boolean).join(' ').toLowerCase();
+
+    return (!selectedApplication.value || applicationKey === selectedApplication.value)
+      && (!selectedTag.value || tagList.includes(selectedTag.value))
+      && (!experienceOnly.value || hasExperience)
+      && (!invitationOnly.value || hasInvitation)
+      && (!query || searchable.includes(query));
+  });
+});
+
+const applicationOptions = computed(() => {
+  const options = new Map<string, string>();
+  ips.value.forEach((ip) => {
+    const value = ip.application_code || ip.application_name || '';
+    const label = ip.application_name || ip.application_code || '';
+    if (value && label) options.set(value, label);
+  });
+  return Array.from(options, ([value, label]) => ({ value, label }));
+});
+const tagOptions = computed(() => Array.from(new Set(
+  ips.value.flatMap(ip => rawTagsFor(ip))
+)).slice(0, 12));
+const featuredIp = computed(() => filteredIps.value[0] || null);
+const visibleIps = computed(() => filteredIps.value.slice(0, page.value * chunkSize));
+const hasMore = computed(() => visibleIps.value.length < filteredIps.value.length);
+const hasActiveFilters = computed(() => Boolean(
+  selectedApplication.value
+  || selectedTag.value
+  || searchQuery.value.trim()
+  || experienceOnly.value
+  || invitationOnly.value
+));
+
+const productImage = (ip: any) => {
+  if (ip.product_image_url || ip.cover_url || ip.official_default_video_poster) {
+    return ip.product_image_url || ip.cover_url || ip.official_default_video_poster;
   }
-  const name = `${group.name || ''}${group.application_code || ''}`.toLowerCase();
+  const name = `${ip.name || ''}${ip.application_code || ''}`.toLowerCase();
   if (name.includes('贴纸') || name.includes('sticker')) return '/shop/figures/nfc-sticker.svg';
   if (name.includes('狗') || name.includes('puppy') || name.includes('纸巾')) return '/shop/figures/tissue-puppy.svg';
   return '/shop/figures/designer-toy-default.svg';
 };
 
-const tagsFor = (group: any) => {
-  const rawTags = String(group.display_tags || '')
-    .split(/[，,\s]+/)
-    .map(tag => tag.trim())
-    .filter(Boolean);
+const tagsFor = (ip: any) => {
+  const rawTags = rawTagsFor(ip);
   return rawTags.length ? rawTags.slice(0, 4) : shopCopy.product.defaultTags;
-};
-
-const statusText = (group: any) => {
-  if (group.sale_status === 'purchasable') return shopCopy.product.stockLeft(group.available_count || 0);
-  if (group.sale_status === 'crowdfunding') return shopCopy.product.crowdfunding(group.pledge_count || 0, group.crowdfund_goal || 0);
-  if (group.sale_status === 'crowdfund_success') return shopCopy.product.crowdfundSuccess;
-  if (group.sale_status === 'crowdfund_failed') return shopCopy.product.crowdfundFailed;
-  return shopCopy.product.soldOut;
-};
-
-const progressPercent = (group: any) => {
-  if (group.stock_limit > 0) {
-    return Math.min(100, ((group.entity_count || 0) / group.stock_limit) * 100);
-  }
-  if (group.crowdfund_goal > 0) {
-    return Math.min(100, ((group.pledge_count || 0) / group.crowdfund_goal) * 100);
-  }
-  return 0;
-};
-
-const loadWishlistMeta = async (groupList = groups.value) => {
-  if (!wishlistEnabled.value) return;
-
-  const rows = await Promise.all(groupList.map(async (group: any) => {
-    const result = await getWishlistStatus(group.id);
-    return { id: group.id, inWishlist: !!result?.inWishlist, count: result?.count || 0 };
-  }));
-
-  rows.forEach((row) => {
-    wishlistStatus.value[row.id] = row.inWishlist;
-    wishlistCounts.value[row.id] = row.count;
-  });
 };
 
 const loadData = async () => {
   loading.value = true;
-  const [groupRows, seriesRows, wishlistFlag] = await Promise.all([
-    fetchGroups(),
-    fetchSeries(),
-    getConfig('wishlist_enabled'),
-  ]);
+  const ipRows = await fetchShopIps();
 
-  groups.value = Array.isArray(groupRows) ? groupRows : [];
-  seriesList.value = Array.isArray(seriesRows) ? seriesRows : [];
-  wishlistEnabled.value = wishlistFlag.value === 'true' || wishlistFlag.value === true;
-
-  const groupId = typeof route.query.groupId === 'string' ? route.query.groupId : '';
-  if (groupId && groups.value.some(group => group.id === groupId)) {
-    activeGroup.value = groupId;
-    activeSeries.value = groups.value.find(group => group.id === groupId)?.series_id || '';
-  }
-
-  await loadWishlistMeta();
+  ips.value = Array.isArray(ipRows) ? ipRows : [];
   loading.value = false;
 };
 
-const switchSeries = (id: string) => {
-  activeSeries.value = id;
-  page.value = 1;
-
-  if (!id) return;
-  const selectedGroup = groups.value.find(group => group.id === activeGroup.value);
-  if (selectedGroup && selectedGroup.series_id !== id) activeGroup.value = '';
+const openDetail = (ip: any) => {
+  router.push(`/shop/ip/${ip.id}`);
 };
 
-const switchGroup = (id: string) => {
-  activeGroup.value = id;
-  page.value = 1;
-
-  if (!id) return;
-  const selectedGroup = groups.value.find(group => group.id === id);
-  if (selectedGroup) activeSeries.value = selectedGroup.series_id || '';
-};
-
-const openDetail = (group: any) => {
-  router.push(`/shop/ip/${group.id}`);
-};
-
-const handleExternalPurchase = (group: any) => {
-  if (group.external_purchase_url) {
-    window.open(group.external_purchase_url, '_blank', 'noopener,noreferrer');
+const handleExternalPurchase = (ip: any) => {
+  if (ip.external_purchase_url) {
+    window.open(ip.external_purchase_url, '_blank', 'noopener,noreferrer');
     return;
   }
-  toast?.show(shopCopy.toast.externalPurchase(group.name), 3600, 'success');
+  toast?.show(shopCopy.toast.externalPurchase(ip.name), 3600, 'success');
 };
 
-const handlePledge = async (group: any) => {
-  if (!isLoggedIn()) {
-    toast?.show(shopCopy.toast.loginBeforePledge, 2600, 'error');
-    return;
-  }
-
-  const data = await pledgeGroup(group.id);
-  if (data.success || data.pledged) {
-    toast?.show(shopCopy.toast.pledgeSuccess, 2200, 'success');
-    const groupRows = await fetchGroups();
-    groups.value = Array.isArray(groupRows) ? groupRows : [];
-  } else {
-    toast?.show(data.error || shopCopy.toast.pledgeFailed, 2200, 'error');
-  }
+const clearFilters = () => {
+  selectedApplication.value = '';
+  selectedTag.value = '';
+  searchQuery.value = '';
+  experienceOnly.value = false;
+  invitationOnly.value = false;
 };
 
-const handleAddWishlist = async (group: any) => {
-  if (!wishlistEnabled.value) return;
-
-  const result = await addToWishlist(group.id, group.official_default_video_id || undefined);
-  wishlistStatus.value[group.id] = !!result?.inWishlist;
-  wishlistCounts.value[group.id] = result?.count || 0;
-  toast?.show(
-    result?.added === false
-      ? shopCopy.toast.alreadyWishlist(group.name, wishlistCounts.value[group.id] || 0)
-      : shopCopy.toast.addedWishlist(group.name, wishlistCounts.value[group.id] || 0),
-    2500,
-    'heart'
-  );
-};
+watch([selectedApplication, selectedTag, searchQuery, experienceOnly, invitationOnly], () => {
+  page.value = 1;
+});
 
 onMounted(loadData);
 </script>
@@ -198,25 +148,31 @@ onMounted(loadData);
         </div>
 
         <button
-          v-if="featuredGroup"
+          v-if="featuredIp"
           class="hero-product"
           :data-inspect-hint="shopCopy.hero.inspectHint"
-          @click="openDetail(featuredGroup)"
+          @click="openDetail(featuredIp)"
         >
           <span class="hero-product-tag">{{ shopCopy.hero.featured }}</span>
-          <img :src="productImage(featuredGroup)" :alt="featuredGroup.name" />
-          <strong>{{ featuredGroup.name }}</strong>
-          <small>{{ featuredGroup.description || featuredGroup.series_name || shopCopy.hero.fallbackDescription }}</small>
+          <img :src="productImage(featuredIp)" :alt="featuredIp.name" />
+          <strong>{{ featuredIp.name }}</strong>
+          <small>{{ featuredIp.description || featuredIp.series_name || shopCopy.hero.fallbackDescription }}</small>
         </button>
       </section>
 
-      <ShopFilterBar
-        :series-list="seriesList"
-        :groups="groups"
-        :active-series="activeSeries"
-        :active-group="activeGroup"
-        @switch-series="switchSeries"
-        @switch-group="switchGroup"
+      <ShopDiscoveryFilters
+        v-if="!loading"
+        v-model:selected-application="selectedApplication"
+        v-model:selected-tag="selectedTag"
+        v-model:search-query="searchQuery"
+        v-model:experience-only="experienceOnly"
+        v-model:invitation-only="invitationOnly"
+        :application-options="applicationOptions"
+        :tag-options="tagOptions"
+        :result-count="filteredIps.length"
+        :total-count="ips.length"
+        :has-active-filters="hasActiveFilters"
+        @clear="clearFilters"
       />
 
       <div v-if="loading" class="shop-loading">
@@ -224,32 +180,24 @@ onMounted(loadData);
       </div>
 
       <template v-else>
-        <div v-if="visibleGroups.length > 0" class="shop-grid">
+        <div v-if="visibleIps.length > 0" class="shop-grid">
           <ShopProductCard
-            v-for="group in visibleGroups"
-            :key="group.id"
-            :group="group"
-            :image="productImage(group)"
-            :tags="tagsFor(group)"
-            :status-text="statusText(group)"
-            :price-text="formatPrice(group.price)"
-            :progress="progressPercent(group)"
-            :wishlist-enabled="wishlistEnabled"
-            :in-wishlist="!!wishlistStatus[group.id]"
-            :wishlist-count="wishlistCounts[group.id] || 0"
+            v-for="ip in visibleIps"
+            :key="ip.id"
+            :ip="ip"
+            :image="productImage(ip)"
+            :tags="tagsFor(ip)"
             @open-detail="openDetail"
             @external-purchase="handleExternalPurchase"
-            @pledge="handlePledge"
-            @add-wishlist="handleAddWishlist"
           />
         </div>
 
         <div v-else class="shop-empty">
-          <p>{{ shopCopy.product.empty }}</p>
+          <p>{{ hasActiveFilters ? shopCopy.product.emptyFiltered : shopCopy.product.empty }}</p>
         </div>
 
         <InfiniteScrollTrigger
-          v-if="visibleGroups.length > 0"
+          v-if="visibleIps.length > 0"
           :loading="false"
           :has-more="hasMore"
           @load-more="page++"

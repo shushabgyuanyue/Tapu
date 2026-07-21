@@ -4,25 +4,19 @@ import { getConfig, setConfig } from '../../api';
 
 const adEnabled = ref(true);
 const adInterval = ref(5);
-const communityEnabled = ref(false);
-const wishlistEnabled = ref(false);
 const saving = ref(false);
 const msg = ref('');
 const msgError = ref(false);
 
 onMounted(async () => {
   try {
-    const [ad, interval, community, wishlist] = await Promise.all([
+    const [ad, interval] = await Promise.all([
       getConfig('ad_enabled'),
       getConfig('ad_interval'),
-      getConfig('community_enabled'),
-      getConfig('wishlist_enabled'),
     ]);
 
     if (ad.value !== undefined) adEnabled.value = ad.value === 'true' || ad.value === true;
     if (interval.value !== undefined) adInterval.value = parseInt(interval.value) || 5;
-    communityEnabled.value = community.value === 'true' || community.value === true;
-    wishlistEnabled.value = wishlist.value === 'true' || wishlist.value === true;
   } catch {
     // Use safe defaults for early-stage modules.
   }
@@ -37,8 +31,6 @@ const save = async () => {
     await Promise.all([
       setConfig('ad_enabled', String(adEnabled.value)),
       setConfig('ad_interval', String(adInterval.value)),
-      setConfig('community_enabled', String(communityEnabled.value)),
-      setConfig('wishlist_enabled', String(wishlistEnabled.value)),
     ]);
     msg.value = '保存成功';
   } catch {
@@ -55,29 +47,8 @@ const save = async () => {
     <h2 class="settings-title">系统设置</h2>
 
     <section class="setting-group">
-      <h3>前台模块</h3>
-      <p class="setting-desc">控制早期产品里是否展示社区和心愿单入口。两者默认关闭，商城默认独立展示。</p>
-
-      <label class="setting-row">
-        <span>
-          <strong>启用社区模块</strong>
-          <small>开启后顶部导航按“商城、社区”的顺序展示。</small>
-        </span>
-        <input type="checkbox" v-model="communityEnabled" class="toggle" />
-      </label>
-
-      <label class="setting-row">
-        <span>
-          <strong>启用心愿单模块</strong>
-          <small>开启后顶部导航展示独立心愿单页面，商城不会和心愿单共用页面。</small>
-        </span>
-        <input type="checkbox" v-model="wishlistEnabled" class="toggle" />
-      </label>
-    </section>
-
-    <section class="setting-group">
-      <h3>播放器社区广告</h3>
-      <p class="setting-desc">在播放器中每隔 N 次滑动插入社区引导卡。社区关闭时广告不会展示。</p>
+      <h3>播放器发现引导</h3>
+      <p class="setting-desc">在播放器中按间隔展示克制的发现引导，用于让游客了解更多可邀请的存在。</p>
 
       <label class="setting-row">
         <span>

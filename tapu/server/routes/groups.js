@@ -9,11 +9,11 @@ import {
   getPrimaryApplicationForIpDefinition,
   normalizeRelationType,
   normalizeStatus,
-  parseJson,
   stringifyJson,
   upsertIpDefinitionRelation,
   upsertIpInstanceContentLink,
 } from '../services/coreStore.js';
+import { getShopIpDefinition, listShopIpDefinitions } from '../services/shopCatalog.js';
 
 const router = Router();
 
@@ -38,25 +38,6 @@ function resultToObjects(results) {
   });
 }
 
-
-function computeSaleStatus(group) {
-  const available = group.available_count || 0;
-  const goal = group.crowdfund_goal || 0;
-  const pledgeCount = group.pledge_count || 0;
-  const deadline = group.crowdfund_deadline;
-  const now = new Date().toISOString();
-
-  if (available > 0) return 'purchasable';
-  if (goal > 0 && deadline && deadline > now) return 'crowdfunding';
-  if (goal > 0 && pledgeCount >= goal) return 'crowdfund_success';
-  if (goal > 0 && deadline && deadline <= now && pledgeCount < goal) return 'crowdfund_failed';
-  return 'sold_out';
-}
-
-function parsePositiveInt(value, fallback) {
-  const num = Number.parseInt(value, 10);
-  return Number.isFinite(num) && num > 0 ? num : fallback;
-}
 
 function cleanString(value) {
   return typeof value === 'string' ? value.trim() : '';
@@ -125,10 +106,6 @@ function buildGroupPayload(body) {
     series_id: cleanString(body.series_id) || null,
     series_name: cleanString(body.series_name) || null,
     application_id: cleanString(body.application_id) || null,
-    crowdfund_goal: Number(body.crowdfund_goal) || 0,
-    crowdfund_deadline: cleanString(body.crowdfund_deadline) || null,
-    price: Number(body.price) || 0,
-    stock_limit: Number(body.stock_limit) || 0,
     cover_url: cleanString(body.cover_url) || null,
     hero_url: cleanString(body.hero_url) || null,
     product_image_url: cleanString(body.product_image_url) || null,
@@ -145,52 +122,6 @@ function buildGroupPayload(body) {
     theme_color: cleanString(body.theme_color) || '#ff4fd8',
     status: cleanString(body.status) || 'active',
   };
-}
-
-function enrichGroup(group) {
-  const stockLimit = group.stock_limit || 0;
-  const soldCount = group.entity_count || 0;
-  const displayTags = Array.isArray(parseJson(group.display_tags_json, []))
-    ? parseJson(group.display_tags_json, [])
-    : [];
-  group.display_tags_list = displayTags;
-  group.display_tags = displayTags.join(', ');
-  group.available_count = stockLimit > 0 ? Math.max(0, stockLimit - soldCount) : 0;
-  group.sale_status = computeSaleStatus(group);
-  return group;
-}
-
-function baseGroupSql() {
-  return `SELECT d.*,
-            d.primary_series_key as series_id,
-            d.primary_series_name as series_name,
-            COALESCE(app.id, fallback_app.id) as application_id,
-            COALESCE(app.name, fallback_app.name) as application_name,
-            COALESCE(app.code, fallback_app.code) as application_code,
-            COALESCE(app.interaction_type, fallback_app.interaction_type) as interaction_type,
-            COALESCE(app.app_type, fallback_app.app_type) as app_type,
-            content.id as official_default_video_id,
-            content.title as official_default_video_title,
-            resource.preview_url as official_default_video_poster,
-            COUNT(DISTINCT owned.id) as entity_count,
-            COALESCE((SELECT COUNT(*) FROM crowdfund_pledges cp WHERE cp.group_id = d.id), 0) as pledge_count
-     FROM ip_definitions d
-     LEFT JOIN ip_definition_application_links link
-       ON link.ip_definition_id = d.id
-      AND link.is_primary = 1
-     LEFT JOIN application_definitions app ON app.id = link.application_definition_id
-     LEFT JOIN application_definitions fallback_app ON fallback_app.code = 'emotion-ip'
-     LEFT JOIN ip_instances owned ON owned.ip_definition_id = d.id AND owned.instance_type != 'official_demo'
-     LEFT JOIN ip_instances official ON official.ip_definition_id = d.id AND official.instance_type = 'official_demo'
-     LEFT JOIN ip_instance_content_instance_links content_link
-       ON content_link.ip_instance_id = official.id
-      AND content_link.relation_role = 'official_default'
-      AND content_link.is_primary = 1
-     LEFT JOIN content_instances content ON content.id = content_link.content_instance_id
-     LEFT JOIN content_instance_resource_links resource_link
-       ON resource_link.content_instance_id = content.id
-      AND resource_link.is_primary = 1
-     LEFT JOIN resources resource ON resource.id = resource_link.resource_id`;
 }
 
 function syncPrimaryApplicationLink(db, ipDefinitionId, applicationId) {
@@ -231,51 +162,20 @@ function resolveCreateApplicationId(db, payload) {
 
 router.get('/', async (req, res) => {
   const db = await getDb();
-  const { series_id } = req.query;
-  const page = parsePositiveInt(req.query.page, 1);
-  const pageSize = parsePositiveInt(req.query.page_size, 10);
-  const shouldPaginate = req.query.page !== undefined || req.query.page_size !== undefined;
-  const baseQuery = baseGroupSql();
-  const countSql = 'SELECT COUNT(*) as total FROM ip_definitions d';
-  const totalRows = series_id
-    ? db.exec(`${countSql} WHERE d.primary_series_key = ?`, [series_id])
-    : db.exec(countSql);
-  const total = totalRows.length > 0 ? totalRows[0].values[0][0] : 0;
-  const params = series_id ? [series_id] : [];
-  const where = series_id ? ' WHERE d.primary_series_key = ?' : '';
-  const paging = shouldPaginate ? ' LIMIT ? OFFSET ?' : '';
-  const results = db.exec(
-    `${baseQuery}${where} GROUP BY d.id ORDER BY d.created_at DESC${paging}`,
-    shouldPaginate ? [...params, pageSize, (page - 1) * pageSize] : params
-  );
-  const groups = resultToObjects(results).map(enrichGroup);
-
-  if (shouldPaginate) {
-    return res.json({
-      items: groups,
-      total,
-      page,
-      pageSize,
-      totalPages: Math.max(1, Math.ceil(total / pageSize)),
-    });
-  }
-  res.json(groups);
+  res.json(listShopIpDefinitions(db, {
+    seriesId: req.query.series_id,
+    page: req.query.page,
+    pageSize: req.query.page_size,
+    paginate: req.query.page !== undefined || req.query.page_size !== undefined,
+  }));
 });
 
 router.get('/:id', async (req, res) => {
   const db = await getDb();
-  const results = db.exec(
-    `${baseGroupSql()}
-     WHERE d.id = ?
-     GROUP BY d.id`,
-    [req.params.id]
-  );
-  const rows = resultToObjects(results);
-  if (rows.length === 0) {
+  const group = getShopIpDefinition(db, req.params.id);
+  if (!group) {
     return res.status(404).json({ error: serverMessages.routes.common.ipNotFound });
   }
-  const group = enrichGroup(rows[0]);
-  group.relations = getIpDefinitionRelations(db, req.params.id);
   res.json(group);
 });
 
@@ -352,9 +252,9 @@ async function createGroup(req, res) {
   db.run(
     `INSERT INTO ip_definitions
      (id, code, name, creator_user_id, primary_series_key, primary_series_name, description, story, personality, designer,
-      material, nfc_type, size_label, rarity_label, price, stock_limit, crowdfund_goal, crowdfund_deadline,
-      cover_url, hero_url, product_image_url, external_purchase_url, display_tags_json, theme_color, status, extra_json)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      material, nfc_type, size_label, rarity_label, cover_url, hero_url, product_image_url, external_purchase_url,
+      display_tags_json, theme_color, status, extra_json)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       id,
       code,
@@ -370,10 +270,6 @@ async function createGroup(req, res) {
       payload.nfc_type,
       payload.size_label,
       payload.rarity_label,
-      payload.price,
-      payload.stock_limit,
-      payload.crowdfund_goal,
-      payload.crowdfund_deadline,
       payload.cover_url,
       payload.hero_url,
       payload.product_image_url,
@@ -415,9 +311,9 @@ async function updateGroup(req, res) {
   db.run(
     `UPDATE ip_definitions
      SET code = ?, name = ?, creator_user_id = ?, primary_series_key = ?, primary_series_name = ?,
-         crowdfund_goal = ?, crowdfund_deadline = ?, price = ?, stock_limit = ?, cover_url = ?, hero_url = ?,
-         product_image_url = ?, description = ?, story = ?, personality = ?, designer = ?, material = ?, nfc_type = ?,
-         size_label = ?, rarity_label = ?, external_purchase_url = ?, display_tags_json = ?, theme_color = ?,
+         cover_url = ?, hero_url = ?, product_image_url = ?, description = ?, story = ?, personality = ?,
+         designer = ?, material = ?, nfc_type = ?, size_label = ?, rarity_label = ?, external_purchase_url = ?,
+         display_tags_json = ?, theme_color = ?,
          status = ?, updated_at = CURRENT_TIMESTAMP
      WHERE id = ?`,
     [
@@ -426,10 +322,6 @@ async function updateGroup(req, res) {
       payload.creator_user_id,
       payload.series_id,
       payload.series_name,
-      payload.crowdfund_goal,
-      payload.crowdfund_deadline,
-      payload.price,
-      payload.stock_limit,
       payload.cover_url,
       payload.hero_url,
       payload.product_image_url,

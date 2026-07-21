@@ -20,10 +20,6 @@ const showForm = ref(false);
 const editingId = ref('');
 const formName = ref('');
 const formSeriesId = ref('');
-const formCrowdfundGoal = ref(0);
-const formCrowdfundDeadline = ref('');
-const formPrice = ref(0);
-const formStockLimit = ref(0);
 const formCoverUrl = ref('');
 const formHeroUrl = ref('');
 const formProductImageUrl = ref('');
@@ -72,10 +68,6 @@ const openCreate = () => {
   editingId.value = '';
   formName.value = '';
   formSeriesId.value = activeSeries.value;
-  formCrowdfundGoal.value = 0;
-  formCrowdfundDeadline.value = '';
-  formPrice.value = 0;
-  formStockLimit.value = 0;
   formCoverUrl.value = '';
   formHeroUrl.value = '';
   formProductImageUrl.value = '';
@@ -95,10 +87,6 @@ const openEdit = (g: any) => {
   editingId.value = g.id;
   formName.value = g.name;
   formSeriesId.value = g.series_id || '';
-  formCrowdfundGoal.value = g.crowdfund_goal || 0;
-  formCrowdfundDeadline.value = g.crowdfund_deadline || '';
-  formPrice.value = g.price || 0;
-  formStockLimit.value = g.stock_limit || 0;
   formCoverUrl.value = g.cover_url || '';
   formHeroUrl.value = g.hero_url || '';
   formProductImageUrl.value = g.product_image_url || '';
@@ -117,10 +105,6 @@ const openEdit = (g: any) => {
 const submitForm = async () => {
   if (!formName.value.trim()) return;
   const opts = {
-    crowdfund_goal: formCrowdfundGoal.value,
-    crowdfund_deadline: formCrowdfundDeadline.value || undefined,
-    price: formPrice.value,
-    stock_limit: formStockLimit.value,
     cover_url: formCoverUrl.value.trim() || undefined,
     hero_url: formHeroUrl.value.trim() || undefined,
     product_image_url: formProductImageUrl.value.trim() || undefined,
@@ -262,9 +246,7 @@ onMounted(loadData);
             <span class="gm-item-name">{{ g.name }}</span>
             <span class="gm-item-series" v-if="g.series_name">{{ g.series_name }}</span>
             <span class="gm-item-default" v-if="g.official_default_video_id">官方默认已设</span>
-            <span class="gm-entity-badge" :class="g.stock_limit > 0 ? (g.stock_limit - (g.entity_count || 0) > 0 ? 'has-stock' : 'no-stock') : 'no-stock'">
-              {{ g.stock_limit > 0 ? `剩余 ${g.stock_limit - (g.entity_count || 0)} / ${g.stock_limit}` : '众筹阶段' }}
-            </span>
+            <span class="gm-entity-badge">{{ g.entity_count || 0 }} 个实体 token</span>
           </div>
           <div class="gm-item-actions">
             <button class="gm-act" @click="openEntityPanel(g.id)">查看已售</button>
@@ -276,7 +258,7 @@ onMounted(loadData);
           <!-- Entity Panel (read-only) -->
           <div v-if="showEntityPanel === g.id" class="gm-entity-panel">
             <div class="gm-entity-header">
-              <span class="gm-entity-title">已售实体 ({{ entityList.length }}{{ g.stock_limit ? ` / ${g.stock_limit}` : '' }})</span>
+              <span class="gm-entity-title">实体 token ({{ entityList.length }})</span>
               <button class="gm-entity-create" @click="handleCreateEntity(g.id)">生成实体 token</button>
             </div>
             <div class="gm-entity-loading" v-if="loadingEntities">加载中...</div>
@@ -325,25 +307,12 @@ onMounted(loadData);
                 <input v-model="formMaterial" placeholder="材质" />
                 <input v-model="formSizeLabel" placeholder="尺寸" />
               </div>
-              <label class="gm-form-label">稀有度 / 标签 / 外部购买链接</label>
+              <label class="gm-form-label">稀有度 / 标签 / 外部邀请入口</label>
               <input v-model="formRarityLabel" placeholder="例如：首发限量 300" />
               <input v-model="formDisplayTags" placeholder="逗号分隔，例如：高级贺卡,情绪礼物,可绑定资产" />
-              <input v-model="formExternalPurchaseUrl" placeholder="外部购买链接，可留空" />
+              <input v-model="formExternalPurchaseUrl" placeholder="外部邀请入口链接，可留空" />
               <label class="gm-form-label">主题色</label>
               <input v-model="formThemeColor" placeholder="#ff4fd8" />
-              <template v-if="editingId">
-                <label class="gm-form-label">价格 (元)</label>
-                <input v-model.number="formPrice" type="number" min="0" step="0.01" placeholder="价格" />
-                <label class="gm-form-label">库存上限 (0 = 仅众筹)</label>
-                <input v-model.number="formStockLimit" type="number" min="0" placeholder="0 表示仅众筹不直售" />
-                <p class="gm-form-hint" v-if="formStockLimit > 0">
-                  已售 {{ groups.find(x => x.id === editingId)?.entity_count || 0 }}，剩余 {{ formStockLimit - (groups.find(x => x.id === editingId)?.entity_count || 0) }}
-                </p>
-                <label class="gm-form-label">众筹目标人数</label>
-                <input v-model.number="formCrowdfundGoal" type="number" min="0" placeholder="0 表示不开启众筹" />
-                <label class="gm-form-label">众筹截止时间</label>
-                <input v-model="formCrowdfundDeadline" type="datetime-local" />
-              </template>
               <div class="gm-form-actions">
                 <button class="gm-submit" @click="submitForm">保存</button>
                 <button class="gm-cancel" @click="showForm = false">取消</button>
@@ -423,39 +392,10 @@ onMounted(loadData);
 .gm-act--del { color: #e53935; border-color: #fce4e4; }
 .gm-act--del:hover { background: #fff5f5; }
 
-.gm-default-picker {
-  margin-top: 12px; padding: 12px; background: #fafafa;
-  border-radius: 8px; border: 1px solid #f0f0f0;
-}
-.gm-picker-title { font-size: 12px; font-weight: 600; color: #666; margin: 0 0 8px; }
-.gm-picker-loading { font-size: 12px; color: #999; }
-.gm-picker-grid {
-  display: grid; grid-template-columns: repeat(auto-fill, minmax(70px, 1fr)); gap: 6px;
-  margin-bottom: 8px;
-}
-.gm-picker-item {
-  position: relative; cursor: pointer; border-radius: 6px;
-  overflow: hidden; border: 2px solid transparent;
-}
-.gm-picker-item:hover { border-color: #ddd; }
-.gm-picker-item.active { border-color: #7c4dff; }
-.gm-picker-item img { width: 100%; aspect-ratio: 9/16; object-fit: cover; display: block; }
-.gm-picker-placeholder {
-  width: 100%; aspect-ratio: 9/16; background: linear-gradient(135deg, #f3e8ff, #e0d4ff);
-}
-.gm-picker-label {
-  position: absolute; bottom: 0; left: 0; right: 0;
-  background: rgba(0,0,0,0.5); color: #fff;
-  font-size: 9px; padding: 2px 4px;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
-.gm-picker-empty { font-size: 12px; color: #bbb; margin: 0; }
-
 .gm-entity-badge {
   font-size: 11px; padding: 2px 8px; border-radius: 4px; font-weight: 500;
 }
-.gm-entity-badge.has-stock { background: #ecfdf5; color: #059669; }
-.gm-entity-badge.no-stock { background: #fef3c7; color: #d97706; }
+.gm-entity-badge { background: #ecfdf5; color: #059669; }
 
 .gm-entity-panel {
   margin-top: 12px; padding: 12px; background: #fafafa;

@@ -14,26 +14,24 @@ import interactionsRouter from '../routes/interactions.js';
 import mintStudioRouter from '../routes/mintStudio.js';
 import momentsRouter from '../routes/moments.js';
 import ordersRouter from '../routes/orders.js';
-import purchasesRouter from '../routes/purchases.js';
 import seriesRouter from '../routes/series.js';
+import shopRouter from '../routes/shop.js';
 import statsRouter from '../routes/stats.js';
 import travelTrailsRouter from '../routes/travelTrails.js';
 import videosRouter from '../routes/videos.js';
-import wishlistRouter from '../routes/wishlist.js';
 import worksRouter from '../routes/works.js';
 import { getRegisteredRouteContracts } from '../services/routePermissions.js';
 
 const ROUTE_MODULES = [
   { basePath: '/api/videos', router: videosRouter },
   { basePath: '/api/groups', router: groupsRouter },
+  { basePath: '/api/shop', router: shopRouter },
   { basePath: '/api/series', router: seriesRouter },
   { basePath: '/api/applications', router: applicationsRouter },
   { basePath: '/api/stats', router: statsRouter },
   { basePath: '/api/interactions', router: interactionsRouter },
-  { basePath: '/api/wishlist', router: wishlistRouter },
   { basePath: '/api/auth', router: authRouter },
   { basePath: '/api/assets', router: assetsRouter },
-  { basePath: '/api/purchases', router: purchasesRouter },
   { basePath: '/api/orders', router: ordersRouter },
   { basePath: '/api/entities', router: entitiesRouter },
   { basePath: '/api/config', router: configRouter },
@@ -58,7 +56,6 @@ const LEGACY_ROUTE_PERMISSIONS = [
   { method: 'get', path: '/api/answer-book/resolve', permission: 'public', permissionType: 'public', operation: 'view:open', query: { key: 'string', exclude: 'string?' }, response: { content: 'object', runtime_context: 'object' }, legacy: true },
   { method: 'get', path: '/api/checks/resolve', permission: 'public', permissionType: 'public', operation: 'view:open', query: { key: 'string' }, response: { checklist: 'object', runtime_context: 'object' }, legacy: true },
   { method: 'get', path: '/api/config/:key', permission: 'public', permissionType: 'public', legacy: true },
-  { method: 'get', path: '/api/entities/pledge-count/:groupId', permission: 'public', permissionType: 'public', legacy: true },
   { method: 'get', path: '/api/groups', permission: 'public', permissionType: 'public', legacy: true },
   { method: 'get', path: '/api/groups/:id', permission: 'public', permissionType: 'public', legacy: true },
   { method: 'post', path: '/api/interactions/:videoId/default', permission: 'public', permissionType: 'public', legacy: true },

@@ -142,16 +142,16 @@ const onLeaderboardPageChange = (next: number) => {
 
     <!-- Leaderboard -->
     <div class="section">
-      <h2>社区排行榜</h2>
+      <h2>IP 体验排行</h2>
       <div class="table-wrap">
         <table class="tbl">
-          <thead><tr><th>IP名称</th><th>系列</th><th>播放</th><th>购买</th></tr></thead>
+          <thead><tr><th>IP名称</th><th>系列</th><th>播放</th><th>外部订单</th></tr></thead>
           <tbody>
             <tr v-for="g in leaderboard" :key="g.id">
               <td>{{ g.name }}</td>
               <td class="td-dim">{{ g.series_name || '-' }}</td>
               <td class="td-num">{{ g.play_count }}</td>
-              <td class="td-num">{{ g.purchase_count }}</td>
+              <td class="td-num">{{ g.external_order_count }}</td>
             </tr>
             <tr v-if="!leaderboard.length"><td colspan="4" class="empty">暂无数据</td></tr>
           </tbody>
