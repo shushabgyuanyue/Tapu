@@ -94,7 +94,7 @@
 
 适合：
 
-- `PUT /api/auth/content-default-by-token`
+- `PUT /api/assets/default-content-by-token`
 - Mint Studio 中“通过物件码定制内容”的交易。
 - 后续通过 token 编辑轻应用作品的接口。
 
@@ -112,7 +112,7 @@
 
 适合：
 
-- `POST /api/auth/bind-entity`
+- `POST /api/assets/claim`
 - 后续实体资产认领接口。
 
 ### `entity_owner`
@@ -127,10 +127,10 @@
 
 示例：
 
-- `POST /api/auth/unbind-entity`
-- `POST /api/auth/transfer-entity`
-- `GET /api/auth/content-default/:entityId`
-- `PUT /api/auth/content-default/:entityId`
+- `POST /api/assets/instances/:entityId/unbind`
+- `POST /api/assets/instances/:entityId/transfer`
+- `GET /api/assets/instances/:entityId/default-content`
+- `PUT /api/assets/instances/:entityId/default-content`
 
 ### `content_owner`
 
@@ -214,7 +214,7 @@
 
 ### 通过 token 设置默认内容
 
-接口：`PUT /api/auth/content-default-by-token`
+接口：`PUT /api/assets/default-content-by-token`
 
 权限：`token_unbound_or_owner`
 
@@ -222,7 +222,7 @@
 
 ### 已绑定实体设置默认内容
 
-接口：`PUT /api/auth/content-default/:entityId`
+接口：`PUT /api/assets/instances/:entityId/default-content`
 
 权限：`entity_owner`
 
@@ -319,16 +319,16 @@ npm run check:permissions
 
 - `GET /api/auth/profile`
 - `PUT /api/auth/password`
-- `GET /api/auth/entities`
 - `POST /api/auth/entity-key`
-- `POST /api/auth/bind-entity`
-- `POST /api/auth/unbind-entity`
-- `PUT /api/auth/content-default-by-token`
-- `POST /api/auth/transfer-entity`
-- `GET /api/auth/content-default/:entityId`
-- `PUT /api/auth/content-default/:entityId`
 - `GET /api/auth/unbind-appeals`
 - `POST /api/auth/unbind-appeals/:id/resolve`
+- `GET /api/assets/instances`
+- `POST /api/assets/claim`
+- `POST /api/assets/instances/:entityId/unbind`
+- `POST /api/assets/instances/:entityId/transfer`
+- `GET /api/assets/instances/:entityId/default-content`
+- `PUT /api/assets/instances/:entityId/default-content`
+- `PUT /api/assets/default-content-by-token`
 - `POST /api/authoring/resources`
 - `POST /api/authoring/content-by-token`
 - `DELETE /api/videos/:id`

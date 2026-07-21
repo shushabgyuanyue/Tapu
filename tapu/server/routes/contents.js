@@ -251,7 +251,9 @@ async function createDraftVersion(req, res) {
       summary: req.body?.summary,
       changeRequest: req.body?.changeRequest || req.body?.change_request,
       body: req.body?.body,
+      resources: Array.isArray(req.body?.resources) ? req.body.resources : [],
       createdBy: req.user?.id || null,
+      allowAdmin: req.user?.username === 'admin',
     });
     if (!draft) return res.status(404).json({ error: 'Content not found' });
     saveDb();

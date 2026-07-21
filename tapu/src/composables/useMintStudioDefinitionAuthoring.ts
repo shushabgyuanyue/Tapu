@@ -47,6 +47,7 @@ export function useMintStudioDefinitionAuthoring(params: {
   const isDefinitionResourceFlow = computed(() => [
     'definition_resource_sequence',
     'definition_resource_single_node',
+    'content_resource_replacement',
   ].includes(params.studioFlow.value?.kind));
 
   function resetDefinitionAuthoring() {
@@ -57,6 +58,27 @@ export function useMintStudioDefinitionAuthoring(params: {
   function applyDefinitionAuthoringFlow() {
     runtimeSteps.value = params.studioFlow.value?.steps ? [...params.studioFlow.value.steps] : [];
     uploadedResources.value = [];
+  }
+
+  function getDefinitionAuthoringSnapshot() {
+    return {
+      runtimeSteps: runtimeSteps.value,
+      uploadedResources: uploadedResources.value,
+      resourceSnapshot: uploadedResources.value.map((resource: any) => ({
+        resourceId: resource.id || resource.resource_id,
+        relationRole: resource.relationRole || resource.relation_role,
+        slotKey: resource.slotKey || resource.slot_key,
+        unitIndex: Number(resource.unitIndex || resource.unit_index || 1),
+        label: resource.label || '',
+      })).filter((resource: any) => resource.resourceId),
+    };
+  }
+
+  function restoreDefinitionAuthoringSnapshot(snapshot: any = {}) {
+    runtimeSteps.value = Array.isArray(snapshot.runtimeSteps)
+      ? snapshot.runtimeSteps
+      : (params.studioFlow.value?.steps ? [...params.studioFlow.value.steps] : []);
+    uploadedResources.value = Array.isArray(snapshot.uploadedResources) ? snapshot.uploadedResources : [];
   }
 
   function nextUnitIndex() {
@@ -231,6 +253,8 @@ export function useMintStudioDefinitionAuthoring(params: {
     isDefinitionResourceFlow,
     resetDefinitionAuthoring,
     applyDefinitionAuthoringFlow,
+    getDefinitionAuthoringSnapshot,
+    restoreDefinitionAuthoringSnapshot,
     uploadResourceForStep,
     handleDefinitionOption,
   };

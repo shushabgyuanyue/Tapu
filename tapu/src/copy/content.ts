@@ -1,3 +1,4 @@
+// Content detail copy: content asset viewing, preview, binding, edit, delete, and related error text.
 export const contentCopy = {
   blocks: {
     actionTitle: '小动作',
@@ -11,7 +12,7 @@ export const contentCopy = {
       likeLogin: '请先登录或注册后再点赞',
       favoriteLogin: '请先登录或注册后再收藏',
       previewCopied: '预览链接已复制',
-      bindLogin: '请先登录或注册，再到“我的资产”绑定物件并设置默认内容',
+      bindLogin: '请先登录或注册，再到 Mint Space 接入物件并设置默认内容',
       contentIdCopied: '内容 ID 已复制',
       defaultUpdated: '物件默认内容已更新',
       downloading: '视频下载中...',
@@ -44,12 +45,12 @@ export const contentCopy = {
       openExperience: '进入体验',
       bindIpInstance: '绑定到物件',
       bindAccountAsset: '绑定到实体 IP',
-      bindHint: '点击“绑定到物件”会跳转到我的资产，并把当前内容作为默认内容候选带过去。',
+      bindHint: '点击“绑定到物件”会跳转到 Mint Space，并把当前内容作为默认内容候选带过去。',
       copyContentId: '复制内容 ID',
-      revise: '修改内容',
+      revise: '编辑新版',
       replaceResource: '替换资源',
       manageTitle: '维护内容',
-      manageHint: '替换当前资源，保留这条内容资产和绑定关系。',
+      manageHint: '进入创作中心替换资源，保留内容资产与实体绑定关系。',
       extend: '续写内容',
       delete: '删除内容',
       deleteTitle: '危险操作',
@@ -95,7 +96,7 @@ export const contentCopy = {
     versions: {
       current: (version: number) => `当前版本：v${version}`,
       draftCount: (count: number) => `有 ${count} 个草稿待发布`,
-      editHint: '修改和续写会先进入创作中心生成新版草稿，确认后再发布。',
+      editHint: '编辑会先进入创作中心生成新版草稿，确认后再发布。',
     },
     officialDefault: {
       title: '官方默认内容',

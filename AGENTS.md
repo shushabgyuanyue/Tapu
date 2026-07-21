@@ -18,6 +18,7 @@ Before making non-trivial changes, read:
 4. `docs/engineering-governance.md`
 5. `docs/os-app-boundary.md`
 6. `docs/route-permission-principles.md`
+7. `docs/customer-facing-experience-plan.md`
 
 ## Repo Map
 
@@ -29,6 +30,11 @@ Before making non-trivial changes, read:
 
 ## Core Product Rules
 
+- WhatMint 对客北极星是：帮助用户邀请有灵的存在进入生活，并逐渐打造属于自己的 `Mint Space`。
+- `Mint Space` 是拥有后的默认目的地；未拥有用户优先走首页、邀请存在、NFC 体验和创作示例，不强行教育 Space。
+- IP 对客表达为“存在 / 伙伴”，购买对客表达为“邀请”，资产管理能力应下沉到伙伴详情或二级操作。
+- `/assets` 技术路径可以保留，但用户侧页面和文案应优先表达为 `Mint Space`，不得回退为资产仓库、展馆、展品列表。
+- 首页是世界入口，商城 / IP 详情是邀请入口，NFC 触碰页是线下冷启动入口，Mint Studio 是赋予存在新意义的创作入口。
 - The project converges toward the core object model:
   - `users`
   - `ip_definitions`
@@ -41,6 +47,7 @@ Before making non-trivial changes, read:
 - Supporting tables are allowed only if they do not become a parallel business truth.
 - OS owns identity, permissions, content protocol, events, states, runtime context, skill matching, and Studio shell.
 - Apps own voice, ritual, pacing, story expression, and domain-specific experience.
+- Do not add a new core table just to represent Mint Space; it is a user-facing aggregation of core objects and OS capabilities.
 - When old-architecture logic conflicts with the current core object model, replace it with the new core/OS pattern directly. Do not add compatibility shells, fallback branches, or parallel legacy flows unless the user explicitly asks for temporary migration support.
 
 ## Development Rules
@@ -49,11 +56,16 @@ Before making non-trivial changes, read:
 - If a file exceeds `500` lines, actively evaluate decomposition.
 - If a file exceeds `900` lines, do not continue feature stacking unless it is an emergency fix.
 - User-facing copy for non-admin surfaces must go into `tapu/src/copy/*`.
+- Customer-facing Chinese copy, including validation messages, empty states, toasts, confirmation text, and recoverable error text, must be extracted into the corresponding copy file before completion.
+- Every copy file must start with a short comment explaining which module, page, or error surface it owns, so later copy optimization and internationalization can happen in one place.
+- Backend messages that may be returned to users must go into `tapu/server/copy/*`; route handlers and services should not invent one-off user-facing error strings.
 - Reuse existing style variables and shared patterns before adding new visual primitives.
 - Similar styles appearing in multiple places should be extracted into shared styles or shared tokens.
 - Frontend network access must go through `tapu/src/api/*`; do not scatter raw fetch calls.
 - New backend routes must follow the current `routePermissions + operation + contract` pattern.
 - Do not create parallel admin shells, duplicate route trees, or one-off routing conventions.
+- Customer-facing navigation and copy must respect user state: unknown / unowned users see world and invitation paths first; owned users see Mint Space first.
+- Avoid task, level, gacha, warehouse, shelf, and hard-advertising language unless the user explicitly asks for that direction.
 
 ## Refactor Preferences
 

@@ -60,6 +60,37 @@ function resetContentBindingSchemaIfNeeded(database) {
   }
 }
 
+function normalizePrimaryIpInstanceContentLinks(database) {
+  const duplicateGroups = resultToObjects(database.exec(
+    `SELECT ip_instance_id, relation_role, COUNT(*) as primary_count
+     FROM ip_instance_content_instance_links
+     WHERE is_primary = 1
+     GROUP BY ip_instance_id, relation_role
+     HAVING COUNT(*) > 1`
+  ));
+
+  for (const group of duplicateGroups) {
+    const links = resultToObjects(database.exec(
+      `SELECT id
+       FROM ip_instance_content_instance_links
+       WHERE ip_instance_id = ?
+         AND relation_role = ?
+         AND is_primary = 1
+       ORDER BY sort_order ASC, created_at DESC, updated_at DESC, id ASC`,
+      [group.ip_instance_id, group.relation_role]
+    ));
+    const keepId = links[0]?.id;
+    for (const link of links.slice(1)) {
+      if (link.id && link.id !== keepId) {
+        database.run(
+          'UPDATE ip_instance_content_instance_links SET is_primary = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+          [link.id]
+        );
+      }
+    }
+  }
+}
+
 export async function getDb() {
   if (db) return db;
 
@@ -260,6 +291,26 @@ export async function getDb() {
       deleted_by_user_id TEXT,
       deleted_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       metadata_json TEXT
+    )`,
+    `CREATE TABLE IF NOT EXISTS studio_authoring_drafts (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      title TEXT,
+      subject_type TEXT DEFAULT 'entity',
+      subject_id TEXT,
+      token TEXT,
+      app_code TEXT,
+      ip_definition_id TEXT,
+      ip_instance_id TEXT,
+      content_definition_id TEXT,
+      application_definition_id TEXT,
+      status TEXT DEFAULT 'draft',
+      current_step_index INTEGER DEFAULT 0,
+      phase TEXT DEFAULT 'step',
+      payload_json TEXT,
+      resource_snapshot_json TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )`,
     `CREATE TABLE IF NOT EXISTS content_collections (
       id TEXT PRIMARY KEY,
@@ -533,6 +584,10 @@ export async function getDb() {
   } catch (e) { /* core backfill should not block startup while routes are transitioning */ }
 
   try {
+    normalizePrimaryIpInstanceContentLinks(db);
+  } catch (e) { /* content link normalization should not block startup */ }
+
+  try {
     const rows = resultToObjects(db.exec('SELECT id FROM entities WHERE token IS NULL OR token = ""'));
     for (const row of rows) {
       const token = createUniqueEntityToken(db);
@@ -562,6 +617,8 @@ export async function getDb() {
     db.run('CREATE INDEX IF NOT EXISTS idx_event_consumptions_event ON event_consumptions(event_id, status, consumed_at)');
     db.run('CREATE INDEX IF NOT EXISTS idx_event_consumptions_consumer ON event_consumptions(consumer_type, consumer_id, application_definition_id, status)');
     db.run('CREATE INDEX IF NOT EXISTS idx_content_instance_versions_content ON content_instance_versions(content_instance_id, status, version_no)');
+    db.run('CREATE UNIQUE INDEX IF NOT EXISTS idx_ip_instance_content_primary_unique ON ip_instance_content_instance_links(ip_instance_id, relation_role) WHERE is_primary = 1');
+    db.run('CREATE INDEX IF NOT EXISTS idx_studio_authoring_drafts_user ON studio_authoring_drafts(user_id, status, updated_at)');
     db.run('CREATE INDEX IF NOT EXISTS idx_content_collection_blocks_collection ON content_collection_blocks(collection_id)');
     db.run('CREATE INDEX IF NOT EXISTS idx_app_bindings_app ON app_bindings(app_code)');
     db.run('CREATE INDEX IF NOT EXISTS idx_app_bindings_scope ON app_bindings(scope_type, scope_id)');

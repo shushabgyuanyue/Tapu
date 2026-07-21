@@ -64,6 +64,26 @@ export type MintStudioLibraryItem = {
   updatedAt?: string;
 };
 
+export type MintStudioDraftItem = {
+  id: string;
+  title: string;
+  subjectType: string;
+  subjectId?: string;
+  token?: string;
+  appCode?: string;
+  ipDefinitionId?: string;
+  ipInstanceId?: string;
+  contentDefinitionId?: string;
+  applicationDefinitionId?: string;
+  status: string;
+  currentStepIndex: number;
+  phase: string;
+  payload: Record<string, any>;
+  resourceSnapshot: Array<Record<string, any>>;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
 export async function resolveMintStudio(key: string): Promise<MintStudioRecipe> {
   const query = new URLSearchParams({ key });
   return request(`/mint-studio/resolve?${query.toString()}`);
@@ -77,6 +97,25 @@ export async function fetchMintStudioLibrary(): Promise<{ items: MintStudioLibra
   return request('/mint-studio/library', { auth: true });
 }
 
+export async function fetchMintStudioDrafts(): Promise<{ drafts: MintStudioDraftItem[] }> {
+  return request('/mint-studio/drafts', { auth: true });
+}
+
+export async function saveMintStudioDraft(params: Record<string, any>): Promise<{ success: boolean; draft?: MintStudioDraftItem; error?: string }> {
+  return request('/mint-studio/drafts', {
+    method: 'POST',
+    auth: true,
+    jsonBody: params,
+  });
+}
+
+export async function deleteMintStudioDraft(id: string): Promise<{ success: boolean; draft?: MintStudioDraftItem; error?: string }> {
+  return request(`/mint-studio/drafts/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+    auth: true,
+  });
+}
+
 export async function fetchContentAuthoringContext(contentId: string, mode: 'revise' | 'extend' = 'revise'): Promise<MintStudioRecipe> {
   const query = new URLSearchParams({ mode });
   return request(`/contents/${encodeURIComponent(contentId)}/authoring-context?${query.toString()}`, { auth: true });
@@ -88,6 +127,7 @@ export async function createContentVersionDraft(contentId: string, params: {
   body?: string;
   title?: string;
   summary?: string;
+  resources?: unknown[];
 }) {
   return request(`/contents/${encodeURIComponent(contentId)}/versions`, {
     method: 'POST',

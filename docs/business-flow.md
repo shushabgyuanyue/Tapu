@@ -4,12 +4,12 @@
 
 ## 1. 当前产品定位
 
-WhatMint 不是单纯的 NFC 产品，而是给实体安装“情绪应用”的内容系统。当前实现优先服务 **情绪 IP 类**，典型实体是纸巾小狗这类情绪摆件。
+WhatMint 不是单纯的 NFC 产品，而是帮助用户邀请有灵的存在进入生活，并逐渐打造属于自己的 **Mint Space** 的情感世界平台。当前实现优先服务 **情绪 IP 类**，典型实体是纸巾小狗这类情绪摆件。
 
 核心链路：
 
 ```text
-外部购买 -> 官方录入订单并生成 token -> token/NFC 链接写入物件 -> 创作中心按内容定义创建内容实例 -> 内容绑定到物件实例 -> 触碰物件打开对应体验
+发现世界 -> 邀请存在 -> 官方录入订单并生成 token -> token/NFC 链接写入物件 -> 创作中心按内容定义创建内容实例 -> 内容绑定到物件实例 -> 触碰物件打开对应体验 -> 接入 Mint Space
 ```
 
 ## 2. 完整业务流程
@@ -19,7 +19,7 @@ WhatMint 不是单纯的 NFC 产品，而是给实体安装“情绪应用”的
 3. 系统创建 `orders` 与 `ip_instances`，生成 128-bit 随机 token，并记录 `nfc_written_at`、`token_delivered_at`。
 4. 官方将 `/play?key=<token>` 写入 NFC 芯片，并将 token 或 NFC 实体发放给购买用户。
 5. 用户进入内容详情 `/content/:id`，可以直接输入 token，把当前内容写入未绑定实体。
-6. 用户也可以去 `/assets` 登录后绑定 token；若 URL 带 `defaultContentId`，绑定成功后会自动尝试写入默认内容。
+6. 用户也可以进入 `/assets` 对客呈现的 Mint Space，登录后绑定 token；若 URL 带 `defaultContentId`，绑定成功后会自动尝试写入默认内容。
 7. 用户通过物件 NFC 进入对应轻应用，系统按物件默认内容、官方默认内容、内容定义规则组织体验。
 8. token 未绑定账号前，可凭 token 反复修改公开默认内容。
 9. token 绑定账号后，只能登录对应账号修改默认内容、创建私有内容、转赠或解绑。
@@ -108,7 +108,8 @@ IP 定义，例如纸巾小狗、耳机小姐。包含实体信息、商品信�
 
 | 能力 | 文件 |
 |------|------|
-| 登录、绑定、转赠、默认内容、申诉 | `tapu/server/routes/auth.js` |
+| 登录、账户、申诉 | `tapu/server/routes/auth.js` |
+| Mint Space OS 入口、绑定、转赠、默认内容 | `tapu/server/routes/assets.js`、`tapu/server/services/assetSpace.js` |
 | 创作中心解析和内容列表 | `tapu/server/routes/mintStudio.js` |
 | 内容定义资源上传和内容实例创建 | `tapu/server/routes/authoring.js` |
 | 内容详情、删除、版本草稿和发布 | `tapu/server/routes/contents.js` |
@@ -118,7 +119,7 @@ IP 定义，例如纸巾小狗、耳机小姐。包含实体信息、商品信�
 | 应用技术层 | `tapu/server/routes/applications.js` |
 | 数据库 schema / migrations | `tapu/server/db/schema.sql`、`tapu/server/db/index.js` |
 | API 封装 | `tapu/src/api/index.ts` |
-| 资产页 | `tapu/src/views/AssetsPage.vue` |
+| Mint Space 页面 | `tapu/src/views/AssetsPage.vue` |
 | 内容详情直写 token | `tapu/src/views/ContentDetailPage.vue` |
 | 商城展示页 | `tapu/src/views/ShopPage.vue`、`tapu/src/components/shop/ShopFilterBar.vue`、`tapu/src/components/shop/ShopProductCard.vue` |
 | 耳机小姐故事空间 | `tapu/src/views/EarphoneGirlPage.vue` |
@@ -158,17 +159,17 @@ IP 定义，例如纸巾小狗、耳机小姐。包含实体信息、商品信�
 - 订单状态目前只粗略表示 `pending/shipped/completed`，NFC 写入和 token 发放已用独立时间字段记录。
 - 购买不在平台内完成，商城和心愿单只做展示与用户教育。
 - 社区和心愿单默认关闭，由官方管理开关控制。
-- `/assets` 顶部和空展馆态都有“绑定新资产 / 去绑定 token”入口；同一输入框会围绕实体 IP token 处理绑定。
+- `/assets` 作为 Mint Space 路径保留，提供“接入新 IP / 接入 token”能力；同一输入框会围绕实体 IP token 处理绑定。
 - 商城页已拆出 `ShopFilterBar` 与 `ShopProductCard`，页面本体保留数据编排和业务动作；后续扩展商品信息时优先扩展组件，不要把卡片逻辑写回页面。
 - 耳机小姐故事空间按实例级故事队列推进，联动副轨不覆盖主故事队列。
-- 登录头像菜单顺序为“我的资产 -> 解绑申诉 -> 账户设置”，避免资产绑定入口被账户设置遮挡。
-- 资产展馆与 IP 详情页已收敛大图、阴影和 hero 高度，保持黑/紫/粉视觉方向但降低移动端滚动负担。
+- 登录头像菜单中的 `/assets` 入口对客显示为 Mint Space；实体管理能力下沉到伙伴详情。
+- Mint Space 与 IP 详情页已收敛大图、阴影和 hero 高度，让 `/assets` 从展柜转向可进入体验、创作和管理的生态入口。
 
 ## 8. 后续只有高收益才建议做
 
 - 给外部订单增加真实买家引用字段，例如 `external_buyer_ref`、`external_platform`。
 - 给私有内容 NFC 匿名播放增加更明确的前端提示，避免用户误解“实体坏了”。
-- 将资产页继续拆为 `BindTokenCard`、`AssetCard`、`TransferPanel`、`DefaultContentPicker`，降低维护成本；当前资产页仍超过 500 行，是下一轮前端重构优先级最高的页面之一。
+- Mint Space 已拆为页面编排、资产服务 composable、展示组件和独立样式；后续扩展优先复用 `components/assets/*`，不要把流程重新写回页面。
 - 后续耳机小姐管理能力优先走核心对象、创作中心和官方内容绑定，不再恢复旧贴纸后台。
 - 增加可重复运行的 E2E 测试脚本，但需要先决定是否引入测试框架和测试数据策略。
 ## 2026-07-14 流程复测与口径更新
@@ -177,7 +178,7 @@ IP 定义，例如纸巾小狗、耳机小姐。包含实体信息、商品信�
 
 - 使用临时 DB、临时上传目录和真实 HTTP 服务完成复测，测试结束后已删除临时数据和脚本。
 - 覆盖链路：用户外部购买获得订单号；官方录入订单并生成 128-bit token；订单记录包含 `nfc_written_at` 与 `token_delivered_at`；token 可搜索；未绑定 token 可设置公开默认内容；用户登录后绑定 token；其他账号无法抢绑；持有人可创建私有内容并设为默认；转赠后旧持有人不可修改，新持有人可修改。
-- 本轮修复：持有人通过 `/auth/content-default/:entityId` 修改默认内容时，事件会携带 token/order 信息，便于后续物件持有传承审计。
+- 本轮修复：持有人通过 `/api/assets/instances/:entityId/default-content` 修改默认内容时，事件会携带 token/order 信息，便于后续物件持有传承审计；资产交易不再挂在 `/api/auth` 下，账号域只保留登录、账户资料、申诉等职责。
 
 ### 耳机小姐流程口径
 
@@ -189,8 +190,9 @@ IP 定义，例如纸巾小狗、耳机小姐。包含实体信息、商品信�
 - `/play?key=<token>` 先通过 `/api/contents/resolve-by-token` 解析 IP 实例，再打开该实例的 `owner_default` 内容；若未设置，则回落到该 IP 的官方默认内容。
 - token 只授权当前物件的默认内容播放，不提供任意私有内容检索能力；内容详情和内容管理仍按登录用户、owner/admin 权限判断。
 - 播放器是 OS 内容渲染入口，具体视频、音频、AR 或网页体验由内容定义里的 renderer/template 决定。
+- NFC 线下冷启动用户应先看到实体数字体验，再被克制引导绑定到 Mint Space 或了解 WhatMint；绑定后基本不再展示广告式引导。
 
 ### 前端维护建议
 
-- `AssetsPage.vue`、`IPDetailPage.vue` 均已超过 500 行，后续继续开发时优先拆组件。
-- 建议拆分方向：资产页拆 `BindTokenCard`、`AssetGallery`、`EntityAssetCard`、`TransferPanel`、`DefaultContentPanel`；IP 详情拆 hero、故事档案、规格、内容预览。
+- `AssetsPage.vue` 已拆为 Mint Space 编排层；后续继续开发资产域时复用 `components/assets/*` 和 `useAssetSpace`。
+- `IPDetailPage.vue` 仍超过 500 行，后续建议拆 hero、故事档案、规格、内容预览。

@@ -1,3 +1,4 @@
+// Light-app runtime copy: app entry labels, shared app states, and user-facing app shell text.
 export const appCopy = {
   earphoneGirl: {
     fallbackTitle: '耳机小姐',

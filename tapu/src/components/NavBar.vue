@@ -86,6 +86,11 @@ defineExpose({ openLogin });
       <router-link to="/" class="navbar-brand">{{ commonCopy.brand }}</router-link>
 
       <nav class="navbar-links">
+        <router-link to="/assets" class="nav-link nav-link--space" :title="commonCopy.nav.assets">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4 7v7c0 4 3.5 6.5 8 7 4.5-.5 8-3 8-7V7l-8-4Z"/><path d="M9 12h6"/><path d="M12 9v6"/></svg>
+          <span class="nav-label">{{ commonCopy.nav.assets }}</span>
+        </router-link>
+
         <router-link to="/shop" class="nav-link" :title="commonCopy.nav.shop">
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
           <span class="nav-label">{{ commonCopy.nav.shop }}</span>
@@ -207,6 +212,15 @@ defineExpose({ openLogin });
 .nav-link--creator {
   border: 1px solid var(--wm-line);
   color: var(--wm-accent);
+}
+
+.nav-link--space {
+  border: 1px solid rgba(52, 197, 210, 0.24);
+  color: var(--wm-ink);
+}
+
+.nav-link--space:hover {
+  background: var(--wm-surface-soft);
 }
 
 .nav-link--creator:hover {

@@ -3,6 +3,7 @@ import { isLoggedIn, request, setToken } from './http';
 export { clearToken, isLoggedIn, setToken } from './http';
 export * from './mintStudio';
 export * from './lightApps';
+export * from './assets';
 
 // ===== Auth =====
 export async function login(username: string, password: string) {
@@ -24,14 +25,6 @@ export async function register(username: string, password: string) {
 }
 
 
-export async function bindEntity(key: string) {
-  return request('/auth/bind-entity', {
-    method: 'POST',
-    auth: true,
-    jsonBody: { key },
-  });
-}
-
 export async function getProfile() {
   return request('/auth/profile', { auth: true });
 }
@@ -42,10 +35,6 @@ export async function changePassword(old_password: string, new_password: string)
     auth: true,
     jsonBody: { old_password, new_password },
   });
-}
-
-export async function getEntities() {
-  return request('/auth/entities', { auth: true });
 }
 
 export async function fetchUserEvents(params?: { page?: number; pageSize?: number; q?: string; eventType?: string }) {
@@ -647,25 +636,8 @@ export async function setConfig(key: string, value: string) {
   });
 }
 
-// ===== Unbind Entity =====
-export async function unbindEntity(entityId: string) {
-  return request('/auth/unbind-entity', {
-    method: 'POST',
-    auth: true,
-    jsonBody: { entity_id: entityId },
-  });
-}
-
-export async function transferEntity(entityId: string, toUsername: string) {
-  return request('/auth/transfer-entity', {
-    method: 'POST',
-    auth: true,
-    jsonBody: { entity_id: entityId, to_username: toUsername },
-  });
-}
-
 export async function setIpInstanceContentByToken(key: string, contentId: string) {
-  return request('/auth/content-default-by-token', {
+  return request('/assets/default-content-by-token', {
     method: 'PUT',
     auth: isLoggedIn(),
     jsonBody: { key, content_id: contentId },
@@ -706,13 +678,13 @@ export async function fetchOwnershipEvents(params?: { page?: number; pageSize?: 
   return request(`/entities/ownership-events${qs ? '?' + qs : ''}`, { auth: true });
 }
 
-// ===== Entity Default Video =====
+// ===== IP Instance Default Content =====
 export async function getIpInstanceDefaultContent(entityId: string) {
-  return request(`/auth/content-default/${entityId}`, { auth: true });
+  return request(`/assets/instances/${entityId}/default-content`, { auth: true });
 }
 
 export async function setIpInstanceDefaultContent(entityId: string, contentId: string) {
-  return request(`/auth/content-default/${entityId}`, {
+  return request(`/assets/instances/${entityId}/default-content`, {
     method: 'PUT',
     auth: true,
     jsonBody: { content_id: contentId },

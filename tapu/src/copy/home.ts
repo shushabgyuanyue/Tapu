@@ -1,9 +1,10 @@
+// Landing page copy: customer-facing brand narrative, hero sections, and homepage entry actions.
 export const homeCopy = {
   hero: {
     eyebrow: 'WhatMint Object Space',
     titlePrefix: '给现实里的物，',
     titleAccent: '安装情绪应用。',
-    subtitle: '一枚贴纸、一个摆件、一件作品，被触碰后打开自己的数字空间。我们用轻应用把物的特性延展出来，形成新的交互范式和情绪表达。',
+    subtitle: '一枚贴纸、一个摆件、一件作品，被触碰后进入自己的 Mint Space。我们用轻应用把物的特性延展出来，形成新的交互范式和情绪表达。',
     primaryCommunity: '进入灵感社区',
     primaryShop: '看看可以触碰的物',
     wishlist: '打开心愿单',
@@ -71,7 +72,7 @@ export const homeCopy = {
     principles: [
       'NFC 是入口，不是产品本身。',
       '实体是载体，内容是应用。',
-      '每个贴纸、摆件、作品，都可以拥有自己的数字空间。',
+      '每个贴纸、摆件、作品，都可以进入一个属于它的 Mint Space。',
       '后台隐藏复杂路由与权限，前台只保留一次轻轻的触碰。',
     ],
   },

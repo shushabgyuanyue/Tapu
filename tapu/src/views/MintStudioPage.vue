@@ -2,7 +2,7 @@
 import { computed, inject, nextTick, onMounted, onUnmounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import {
-  bindEntity,
+  bindAssetInstance,
   isLoggedIn,
   resolveMintStudio,
   setIpInstanceContentByToken,
@@ -21,6 +21,7 @@ import {
 import { useMintStudioDetail } from '../composables/useMintStudioDetail';
 import { useMintStudioContentVersion } from '../composables/useMintStudioContentVersion';
 import { useMintStudioDefinitionAuthoring } from '../composables/useMintStudioDefinitionAuthoring';
+import { useMintStudioAuthoringDrafts } from '../composables/useMintStudioAuthoringDrafts';
 import { useMintStudioOfficialResolve } from '../composables/useMintStudioOfficialResolve';
 import { studioCopy } from '../copy';
 import { AUTH_CHANGED_EVENT, CONTENT_CHANGED_EVENT } from '../events/appEvents';
@@ -55,6 +56,7 @@ const showLogin = ref(false);
 const navKey = ref(0);
 const sidebarOpen = ref(true);
 const selectedContentId = ref('');
+const savedAuthoringDraftSignature = ref('');
 const threadRef = ref<{ scrollToBottom: () => void } | null>(null);
 const composerInputRef = ref<{ focus: () => void } | null>(null);
 const {
@@ -77,8 +79,11 @@ const studioFlow = computed(() => studio.value?.recipe.studioFlow || null);
 const isDefinitionDrivenFlow = computed(() => studioFlow.value?.kind === 'definition_driven');
 const {
   flowSteps,
+  isDefinitionResourceFlow,
   resetDefinitionAuthoring,
   applyDefinitionAuthoringFlow,
+  getDefinitionAuthoringSnapshot,
+  restoreDefinitionAuthoringSnapshot,
   uploadResourceForStep,
   handleDefinitionOption,
 } = useMintStudioDefinitionAuthoring({
@@ -92,10 +97,38 @@ const {
   openAuthoringPreview,
   onContentCreated: (contentId: string) => {
     mintedContentId.value = contentId;
+    if (currentDraftId.value) archiveDraft(currentDraftId.value, { silent: true });
   },
 });
+const {
+  drafts,
+  draftsLoading,
+  currentDraftId,
+  loadDrafts,
+  saveDraft,
+  archiveDraft,
+  resetCurrentDraft,
+  adoptDraft,
+} = useMintStudioAuthoringDrafts({ studio, toast });
 const currentStep = computed<StudioStep | null>(() => (
   phase.value === 'step' ? flowSteps.value[currentStepIndex.value] || null : null
+));
+const authoringSnapshot = computed(() => getDefinitionAuthoringSnapshot());
+const currentAuthoringDraftSignature = computed(() => JSON.stringify({
+  studioId: studio.value?.object.id || '',
+  token: studio.value?.token.token || '',
+  phase: phase.value,
+  currentStepIndex: currentStepIndex.value,
+  flowAnswers: flowAnswers.value,
+  runtimeSteps: authoringSnapshot.value.runtimeSteps,
+  resources: authoringSnapshot.value.resourceSnapshot,
+}));
+const hasUnsavedAuthoringDraft = computed(() => (
+  isDefinitionResourceFlow.value
+  && !!studio.value
+  && ['step', 'readyToFinish'].includes(phase.value)
+  && authoringSnapshot.value.resourceSnapshot.length > 0
+  && currentAuthoringDraftSignature.value !== savedAuthoringDraftSignature.value
 ));
 const canGoBack = computed(() => !['token', 'resolving', 'saving', 'done'].includes(phase.value));
 const canCollectAsset = computed(() => isEntityStudio.value && (!assetBound.value || !!mintedContentId.value));
@@ -137,6 +170,7 @@ const {
   applyResolvedStudio,
   loadStudioLibrary,
   finishMint,
+  getAuthoringSnapshot: getDefinitionAuthoringSnapshot,
 });
 const { resolveOfficialStudioByIpDefinitionId } = useMintStudioOfficialResolve({ phase, addMessage, applyResolvedStudio });
 
@@ -259,12 +293,54 @@ async function handleFlowOption(option: StudioStepOption) {
   focusComposer();
 }
 
-function resetStudio() {
+function currentDraftQuery() {
+  if (!studio.value) return {};
+  if (studio.value.bindings?.officialStudio && studio.value.bindings?.ipDefinitionId) {
+    return { official_ip_definition_id: String(studio.value.bindings.ipDefinitionId) };
+  }
+  if (studio.value.token.token) return { key: studio.value.token.token };
+  return {};
+}
+
+async function saveCurrentAuthoringDraft() {
+  if (!studio.value || !hasUnsavedAuthoringDraft.value) return null;
+  if (!isLoggedIn()) {
+    showLogin.value = true;
+    toast?.show(studioCopy.drafts.loginRequired, 1800, 'error');
+    return null;
+  }
+  const draft = await saveDraft({
+    id: currentDraftId.value,
+    title: studioCopy.drafts.defaultTitle(studio.value.object.displayName || studio.value.app.name),
+    currentStepIndex: currentStepIndex.value,
+    phase: phase.value,
+    flowAnswers: flowAnswers.value,
+    runtimeSteps: authoringSnapshot.value.runtimeSteps,
+    uploadedResources: authoringSnapshot.value.uploadedResources,
+    resourceSnapshot: authoringSnapshot.value.resourceSnapshot,
+    query: currentDraftQuery(),
+  });
+  if (draft) savedAuthoringDraftSignature.value = currentAuthoringDraftSignature.value;
+  return draft;
+}
+
+async function confirmDraftBeforeSwitch() {
+  if (!hasUnsavedAuthoringDraft.value) return true;
+  if (window.confirm(studioCopy.drafts.unsavedPrompt)) {
+    return !!(await saveCurrentAuthoringDraft());
+  }
+  return window.confirm(studioCopy.drafts.discardBeforeSwitch);
+}
+
+async function resetStudio() {
+  if (!(await confirmDraftBeforeSwitch())) return;
   selectedContentId.value = '';
   studio.value = null;
   uploadFile.value = null;
   assetBound.value = false;
   mintedContentId.value = '';
+  resetCurrentDraft();
+  savedAuthoringDraftSignature.value = '';
   resetContentVersionState();
   resetDefinitionAuthoring();
   currentStepIndex.value = 0;
@@ -282,6 +358,8 @@ function applyResolvedStudio(result: MintStudioRecipe, query: Record<string, str
   studio.value = result;
   assetBound.value = !!result.token.bound;
   mintedContentId.value = '';
+  resetCurrentDraft();
+  savedAuthoringDraftSignature.value = '';
   currentStepIndex.value = 0;
   flowAnswers.value = {};
   router.replace({ path: '/mint', query });
@@ -295,6 +373,7 @@ function applyResolvedStudio(result: MintStudioRecipe, query: Record<string, str
 }
 
 async function resolveToken(raw = tokenInput.value) {
+  if (!(await confirmDraftBeforeSwitch())) return;
   const key = raw.trim();
   if (!key) {
     addMessage('assistant', studioCopy.messages.tokenRequired);
@@ -334,7 +413,8 @@ function openAuthoringPreview(payload: any) {
   window.open(`/play?draft=${encodeURIComponent(draftId)}`, '_blank', 'noopener,noreferrer');
 }
 
-function openLibraryDetail(item: MintedItem) {
+async function openLibraryDetail(item: MintedItem) {
+  if (!(await confirmDraftBeforeSwitch())) return;
   selectedContentId.value = item.rawId;
   uploadFile.value = null;
   tokenInput.value = '';
@@ -342,9 +422,46 @@ function openLibraryDetail(item: MintedItem) {
   if (window.innerWidth <= 760) sidebarOpen.value = false;
 }
 
-function editContentFromDetail(contentId: string) {
+async function editContentFromDetail(contentId: string) {
+  if (!(await confirmDraftBeforeSwitch())) return;
   selectedContentId.value = '';
   resolveContentAuthoring(contentId, 'revise');
+}
+
+async function openAuthoringDraft(draft: any) {
+  if (!(await confirmDraftBeforeSwitch())) return;
+  const query = draft.payload?.studioQuery || {};
+  const key = draft.token || query.key || '';
+  try {
+    if (key) {
+      const result = await resolveMintStudio(key);
+      applyResolvedStudio(result, { key: result.token.token });
+    } else if (query.official_ip_definition_id) {
+      await resolveOfficialStudioByIpDefinitionId(query.official_ip_definition_id);
+    } else {
+      toast?.show(studioCopy.drafts.restoreFailed, 1800, 'error');
+      return;
+    }
+    adoptDraft(draft.id);
+    restoreDefinitionAuthoringSnapshot({
+      runtimeSteps: draft.payload?.runtimeSteps || [],
+      uploadedResources: draft.payload?.uploadedResources || [],
+    });
+    flowAnswers.value = draft.payload?.flowAnswers || {};
+    currentStepIndex.value = Math.max(0, Number(draft.currentStepIndex || 0));
+    phase.value = draft.phase === 'readyToFinish' ? 'readyToFinish' : 'step';
+    selectedContentId.value = '';
+    savedAuthoringDraftSignature.value = currentAuthoringDraftSignature.value;
+    addMessage('assistant', studioCopy.drafts.restored);
+    addMessage('assistant', studioCopy.drafts.restoredResourceCount((draft.resourceSnapshot || []).length));
+    focusComposer();
+  } catch {
+    toast?.show(studioCopy.drafts.restoreFailed, 1800, 'error');
+  }
+}
+
+async function deleteAuthoringDraft(draft: any) {
+  await archiveDraft(draft.id);
 }
 
 function handleDetailDeleted(contentId: string) {
@@ -463,7 +580,7 @@ async function collectAsset() {
     return;
   }
 
-  const bindResult = await bindEntity(studio.value.token.token);
+  const bindResult = await bindAssetInstance(studio.value.token.token);
   if (!bindResult.success) {
     phase.value = 'done';
     addMessage('assistant', bindResult.error || studioCopy.messages.collectFailed);
@@ -513,6 +630,7 @@ function handleLoginSuccess() {
   showLogin.value = false;
   navKey.value += 1;
   loadStudioLibrary();
+  loadDrafts();
   toast?.show(studioCopy.toast.loggedIn, 1600, 'success');
   const action = pendingLoginAction.value;
   pendingLoginAction.value = '';
@@ -525,6 +643,7 @@ function handleLoginSuccess() {
 function refreshStudioLibraryForSession() {
   navKey.value += 1;
   loadStudioLibrary();
+  loadDrafts();
 }
 
 function refreshStudioLibraryForContentChange() {
@@ -534,6 +653,7 @@ function refreshStudioLibraryForContentChange() {
 onMounted(() => {
   sidebarOpen.value = window.innerWidth > 760;
   loadStudioLibrary();
+  loadDrafts();
   window.addEventListener(AUTH_CHANGED_EVENT, refreshStudioLibraryForSession);
   window.addEventListener(CONTENT_CHANGED_EVENT, refreshStudioLibraryForContentChange);
   const key = typeof route.query.key === 'string' ? route.query.key : '';
@@ -575,11 +695,16 @@ onUnmounted(() => {
       <MintStudioSidebar
         v-model:open="sidebarOpen"
         :items="mintedItems"
+        :drafts="drafts"
         :loading="libraryLoading"
+        :drafts-loading="draftsLoading"
         :active-item-id="selectedContentId"
+        :active-draft-id="currentDraftId"
         @new-mint="resetStudio"
         @open-item="openLibraryDetail"
         @delete-item="deleteMintedItem"
+        @open-draft="openAuthoringDraft"
+        @delete-draft="deleteAuthoringDraft"
       />
       <button
         v-if="sidebarOpen"
@@ -627,9 +752,11 @@ onUnmounted(() => {
           :current-step="currentStep"
           :is-busy="isBusy"
           :send-disabled="sendDisabled"
+          :can-save-draft="hasUnsavedAuthoringDraft"
           :composer-placeholder="composerPlaceholder"
           @submit="handleSend"
           @back="goBack"
+          @save-draft="saveCurrentAuthoringDraft"
           @file-change="onFileChange"
           @remove-file="removeUploadFile"
         />

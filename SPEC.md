@@ -4,7 +4,9 @@
 
 ## 一句话
 
-WhatMint 是一个给实体安装“情绪应用”的 NFC 内容系统，让实体成为情绪关系的入口和长期载体。
+WhatMint 是一个让人邀请有灵的存在进入生活，并逐渐打造属于自己的 **Mint Space** 的情感世界平台。
+
+实现上，WhatMint 通过 NFC、token、内容定义和轻应用，把现实实体变成情绪关系的入口和长期载体。
 
 ## 当前优先级
 
@@ -12,16 +14,17 @@ WhatMint 是一个给实体安装“情绪应用”的 NFC 内容系统，让实
 
 - 将关系实体化。
 - 将情绪定制化。
-- 让实体比二维码、普通卡片更长期地承载关系。
+- 让实体作为“存在”进入用户的 Mint Space。
 - 通过 token + 内容绑定，让同一实体可持续更新情绪内容。
 
 ## 稳定原则
 
 - **NFC 是入口，不是产品本身**：核心价值在实体、内容和情绪关系。
-- **实体是载体**：一个 token 对应一个实体，所有权和内容都围绕实体展开。
-- **内容是应用**：情绪 IP、传信、收藏、日用品贴纸未来都可作为应用扩展。
+- **Mint Space 是拥有后的默认目的地**：用户最终不是管理资产，而是拥有一个会生长的个人世界。
+- **实体是存在的载体**：一个 token 对应一个实体，所有权、内容和体验都围绕这个实体展开。
+- **内容是关系的延展**：情绪 IP、传信、收藏、日用品贴纸未来都可作为应用扩展。
 - **默认公开，私有慎用**：公开内容体验最顺；私有内容必须登录持有账号查看。
-- **外部购买，本平台管资产关系**：平台不承担交易闭环，只管理商品展示、订单-token-实体关系。
+- **外部购买，本平台管邀请和关系**：平台不承担交易闭环，只管理存在展示、订单-token-实体关系和 Mint Space 接入。
 
 ## 产品气质
 
@@ -37,12 +40,14 @@ WhatMint 的设计语言以 [docs/product-manifesto.md](docs/product-manifesto.m
 
 - 不在平台内完成支付/购买。
 - 不提前做重社区。
+- 不把 Mint Space 做成任务、等级、抽卡或数值成长系统。
 - 不把应用技术层暴露给普通用户。
 - 不让 token 成为可遍历或可猜测的短码。
 
 ## 指针
 
 - 业务流程与权限规则：[docs/business-flow.md](docs/business-flow.md)
+- 对客体验与 Mint Space 规划：[docs/customer-facing-experience-plan.md](docs/customer-facing-experience-plan.md)
 - OS 抽象雏形：[docs/whatmint-os-abstraction.md](docs/whatmint-os-abstraction.md)
 - 模块与分工：[DOMAINS.md](DOMAINS.md)
 - 阶段与验收：[develop.md](develop.md)

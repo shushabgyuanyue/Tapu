@@ -1,16 +1,17 @@
+// Shop/IP invitation copy: storefront, product detail, wishlist-facing prompts, and commerce copy.
 export const shopCopy = {
   hero: {
     eyebrow: 'WhatMint Toy Shelf',
     title: '把现实物品做成可以触碰的小世界',
-    subtitle: '商城只展示商品与 IP 档案，购买在外部渠道完成。收到 token 后，回到“我的资产”把实体放进自己的展馆。',
-    pills: ['情绪 IP', '资产归属', 'NFC 入口'],
+    subtitle: '商城展示可以被邀请进入生活的存在。购买在外部渠道完成，收到 token 后回到 Mint Space 接入实体。',
+    pills: ['情绪 IP', 'Mint Space', 'NFC 入口'],
     featured: 'Featured Drop',
     inspectHint: 'Tap to inspect',
     fallbackDescription: '触碰后进入它的小世界',
   },
   product: {
     externalSale: '外部发售',
-    defaultTags: ['情绪入口', 'NFC 实体', '可绑定资产'],
+    defaultTags: ['情绪入口', 'NFC 实体', '可接入灵境'],
     stockLeft: (count: number) => `剩余 ${count}`,
     crowdfunding: (count: number, goal: number) => `众筹中 ${count}/${goal}`,
     crowdfundSuccess: '众筹成功',
@@ -19,7 +20,7 @@ export const shopCopy = {
     empty: '暂无可展示的实体 IP',
   },
   toast: {
-    externalPurchase: (name: string) => `购买「${name}」请前往外部渠道；收到 token 后回到“我的资产”绑定。`,
+    externalPurchase: (name: string) => `购买「${name}」请前往外部渠道；收到 token 后回到 Mint Space 接入。`,
     loginBeforePledge: '请先登录或注册后再参与众筹',
     pledgeSuccess: '已记录你的众筹意向',
     pledgeFailed: '参与失败',
@@ -27,7 +28,7 @@ export const shopCopy = {
     addedWishlist: (name: string, count: number) => `已将「${name}」加入心愿单，目前 ${count} 人想要`,
   },
   card: {
-    fallbackDescription: '触碰实体即可进入它绑定的小世界，内容可以被更新，也可以成为长期存在的关系载体。',
+    fallbackDescription: '触碰实体即可进入它的小世界，内容可以更新，也可以成为长期存在的关系载体。',
     issued: (count: number, limit: number) => `已发放 ${count} / ${limit}`,
     crowdfundProgress: (count: number, goal: number) => `众筹 ${count} / ${goal}`,
     detail: '查看档案',

@@ -8,6 +8,13 @@ import {
 } from './coreStore.js';
 import { recordCoreEvent } from './events.js';
 import { resultToObjects } from './tokens.js';
+import {
+  assertContentResourcesMatchDefinition,
+  buildContentBlocksFromNodes,
+  buildContentResourceNodes,
+  getContentDefinitionBindingConfig,
+  hydrateAuthoringResources,
+} from './contentResourceBinding.js';
 
 const VERSION_MODES = new Set(['create', 'revise', 'extend', 'remix']);
 
@@ -66,6 +73,26 @@ function getContentDefinitionAuthoringSchema(db, content) {
   return parseJson(row?.authoring_schema_json, {});
 }
 
+function getContentDefinitionConfig(db, content) {
+  if (!content?.content_definition_id) return { template: {}, schema: {}, contentKind: '', primaryModality: '' };
+  const row = resultToObjects(db.exec(
+    `SELECT content_kind, primary_modality, template_json, authoring_schema_json
+     FROM content_definitions
+     WHERE id = ?
+     LIMIT 1`,
+    [content.content_definition_id]
+  ))[0] || null;
+  const schema = parseJson(row?.authoring_schema_json, {});
+  return {
+    template: parseJson(row?.template_json, {}),
+    schema,
+    authoringProtocol: schema.authoringProtocol || {},
+    contentShape: schema.contentShape || schema.authoringProtocol?.contentShape || {},
+    contentKind: cleanString(row?.content_kind),
+    primaryModality: cleanString(row?.primary_modality),
+  };
+}
+
 function firstEditableFieldLabel(authoringSchema) {
   const fields = Array.isArray(authoringSchema?.fields) ? authoringSchema.fields : [];
   return fields.find(field => field?.editable !== false)?.label || mintStudioCopy.contentVersion.bodyLabel;
@@ -94,6 +121,70 @@ function buildContentEditSteps(mode, authoringSchema) {
   ];
 }
 
+function normalizeResourceSlots(schema = {}) {
+  const contentShape = schema.contentShape || schema.authoringProtocol?.contentShape || {};
+  const slots = Array.isArray(contentShape.slots) && contentShape.slots.length
+    ? contentShape.slots
+    : (Array.isArray(schema.resourceRequirements) ? schema.resourceRequirements.map(resource => ({
+      key: resource.role,
+      role: resource.role,
+      type: resource.type,
+      label: resource.label || resource.role,
+      required: resource.required !== false,
+    })) : []);
+  return slots.filter(slot => slot?.key || slot?.role);
+}
+
+function buildResourceReplacementSteps(content, config) {
+  const copy = mintStudioCopy.contentVersion;
+  const slots = normalizeResourceSlots(config.schema);
+  if (!slots.length) return null;
+  const unitLabel = config.authoringProtocol?.unitLabel || copy.replaceUnitLabel;
+  const uploadSteps = slots.map(slot => ({
+    id: `replace_1_${slot.key || slot.role}`,
+    type: 'resource_upload',
+    unitIndex: 1,
+    slotKey: slot.key || slot.role,
+    relationRole: slot.role || slot.key,
+    resourceType: slot.type || 'file',
+    accept: slot.accept || (slot.type === 'video' ? 'video/*' : (slot.type === 'audio' ? 'audio/*' : (slot.type === 'image' ? 'image/*' : '*/*'))),
+    label: slot.label || slot.key || slot.role,
+    prompt: copy.replaceResourcePrompt(unitLabel, slot.label || slot.key || slot.role),
+    required: slot.required !== false,
+  }));
+
+  return {
+    kind: 'content_resource_replacement',
+    source: 'content_definitions',
+    submitAction: 'save_content_version_draft',
+    contentDefinitionId: content.content_definition_id,
+    contentDefinitionCode: content.content_definition_code,
+    contentTitle: content.content_definition_name || content.title,
+    contentDefinitionTemplate: config.template || {},
+    unitTemplate: {
+      unitName: config.contentShape?.unit || 'content_node',
+      unitLabel,
+      slots,
+    },
+    steps: [
+      ...uploadSteps,
+      {
+        id: 'save_resource_replacement_draft',
+        type: 'choice',
+        prompt: copy.replaceConfirmPrompt,
+        options: [
+          {
+            id: 'save_resource_replacement_draft',
+            label: copy.saveReplacementDraft,
+            description: copy.saveReplacementDraftDescription,
+            action: 'save_content_version_draft',
+          },
+        ],
+      },
+    ],
+  };
+}
+
 export function buildContentAuthoringRecipe(db, contentId, modeValue = 'revise') {
   const content = getContentInstance(db, contentId);
   if (!content) return null;
@@ -101,6 +192,10 @@ export function buildContentAuthoringRecipe(db, contentId, modeValue = 'revise')
   const mode = normalizeMode(modeValue);
   const copy = mintStudioCopy.contentVersion;
   const authoringSchema = getContentDefinitionAuthoringSchema(db, content);
+  const definitionConfig = getContentDefinitionConfig(db, content);
+  const resourceReplacementFlow = mode === 'revise'
+    ? buildResourceReplacementSteps(content, definitionConfig)
+    : null;
   const route = `/content/${encodeURIComponent(content.id)}`;
   const title = content.title || copy.untitled;
 
@@ -128,7 +223,7 @@ export function buildContentAuthoringRecipe(db, contentId, modeValue = 'revise')
     recipe: {
       studioTitle: mode === 'extend' ? copy.extendTitle(title) : copy.reviseTitle(title),
       voice: 'content_authoring_protocol',
-      introMessages: mode === 'extend' ? copy.extendIntro : copy.reviseIntro,
+      introMessages: resourceReplacementFlow ? copy.replaceIntro : (mode === 'extend' ? copy.extendIntro : copy.reviseIntro),
       creationModes: [
         { code: mode, label: mode === 'extend' ? copy.extendMode : copy.reviseMode, tone: 'primary', requiresAuth: true },
       ],
@@ -141,7 +236,7 @@ export function buildContentAuthoringRecipe(db, contentId, modeValue = 'revise')
         createsVersionDraft: true,
         publishRequiresConfirmation: true,
       },
-      studioFlow: {
+      studioFlow: resourceReplacementFlow || {
         kind: 'content_version',
         submitAction: 'save_content_version_draft',
         steps: buildContentEditSteps(mode, authoringSchema),
@@ -212,6 +307,57 @@ function buildDraftPayload(content, params) {
   };
 }
 
+function buildResourceSnapshotFromResources(resources = []) {
+  return resources.map((resource, index) => ({
+    resourceId: resource.id || resource.resource_id || null,
+    relationRole: resource.relationRole || resource.relation_role || 'authoring_resource',
+    slotKey: resource.slotKey || resource.slot_key || null,
+    unitIndex: resource.unitIndex || resource.unit_index || 1,
+    isPrimary: index === 0,
+    sortOrder: index,
+  })).filter(resource => resource.resourceId);
+}
+
+function buildResourceReplacementDraft(db, content, params = {}) {
+  const submittedResources = Array.isArray(params.resources) ? params.resources : [];
+  if (!submittedResources.length) return null;
+
+  const config = getContentDefinitionConfig(db, content);
+  const bindingConfig = getContentDefinitionBindingConfig(config);
+  const resources = hydrateAuthoringResources(db, submittedResources, {
+    ownerUserId: params.createdBy || null,
+    allowAdmin: !!params.allowAdmin,
+  });
+  assertContentResourcesMatchDefinition(resources, bindingConfig);
+  const pages = buildContentResourceNodes(resources, {
+    unitLabel: bindingConfig.unitLabel,
+  });
+  const currentPayload = clonePayload(content);
+  const template = config.template || {};
+  return {
+    title: cleanString(params.title) || content.title || mintStudioCopy.contentVersion.untitled,
+    summary: cleanString(params.summary) || content.summary || `${pages.length} 个资源替换节点`,
+    resourceSnapshot: buildResourceSnapshotFromResources(resources),
+    payload: {
+      ...currentPayload,
+      renderer: template.renderer || currentPayload.renderer || null,
+      playback: template.playback || currentPayload.playback || null,
+      ar: template.ar || currentPayload.ar || null,
+      pages,
+      blocks: buildContentBlocksFromNodes(pages),
+      authoring: {
+        ...(currentPayload.authoring || {}),
+        latestDraft: {
+          mode: normalizeMode(params.mode),
+          resourceReplacement: true,
+          resourceCount: resources.length,
+          createdAt: new Date().toISOString(),
+        },
+      },
+    },
+  };
+}
+
 function buildResourceBindingSnapshot(content) {
   return (content.resources || []).map(resource => ({
     resourceId: resource.id || null,
@@ -230,7 +376,8 @@ export function createContentVersionDraft(db, params = {}) {
   const mode = normalizeMode(params.mode);
   const nextVersion = nextVersionNo(db, content.id, content.version_no);
   const baseVersion = getLatestVersion(db, content.id);
-  const draft = buildDraftPayload(content, { ...params, mode });
+  const draft = buildResourceReplacementDraft(db, content, { ...params, mode })
+    || buildDraftPayload(content, { ...params, mode });
   const id = uuidv4();
 
   db.run(
@@ -247,7 +394,7 @@ export function createContentVersionDraft(db, params = {}) {
       draft.title,
       draft.summary,
       stringifyJson(draft.payload),
-      stringifyJson(buildResourceBindingSnapshot(content)),
+      stringifyJson(draft.resourceSnapshot || buildResourceBindingSnapshot(content)),
       cleanString(params.changeRequest) || null,
       params.createdBy || null,
     ]
@@ -288,6 +435,33 @@ export function getContentVersion(db, versionId) {
   };
 }
 
+function replaceContentResourceLinks(db, contentInstanceId, resourceSnapshot = []) {
+  if (!resourceSnapshot.length) return;
+  db.run('DELETE FROM content_instance_resource_links WHERE content_instance_id = ?', [contentInstanceId]);
+  for (const resource of resourceSnapshot) {
+    const resourceId = resource.resourceId || resource.resource_id;
+    if (!resourceId) continue;
+    db.run(
+      `INSERT INTO content_instance_resource_links
+       (id, content_instance_id, resource_id, relation_role, is_primary, sort_order, metadata_json)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [
+        uuidv4(),
+        contentInstanceId,
+        resourceId,
+        resource.relationRole || resource.relation_role || 'authoring_resource',
+        resource.isPrimary || resource.is_primary ? 1 : 0,
+        Number(resource.sortOrder || resource.sort_order || 0),
+        stringifyJson({
+          unitIndex: resource.unitIndex || resource.unit_index || 1,
+          slotKey: resource.slotKey || resource.slot_key || null,
+          source: 'content_version_resource_replacement',
+        }),
+      ]
+    );
+  }
+}
+
 export function publishContentVersion(db, params = {}) {
   const version = getContentVersion(db, params.versionId);
   if (!version || version.content_instance_id !== params.contentInstanceId) return null;
@@ -311,6 +485,10 @@ export function publishContentVersion(db, params = {}) {
       content.id,
     ]
   );
+
+  if (version.payload?.authoring?.latestDraft?.resourceReplacement) {
+    replaceContentResourceLinks(db, content.id, version.resource_snapshot || []);
+  }
 
   db.run(
     `UPDATE content_instance_versions

@@ -1,3 +1,4 @@
+// Legal page copy: disclaimer and privacy policy pages shown to customers.
 export const legalCopy = {
   disclaimer: {
     title: '免责声明',

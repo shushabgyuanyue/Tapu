@@ -4,7 +4,7 @@
 
 ## 项目一句话
 
-WhatMint 是一个给实体安装“情绪应用”的 NFC 内容系统。当前主线是 **情绪 IP 类**：用户购买实体 IP 后，官方录入外部订单并发放 token / NFC 链接，用户可将内容绑定到实体，碰一下实体即可播放对应情绪内容。
+WhatMint 是一个让人邀请有灵的存在进入生活，并逐渐打造属于自己的 **Mint Space** 的情感世界平台。当前主线是 **情绪 IP 类**：用户购买实体 IP 后，官方录入外部订单并发放 token / NFC 链接，用户可将内容绑定到实体，碰一下实体即可播放对应情绪内容，并将这个存在接入自己的 Mint Space。
 
 ## 当前业务主线
 
@@ -22,7 +22,7 @@ WhatMint 是一个给实体安装“情绪应用”的 NFC 内容系统。当前
 - 前端：`tapu/src`
 - 后端：`tapu/server`
 - 数据库：`tapu/server/db/index.js`、`tapu/server/db/schema.sql`
-- 核心页面：资产 `/assets`、内容详情 `/content/:id`、NFC 播放 `/play?key=...`、官方管理 `/official`
+- 核心页面：Mint Space `/assets`、内容详情 `/content/:id`、NFC 播放 `/play?key=...`、官方管理 `/official`
 
 ## 本地运行
 

@@ -362,3 +362,24 @@ entrypoint: tapu/src/main.ts
 - post-mortem:
   - `MintStudioPage.vue` is still large after gaining in-place detail orchestration; the next Studio feature should split workspace state into a composable before adding more interaction branches.
   - AR is currently a camera-overlay/plane fallback renderer for product validation, not yet real WebXR or marker-tracked spatial placement.
+
+## 2026-07-22 Codex Increment 18
+
+- domain: mint-space, copy-i18n, engineering-governance, evo-closeout
+- ref: `da2162a`
+- branch_context: `tapu-master` direct closeout; this round closes the accumulated Mint Space and copy-governance sprint on the current mainline context.
+- todo:
+  - [x] Write the customer-facing copy extraction rule into `AGENTS.md` and `docs/development-standards.md`, explicitly covering validation messages, toasts, confirmations and recoverable errors.
+  - [x] Add ownership comments to frontend `tapu/src/copy/*` and backend `tapu/server/copy/*` so copy optimization and later i18n have clear module boundaries.
+  - [x] Move `/api/assets` route/service user-facing error fallbacks into `server/copy/messages.js`.
+  - [x] Re-check Mint Space frontend copy placement and confirm remaining Chinese in Space logic is keyword/resource matching, not displayed copy.
+  - [x] Add S5 r8 observation, retro, and active Codex constraints for future copy governance.
+- evidence:
+  - `npm run check:copy`
+  - `node --check server/routes/assets.js`
+  - `node --check server/services/assetSpace.js`
+  - `node --check server/copy/messages.js`
+  - browser smoke: `/assets`, `/assets/:instanceId`, `/assets/not-real-id`
+- post-mortem:
+  - Copy governance needs to include backend error text because the frontend often surfaces API `error` directly.
+  - The current branch remains `tapu-master`; this sprint follows the established direct closeout context from the previous merged increments rather than attempting a late branch split over an already accumulated worktree.

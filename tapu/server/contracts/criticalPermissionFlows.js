@@ -20,9 +20,14 @@ export const CRITICAL_PERMISSION_FLOWS = [
     id: 'asset-claim-and-owner-manage',
     title: 'User claims and manages object asset',
     routes: [
-      { method: 'post', path: '/api/auth/bind-entity', permissionType: 'claimable_asset', operation: 'asset:claim' },
-      { method: 'post', path: '/api/auth/unbind-entity', permissionType: 'entity_owner', operation: 'asset:owner_manage' },
-      { method: 'post', path: '/api/auth/transfer-entity', permissionType: 'entity_owner', operation: 'asset:owner_manage' },
+      { method: 'get', path: '/api/assets/mint-space', permissionType: 'login_required', operation: 'asset:read' },
+      { method: 'get', path: '/api/assets/instances', permissionType: 'login_required', operation: 'asset:read' },
+      { method: 'post', path: '/api/assets/claim', permissionType: 'claimable_asset', operation: 'asset:claim' },
+      { method: 'post', path: '/api/assets/instances/:entityId/unbind', permissionType: 'entity_owner', operation: 'asset:owner_manage' },
+      { method: 'post', path: '/api/assets/instances/:entityId/transfer', permissionType: 'entity_owner', operation: 'asset:owner_manage' },
+      { method: 'get', path: '/api/assets/instances/:entityId/default-content', permissionType: 'entity_owner', operation: 'asset:owner_manage' },
+      { method: 'put', path: '/api/assets/instances/:entityId/default-content', permissionType: 'entity_owner', operation: 'asset:owner_manage' },
+      { method: 'put', path: '/api/assets/default-content-by-token', permissionType: 'token_unbound_or_owner', operation: 'content:token_update' },
     ],
   },
   {

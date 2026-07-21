@@ -1,3 +1,4 @@
+// Community/IP discovery copy: community listing, public IP cards, and relationship-facing descriptions.
 export const communityCopy = {
   feed: {
     toasts: {
@@ -64,7 +65,7 @@ export const communityCopy = {
       unavailable: '暂不可购买',
     },
     toasts: {
-      purchaseExternal: (name: string) => `购买「${name}」请前往外部渠道；收到 token 后在“我的资产”绑定。`,
+      purchaseExternal: (name: string) => `购买「${name}」请前往外部渠道；收到 token 后在 Mint Space 接入。`,
       pledgeLogin: '请先登录后再参与众筹',
       pledgeSuccess: '已记录你的众筹意向',
       pledgeFailed: '众筹登记失败',
@@ -81,7 +82,7 @@ export const communityCopy = {
       pledged: '已登记众筹',
       pledge: '参与众筹',
       unavailable: '暂不可购买',
-      bindAssets: '去我的资产绑定 token',
+      bindAssets: '去 Mint Space 接入 token',
       touchExperience: '碰一下体验',
       wished: '已在心愿单',
       wish: '加入心愿单',

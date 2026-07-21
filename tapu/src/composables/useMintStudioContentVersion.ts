@@ -21,6 +21,10 @@ export function useMintStudioContentVersion(params: {
   applyResolvedStudio: (result: MintStudioRecipe, query: Record<string, string>) => void;
   loadStudioLibrary: () => void;
   finishMint: () => void;
+  getAuthoringSnapshot?: () => {
+    uploadedResources: any[];
+    resourceSnapshot: any[];
+  };
 }) {
   const editingContentId = ref('');
   const editingMode = ref<'revise' | 'extend'>('revise');
@@ -72,10 +76,12 @@ export function useMintStudioContentVersion(params: {
     if (!contentId) return;
 
     params.phase.value = 'saving';
+    const snapshot = params.getAuthoringSnapshot?.();
     const result = await createContentVersionDraft(contentId, {
       mode: editingMode.value,
       changeRequest: params.flowAnswers.value.changeRequest || '',
       body: params.flowAnswers.value.body || undefined,
+      resources: snapshot?.uploadedResources || [],
     });
 
     if (result.error) {

@@ -29,10 +29,20 @@ export const OPERATIONS = {
     studioPolicy: { login: 'always', token: 'owner', contentAsset: 'account' },
     description: 'Manage owned content asset.',
   },
+  'content:authoring_draft': {
+    permissionType: 'login_required',
+    studioPolicy: { login: 'always', token: 'read', contentAsset: 'draft_snapshot' },
+    description: 'Save or restore an in-progress Mint Studio authoring draft snapshot.',
+  },
   'asset:claim': {
     permissionType: 'claimable_asset',
     studioPolicy: { login: 'always', token: 'claim_asset', contentAsset: 'none' },
     description: 'Claim a physical or account object asset.',
+  },
+  'asset:read': {
+    permissionType: 'login_required',
+    studioPolicy: { login: 'always', token: 'optional', contentAsset: 'none' },
+    description: 'Read account-owned IP instances and Mint Space state.',
   },
   'asset:owner_manage': {
     permissionType: 'entity_owner',

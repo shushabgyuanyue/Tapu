@@ -1,3 +1,4 @@
+// Mint Studio server copy: backend-provided authoring profiles, flow actions, and official/user creation guidance.
 export const mintStudioProfiles = {
   'earphone-girl': {
     code: 'earphone-girl',
@@ -119,8 +120,14 @@ export const mintStudioCopy = {
     extendTitle: title => `续写「${title}」`,
     reviseIntro: ['我们会先保存一个新版草稿，确认后再发布，不直接覆盖原内容。'],
     extendIntro: ['续写会保留原内容，并把新的段落接到后面。'],
+    replaceIntro: ['我们会先替换资源并保存为新版草稿，确认后再发布，不直接覆盖原内容。'],
     reviseMode: '修改内容',
     extendMode: '续写内容',
+    replaceUnitLabel: '内容节点',
+    replaceResourcePrompt: (unitLabel, label) => `${unitLabel}：上传新的${label}。`,
+    replaceConfirmPrompt: '新资源已经准备好。先保存为新版草稿，确认后再发布。',
+    saveReplacementDraft: '保存替换草稿',
+    saveReplacementDraftDescription: '保存为新版草稿，不会立刻覆盖当前内容。',
     revisePrompt: '你想调整哪里？',
     extendPrompt: '你想往后写什么？',
     revisePlaceholder: '例如：语气更克制，删掉过于直白的句子',

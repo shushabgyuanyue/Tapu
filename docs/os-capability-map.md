@@ -18,8 +18,19 @@
 ### OS 权限与交易边界
 
 - 统一 route permission：`public`、`login_required`、`admin_required`、`token_unbound_or_owner`、`claimable_asset`、`entity_owner`、`content_owner` 等。
-- 关键交易已进入契约校验：token 打开、创作资源上传、通过 token 生成内容、官方内容创建、资产认领、内容删除。
+- 关键交易已进入契约校验：token 打开、创作资源上传、通过 token 生成内容、官方内容创建、资产读取、资产认领、解绑、转赠、默认内容维护、内容删除。
 - handler 只处理业务有效性；登录、owner、admin、token 可编辑性优先由权限层判断。
+
+### OS 资产能力与 Mint Space
+
+- `/api/assets` 是 IP 实例和资产交易的唯一正式 OS 入口；`/api/auth` 只保留身份、账户资料和申诉职责。
+- `assetSpace` service 统一负责：账号下 IP 实例读取、token 认领、解绑、转赠、读取/设置实例默认内容、通过 token 设置默认内容。
+- `mintSpaceProfile` service 统一负责：根据账号持有的 `ip_instances`、对应 `ip_definitions` 和 `application_definitions` 推导 Mint Space 的伙伴、空间人格轴、氛围、合照布局提示和规则化灵境杂记；前端不再维护第二套 profile fallback。
+- `ip_instance_content_links` 约束同一 `ip_instance_id + relation_role` 只能有一个 primary 内容，避免默认体验出现多重业务真相。
+- 前端 Mint Space 只通过 `src/api/assets.ts` / `src/api/index.ts` 的资产 helper 访问接口，不在页面或组件里散写请求。
+- Mint Space 页面作为 OS 聚合入口，负责灵境合照、伙伴展示、灵境杂记、进入体验、创作中心、商城和伙伴二级管理；`/assets/:instanceId` 是统一伙伴详情页，具体 IP 的表达和渲染继续由应用定义、内容定义与 `/play` 渲染协议承接。
+- Mint Space 专项验收见：[Mint Space 新核心验收策略](asset-space-core-verification.md)。
+- 对客状态化导航和重构顺序见：[对客体验与 Mint Space 重构规划](customer-facing-experience-plan.md)。
 
 ### Mint Studio Shell
 
@@ -27,6 +38,8 @@
 - 创作中心从 `content_definitions.authoring_schema_json` 生成流程。
 - 官方创作和用户创作使用同一套创作中心，只由权限和 submit action 区分。
 - 内容列表只展示 definition-authored 的核心内容资产。
+- 创建中草稿由 `studio_authoring_drafts` 保存 Studio shell 快照、当前节点和资源绑定引用；它是支撑状态，不是正式内容资产。
+- 已有内容的修改草稿继续使用 `content_instance_versions`，用于发布新版内容。
 
 ### OS 资源上传与绑定
 
@@ -89,6 +102,7 @@ content_instance 绑定资源节点
 - 内容详情页进入创作中心后按 content id 修改资源节点。
 - 修改流程应围绕内容节点做替换、删除、插入，而不是回到管理表单。
 - 内容版本发布应保留节点级变更记录。
+- 创建中草稿目前保存的是资源绑定引用和流程位置；后续可把替换/插入/删除节点也纳入同一套草稿快照协议。
 
 ### Runtime Context / Skill
 
@@ -104,5 +118,5 @@ content_instance 绑定资源节点
 
 ### 工程治理
 
-- 继续拆分历史大文件：`AssetsPage.vue`、`IPDetailPage.vue`、`server/services/osPipeline.js`。
+- 继续拆分历史大文件：`IPDetailPage.vue`、`server/services/osPipeline.js`；`AssetsPage.vue` 已收口为 Mint Space 编排层。
 - 新 OS 能力必须补契约测试，至少覆盖 manifest、route、renderer 或 permission 的关键闭环。

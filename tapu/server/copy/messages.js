@@ -1,3 +1,4 @@
+// Server user-facing messages: API errors, permission denials, route validation text, and audit-note wording returned or surfaced to clients.
 export const serverMessages = {
   auth: {
     parentLoginRequired: '需要登录母账户',
@@ -48,6 +49,8 @@ export const serverMessages = {
   },
   routes: {
     common: {
+      internalServerError: '服务暂时不可用，请稍后再试',
+      requestFailed: '请求失败，请稍后再试',
       tokenExists: 'token 已存在',
       invalidKey: '无效的 key',
       noPlayableContent: '暂无可播放内容',
@@ -57,6 +60,10 @@ export const serverMessages = {
       contentUnavailableForDefault: '该内容暂不可设置',
       readyContentOnly: '只能将已就绪内容设为默认内容',
       ipNotFound: 'IP 不存在',
+    },
+    assets: {
+      transferTargetRequired: '请输入接收方账号',
+      contentIdRequired: '请输入内容 ID',
     },
     auth: {
       entityBindNote: '用户绑定实体',

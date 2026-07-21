@@ -70,6 +70,33 @@ function normalizeCode(code, name) {
     .slice(0, 48);
 }
 
+function uniqueIpCode(db, params = {}) {
+  const fallbackId = cleanString(params.fallbackId).slice(0, 8) || uuidv4().slice(0, 8);
+  const base = normalizeCode(params.code, params.name) || `ip-${fallbackId}`;
+  const rows = resultToObjects(db.exec(
+    `SELECT id
+     FROM ip_definitions
+     WHERE code = ?
+       AND (? IS NULL OR id != ?)
+     LIMIT 1`,
+    [base, params.excludeId || null, params.excludeId || null]
+  ));
+  return rows.length ? `${base.slice(0, 39)}-${fallbackId}` : base;
+}
+
+function inferApplicationCode(payload) {
+  const text = `${payload.code || ''} ${payload.name || ''} ${payload.series_name || ''}`.toLowerCase();
+  if (text.includes('纸巾') || text.includes('tissue') || text.includes('puppy')) return 'tissue-puppy';
+  return 'emotion-ip';
+}
+
+function applicationIdByCode(db, code) {
+  return resultToObjects(db.exec(
+    'SELECT id FROM application_definitions WHERE code = ? LIMIT 1',
+    [code]
+  ))[0]?.id || null;
+}
+
 function buildRelationPayload(body) {
   return {
     target_ip_definition_id: cleanString(body.target_ip_definition_id || body.counterpart_ip_definition_id),
@@ -195,7 +222,11 @@ function resolveApplicationId(db, payload) {
     'SELECT application_id FROM series WHERE id = ? LIMIT 1',
     [payload.series_id]
   ))[0] || null;
-  return row?.application_id || null;
+  return row?.application_id || applicationIdByCode(db, inferApplicationCode(payload));
+}
+
+function resolveCreateApplicationId(db, payload) {
+  return resolveApplicationId(db, payload) || applicationIdByCode(db, inferApplicationCode(payload));
 }
 
 router.get('/', async (req, res) => {
@@ -312,7 +343,12 @@ async function createGroup(req, res) {
 
   const db = await getDb();
   const id = uuidv4();
-  const applicationId = resolveApplicationId(db, payload);
+  const applicationId = resolveCreateApplicationId(db, payload);
+  const code = uniqueIpCode(db, {
+    code: payload.code,
+    name: payload.name,
+    fallbackId: id,
+  });
   db.run(
     `INSERT INTO ip_definitions
      (id, code, name, creator_user_id, primary_series_key, primary_series_name, description, story, personality, designer,
@@ -321,7 +357,7 @@ async function createGroup(req, res) {
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       id,
-      payload.code || normalizeCode(payload.name, payload.name),
+      code,
       payload.name,
       payload.creator_user_id,
       payload.series_id,
@@ -351,7 +387,7 @@ async function createGroup(req, res) {
   syncPrimaryApplicationLink(db, id, applicationId);
   ensureOfficialIpInstance(db, id, applicationId);
   saveDb();
-  res.json({ id, ...payload });
+  res.json({ id, ...payload, code, application_id: applicationId });
 }
 
 async function updateGroup(req, res) {
@@ -359,7 +395,23 @@ async function updateGroup(req, res) {
   if (!payload.name) return res.status(400).json({ error: 'Name is required' });
 
   const db = await getDb();
-  const applicationId = resolveApplicationId(db, payload);
+  const current = resultToObjects(db.exec(
+    'SELECT code FROM ip_definitions WHERE id = ? LIMIT 1',
+    [req.params.id]
+  ))[0] || null;
+  const applicationId = resolveCreateApplicationId(db, payload);
+  const code = payload.code
+    ? uniqueIpCode(db, {
+      code: payload.code,
+      name: payload.name,
+      fallbackId: req.params.id,
+      excludeId: req.params.id,
+    })
+    : (current?.code || uniqueIpCode(db, {
+      name: payload.name,
+      fallbackId: req.params.id,
+      excludeId: req.params.id,
+    }));
   db.run(
     `UPDATE ip_definitions
      SET code = ?, name = ?, creator_user_id = ?, primary_series_key = ?, primary_series_name = ?,
@@ -369,7 +421,7 @@ async function updateGroup(req, res) {
          status = ?, updated_at = CURRENT_TIMESTAMP
      WHERE id = ?`,
     [
-      payload.code || normalizeCode(payload.name, payload.name),
+      code,
       payload.name,
       payload.creator_user_id,
       payload.series_id,
@@ -399,7 +451,7 @@ async function updateGroup(req, res) {
   syncPrimaryApplicationLink(db, req.params.id, applicationId);
   ensureOfficialIpInstance(db, req.params.id, applicationId);
   saveDb();
-  res.json({ id: req.params.id, ...payload });
+  res.json({ id: req.params.id, ...payload, code, application_id: applicationId });
 }
 
 async function deleteGroup(req, res) {

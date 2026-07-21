@@ -88,6 +88,11 @@ const routes = [
     component: () => import('../views/AssetsPage.vue'),
   },
   {
+    path: '/assets/:instanceId',
+    name: 'asset-instance',
+    component: () => import('../views/MintSpacePartnerPage.vue'),
+  },
+  {
     path: '/mint',
     name: 'mint-studio',
     component: () => import('../views/MintStudioPage.vue'),

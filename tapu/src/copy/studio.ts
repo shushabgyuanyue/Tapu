@@ -1,3 +1,4 @@
+// Mint Studio copy: creation flow guidance, draft/edit states, library panels, and authoring errors.
 export const studioCopy = {
   initialMessage: '请给我物件码。',
   placeholders: {
@@ -62,8 +63,10 @@ export const studioCopy = {
     newMintTitle: '开启新铸造',
     newMint: '新铸造',
     mintedTitle: '最近内容',
+    draftsTitle: '草稿箱',
     loading: '加载内容中...',
     empty: '完成一次铸造后，它会留在这里。',
+    draftsEmpty: '中途保存的创作会留在这里。',
     close: '关闭侧边栏',
     search: '搜索内容',
     filterAll: '全部',
@@ -71,6 +74,23 @@ export const studioCopy = {
     collapseList: '收起内容列表',
     expandList: '展开内容列表',
     moreCount: (count: number) => `还有 ${count} 个结果，搜索可继续收窄。`,
+  },
+  drafts: {
+    defaultTitle: (name: string) => `${name || '当前创作'}草稿`,
+    restore: '恢复草稿',
+    delete: '删除草稿',
+    saved: '草稿已保存',
+    deleted: '草稿已删除',
+    saveFailed: '草稿保存失败',
+    deleteFailed: '草稿删除失败',
+    restoreFailed: '草稿恢复失败，请重新识别物件码。',
+    restored: '已恢复草稿，可以继续创作。',
+    unsavedPrompt: '当前创作还没有保存为草稿。要先保存吗？',
+    saveBeforeSwitch: '保存草稿',
+    discardBeforeSwitch: '不保存，继续切换',
+    cancelSwitch: '先不切换',
+    loginRequired: '保存草稿需要先登录。',
+    restoredResourceCount: (count: number) => `已恢复 ${count} 个已上传资源。`,
   },
   preview: {
     contentAsset: '内容资产',
@@ -91,6 +111,7 @@ export const studioCopy = {
     chooseResource: '选择资源',
     closeDetail: '关闭详情',
     deleteContent: '删除内容',
+    saveDraft: '保存草稿',
   },
   detail: {
     title: '内容详情',

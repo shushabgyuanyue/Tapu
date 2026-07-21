@@ -1,6 +1,6 @@
 # active constraints：codex
 
-更新时间：2026-07-17
+更新时间：2026-07-22
 
 ## 当前约束
 
@@ -33,3 +33,9 @@
 - 删除核心内容资产时，要同步检查 seed / backfill / sync 是否会用确定性 id 复活数据；必要时加入 supporting tombstone，而不是只删除主表记录。
 - 前端登录态参与列表或权限渲染时必须进入响应式状态，不能只在 computed 中直接读取 localStorage 包装函数。
 - 创作中心内容列表只认核心内容资产；旧应用同步出来的 `sourceTable / entries / cards` payload 不能作为新核心列表的兼容展示来源。
+
+## 2026-07-22 r8 新增
+
+- 对客中文话术包括正文、按钮、空态、确认弹窗、toast、表单校验和可恢复错误；新增或修改时必须进入对应 `tapu/src/copy/*` 或 `tapu/server/copy/*`。
+- 每个 copy 文件开头必须声明它负责的模块、页面或错误面；如果找不到合适归属，先补归属说明再继续写组件。
+- 后端 route/service 中可能返回给前端展示的错误不得临时写字符串；先进入 `server/copy/messages.js` 或对应服务端 copy 文件。

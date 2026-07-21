@@ -4,6 +4,7 @@ import initSqlJs from 'sql.js';
 import { findAppManifest } from '../../server/contracts/appManifests.js';
 import { buildCoreContentLibraryItems } from '../../server/routes/mintStudio.js';
 import { resolveDefaultContentForIpInstance } from '../../server/routes/contents.js';
+import { upsertIpInstanceContentLink } from '../../server/services/coreStore.js';
 import { getRegisteredAppAdapters } from '../../server/services/appAdapters.js';
 import {
   getMintStudioOpenPath,
@@ -15,6 +16,11 @@ import {
   buildContentPreviewRoute,
   inferContentRenderer,
 } from '../../server/services/contentRenderingProtocol.js';
+import {
+  buildContentAuthoringRecipe,
+  createContentVersionDraft,
+  publishContentVersion,
+} from '../../server/services/contentVersions.js';
 import {
   assertContentResourcesMatchDefinition,
   buildContentBlocksFromNodes,
@@ -42,15 +48,18 @@ async function createMintStudioLibraryDb() {
     visibility TEXT,
     access_scope TEXT,
     status TEXT,
+    version_no INTEGER DEFAULT 1,
     payload_json TEXT,
+    published_at DATETIME,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
   )`);
-  db.run('CREATE TABLE content_definitions (id TEXT PRIMARY KEY, code TEXT, name TEXT, authoring_schema_json TEXT, template_json TEXT)');
+  db.run('CREATE TABLE content_definitions (id TEXT PRIMARY KEY, code TEXT, name TEXT, content_kind TEXT, primary_modality TEXT, authoring_schema_json TEXT, template_json TEXT)');
   db.run('CREATE TABLE ip_definitions (id TEXT PRIMARY KEY, name TEXT, primary_series_name TEXT)');
   db.run('CREATE TABLE application_definitions (id TEXT PRIMARY KEY, code TEXT, name TEXT)');
   db.run('CREATE TABLE ip_instances (id TEXT PRIMARY KEY, owner_user_id TEXT, token TEXT, entity_key TEXT)');
   db.run(`CREATE TABLE content_instance_resource_links (
+    id TEXT,
     content_instance_id TEXT,
     resource_id TEXT,
     is_primary INTEGER,
@@ -70,7 +79,8 @@ async function createMintStudioLibraryDb() {
     ends_at TEXT,
     metadata_json TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(ip_instance_id, content_instance_id, relation_role)
   )`);
   db.run(`CREATE TABLE resources (
     id TEXT PRIMARY KEY,
@@ -86,12 +96,63 @@ async function createMintStudioLibraryDb() {
     status TEXT,
     metadata_json TEXT
   )`);
+  db.run(`CREATE TABLE content_instance_versions (
+    id TEXT PRIMARY KEY,
+    content_instance_id TEXT NOT NULL,
+    version_no INTEGER NOT NULL,
+    mode TEXT DEFAULT 'revise',
+    status TEXT DEFAULT 'draft',
+    base_version_id TEXT,
+    title TEXT,
+    summary TEXT,
+    payload_json TEXT,
+    resource_snapshot_json TEXT,
+    change_summary TEXT,
+    created_by TEXT,
+    published_at DATETIME,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(content_instance_id, version_no)
+  )`);
+  db.run(`CREATE TABLE events (
+    id TEXT PRIMARY KEY,
+    event_type TEXT,
+    dedupe_key TEXT,
+    actor_user_id TEXT,
+    user_id TEXT,
+    ip_definition_id TEXT,
+    application_definition_id TEXT,
+    content_definition_id TEXT,
+    ip_instance_id TEXT,
+    content_instance_id TEXT,
+    resource_id TEXT,
+    source_operation_id TEXT,
+    source_event_id TEXT,
+    payload_json TEXT,
+    context_snapshot_json TEXT,
+    processing_status TEXT DEFAULT 'pending',
+    processing_attempts INTEGER DEFAULT 0,
+    processed_at DATETIME,
+    occurred_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`);
 
-  db.run("INSERT INTO content_definitions (id, code, name, template_json) VALUES ('cntdef-puppy', 'tissue-puppy-comfort-ar', '纸巾小狗 AR 召唤', '{\"renderer\":\"ar.camera-overlay\"}')");
+  db.run(`INSERT INTO content_definitions
+    (id, code, name, content_kind, primary_modality, authoring_schema_json, template_json)
+    VALUES (
+      'cntdef-puppy',
+      'tissue-puppy-comfort-ar',
+      '纸巾小狗 AR 召唤',
+      'ar',
+      'video',
+      '{"authoringProtocol":{"createFlow":"single_resource_node","unitLabel":"AR 召唤节点"},"contentShape":{"unit":"comfort_ar_node","slots":[{"key":"comfort_ar_overlay","role":"ar_overlay","type":"video","label":"AR 召唤视频","required":true}]}}',
+      '{"renderer":"ar.camera-overlay","layout":"camera_center_overlay","playback":{"autoplay":true,"mutedByDefault":true},"ar":{"mode":"camera_overlay","placement":"screen_center"}}'
+    )`);
   db.run("INSERT INTO ip_definitions (id, name, primary_series_name) VALUES ('ip-puppy', '纸巾小狗', '永远系列')");
   db.run("INSERT INTO application_definitions (id, code, name) VALUES ('app-puppy', 'tissue-puppy', '纸巾小狗')");
   db.run("INSERT INTO ip_instances (id, owner_user_id, token, entity_key) VALUES ('ipinst-puppy', 'user-1', 'token-1', 'token-1')");
   db.run("INSERT INTO resources (id, owner_user_id, resource_type, storage_url, preview_url, status) VALUES ('res-puppy', 'user-1', 'video', '/video.mp4', '/poster.jpg', 'ready')");
+  db.run("INSERT INTO resources (id, owner_user_id, resource_type, storage_url, preview_url, status) VALUES ('res-puppy-new', 'user-1', 'video', '/new-video.mp4', '/new-poster.jpg', 'ready')");
   db.run("INSERT INTO content_instance_resource_links (content_instance_id, resource_id, is_primary, relation_role) VALUES ('content-puppy', 'res-puppy', 1, 'ar_overlay')");
   db.run(`INSERT INTO content_instances
     (id, ip_definition_id, content_definition_id, application_definition_id, owner_user_id, creator_user_id,
@@ -233,6 +294,37 @@ test('core token playback resolves the IP instance default content through relat
   assert.equal(inferContentRenderer(content), 'ar.camera-overlay');
 });
 
+test('OS asset links keep only one primary content per IP instance relation role', async () => {
+  const db = await createMintStudioLibraryDb();
+  db.run(`INSERT INTO content_instances
+    (id, ip_definition_id, content_definition_id, application_definition_id, owner_user_id, creator_user_id,
+     origin_ip_instance_id, title, summary, content_kind, primary_modality, source_type, visibility, access_scope,
+     status, payload_json, created_at, updated_at)
+    VALUES
+    ('content-puppy-alt', 'ip-puppy', 'cntdef-puppy', 'app-puppy', 'user-1', 'user-1',
+     'ipinst-puppy', '纸巾小狗 · 备用默认', '备用默认内容', 'ar', 'video', 'user', 'private', 'owner',
+     'published', '{"source":"contract"}', '2026-07-20', '2026-07-20')`);
+
+  upsertIpInstanceContentLink(db, {
+    ipInstanceId: 'ipinst-puppy',
+    contentInstanceId: 'content-puppy-alt',
+    relationRole: 'owner_default',
+    isPrimary: true,
+  });
+
+  const rows = db.exec(
+    `SELECT content_instance_id, is_primary
+     FROM ip_instance_content_instance_links
+     WHERE ip_instance_id = ?
+       AND relation_role = ?
+     ORDER BY is_primary DESC, content_instance_id`,
+    ['ipinst-puppy', 'owner_default']
+  )[0].values;
+
+  assert.equal(rows.filter((row) => Number(row[1]) === 1).length, 1);
+  assert.equal(rows.find((row) => Number(row[1]) === 1)[0], 'content-puppy-alt');
+});
+
 test('OS resource binding hydrates ready resources before building content nodes', async () => {
   const db = await createMintStudioLibraryDb();
   const bindingConfig = getContentDefinitionBindingConfig({
@@ -263,4 +355,45 @@ test('OS resource binding hydrates ready resources before building content nodes
   assert.equal(nodes.length, 1);
   assert.equal(nodes[0].resources[0].resource_type, 'video');
   assert.ok(blocks.some(block => block.kind === 'video' && block.url === '/video.mp4'));
+});
+
+test('content detail edit uses resource replacement drafts for definition-authored content', async () => {
+  const db = await createMintStudioLibraryDb();
+  const recipe = buildContentAuthoringRecipe(db, 'content-puppy', 'revise');
+
+  assert.equal(recipe.recipe.studioFlow.kind, 'content_resource_replacement');
+  assert.equal(recipe.recipe.studioFlow.steps[0].type, 'resource_upload');
+  assert.equal(recipe.recipe.studioFlow.steps[0].slotKey, 'comfort_ar_overlay');
+
+  const draft = createContentVersionDraft(db, {
+    contentInstanceId: 'content-puppy',
+    mode: 'revise',
+    createdBy: 'user-1',
+    resources: [{
+      id: 'res-puppy-new',
+      slot_key: 'comfort_ar_overlay',
+      relation_role: 'ar_overlay',
+      unit_index: 1,
+    }],
+  });
+
+  assert.equal(draft.status, 'draft');
+  assert.equal(draft.payload.authoring.latestDraft.resourceReplacement, true);
+  assert.equal(draft.resource_snapshot[0].resourceId, 'res-puppy-new');
+
+  publishContentVersion(db, {
+    contentInstanceId: 'content-puppy',
+    versionId: draft.id,
+    publishedBy: 'user-1',
+  });
+
+  const linkedResource = db.exec(
+    `SELECT resource_id
+     FROM content_instance_resource_links
+     WHERE content_instance_id = ?
+       AND is_primary = 1
+     LIMIT 1`,
+    ['content-puppy']
+  )[0].values[0][0];
+  assert.equal(linkedResource, 'res-puppy-new');
 });

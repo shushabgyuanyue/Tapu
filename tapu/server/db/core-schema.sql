@@ -156,6 +156,32 @@ CREATE TABLE IF NOT EXISTS content_instance_deletions (
   FOREIGN KEY (deleted_by_user_id) REFERENCES users(id) ON DELETE SET NULL
 );
 
+CREATE TABLE IF NOT EXISTS studio_authoring_drafts (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  title TEXT,
+  subject_type TEXT DEFAULT 'entity',
+  subject_id TEXT,
+  token TEXT,
+  app_code TEXT,
+  ip_definition_id TEXT,
+  ip_instance_id TEXT,
+  content_definition_id TEXT,
+  application_definition_id TEXT,
+  status TEXT DEFAULT 'draft',
+  current_step_index INTEGER DEFAULT 0,
+  phase TEXT DEFAULT 'step',
+  payload_json TEXT,
+  resource_snapshot_json TEXT,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (ip_definition_id) REFERENCES ip_definitions(id) ON DELETE SET NULL,
+  FOREIGN KEY (ip_instance_id) REFERENCES ip_instances(id) ON DELETE SET NULL,
+  FOREIGN KEY (content_definition_id) REFERENCES content_definitions(id) ON DELETE SET NULL,
+  FOREIGN KEY (application_definition_id) REFERENCES application_definitions(id) ON DELETE SET NULL
+);
+
 CREATE TABLE IF NOT EXISTS resources (
   id TEXT PRIMARY KEY,
   owner_user_id TEXT,
@@ -383,6 +409,9 @@ ON content_instances(ip_definition_id);
 CREATE INDEX IF NOT EXISTS idx_content_instance_versions_content
 ON content_instance_versions(content_instance_id, status, version_no);
 
+CREATE INDEX IF NOT EXISTS idx_studio_authoring_drafts_user
+ON studio_authoring_drafts(user_id, status, updated_at);
+
 CREATE INDEX IF NOT EXISTS idx_resources_owner
 ON resources(owner_user_id);
 
@@ -436,6 +465,10 @@ ON application_content_definition_links(application_definition_id, is_primary, s
 
 CREATE INDEX IF NOT EXISTS idx_ip_instance_content_instance_links_instance
 ON ip_instance_content_instance_links(ip_instance_id, relation_role, is_primary, sort_order);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_ip_instance_content_primary_unique
+ON ip_instance_content_instance_links(ip_instance_id, relation_role)
+WHERE is_primary = 1;
 
 CREATE INDEX IF NOT EXISTS idx_content_instance_resource_links_content
 ON content_instance_resource_links(content_instance_id, relation_role, is_primary, sort_order);

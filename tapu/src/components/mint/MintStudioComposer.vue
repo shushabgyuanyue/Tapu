@@ -10,12 +10,14 @@ const props = defineProps<{
   currentStep: any;
   isBusy: boolean;
   sendDisabled: boolean;
+  canSaveDraft: boolean;
   composerPlaceholder: string;
 }>();
 
 const emit = defineEmits<{
   (event: 'submit'): void;
   (event: 'back'): void;
+  (event: 'save-draft'): void;
   (event: 'file-change', value: Event): void;
   (event: 'remove-file'): void;
   (event: 'update:tokenInput', value: string): void;
@@ -57,6 +59,10 @@ defineExpose({ focus });
     <div class="composer-row">
       <button v-if="canGoBack" type="button" class="icon-button" :title="studioCopy.actions.back" @click="emit('back')">
         ‹
+      </button>
+
+      <button v-if="canSaveDraft" type="button" class="icon-button" :title="studioCopy.actions.saveDraft" @click="emit('save-draft')">
+        S
       </button>
 
       <label v-if="isFileMode" class="icon-button attach" :title="studioCopy.actions.chooseResource">

@@ -6,12 +6,16 @@ import {
   mintedStatusText,
   type MintedItem,
 } from '../../composables/useMintStudioLibrary';
+import type { MintStudioDraftItem } from '../../api';
 
 const props = defineProps<{
   open: boolean;
   items: MintedItem[];
+  drafts: MintStudioDraftItem[];
   loading: boolean;
+  draftsLoading: boolean;
   activeItemId?: string;
+  activeDraftId?: string;
 }>();
 
 const emit = defineEmits<{
@@ -19,11 +23,14 @@ const emit = defineEmits<{
   (event: 'new-mint'): void;
   (event: 'open-item', item: MintedItem): void;
   (event: 'delete-item', item: MintedItem): void;
+  (event: 'open-draft', item: MintStudioDraftItem): void;
+  (event: 'delete-draft', item: MintStudioDraftItem): void;
 }>();
 
 const query = ref('');
 const filter = ref<'all' | 'published' | 'draft'>('all');
 const listOpen = ref(true);
+const draftsOpen = ref(true);
 
 const filteredItems = computed(() => {
   const q = query.value.trim().toLowerCase();
@@ -36,6 +43,13 @@ const filteredItems = computed(() => {
 
 const visibleItems = computed(() => filteredItems.value.slice(0, 24));
 const hiddenCount = computed(() => Math.max(0, filteredItems.value.length - visibleItems.value.length));
+const visibleDrafts = computed(() => props.drafts.slice(0, 12));
+
+function draftSubtitle(item: MintStudioDraftItem) {
+  const name = item.payload?.app?.name || item.appCode || studioCopy.libraryStatus.draft;
+  const count = Array.isArray(item.resourceSnapshot) ? item.resourceSnapshot.length : 0;
+  return count ? `${name} · ${studioCopy.drafts.restoredResourceCount(count)}` : name;
+}
 </script>
 
 <template>
@@ -53,6 +67,47 @@ const hiddenCount = computed(() => Math.max(0, filteredItems.value.length - visi
         <span>+</span>
         <strong>{{ studioCopy.sidebar.newMint }}</strong>
       </button>
+    </div>
+
+    <div class="sidebar-section">
+      <button
+        type="button"
+        class="sidebar-title sidebar-title--button"
+        :title="draftsOpen ? studioCopy.sidebar.collapseList : studioCopy.sidebar.expandList"
+        @click="draftsOpen = !draftsOpen"
+      >
+        <span>{{ studioCopy.sidebar.draftsTitle }}</span>
+        <b>{{ drafts.length }}</b>
+        <i>{{ draftsOpen ? '−' : '+' }}</i>
+      </button>
+      <p v-if="draftsOpen && draftsLoading && !drafts.length" class="sidebar-empty">{{ studioCopy.sidebar.loading }}</p>
+      <div v-if="draftsOpen && visibleDrafts.length" class="minted-list">
+        <div
+          v-for="draft in visibleDrafts"
+          :key="draft.id"
+          :class="['minted-item', 'minted-item--draft', { 'minted-item--active': draft.id === activeDraftId }]"
+          role="button"
+          tabindex="0"
+          @click="emit('open-draft', draft)"
+          @keydown.enter.prevent="emit('open-draft', draft)"
+          @keydown.space.prevent="emit('open-draft', draft)"
+        >
+          <span class="minted-icon minted-icon--draft">D</span>
+          <span class="minted-copy">
+            <strong>{{ draft.title }}</strong>
+            <small>{{ draftSubtitle(draft) }}</small>
+          </span>
+          <button
+            type="button"
+            class="minted-delete"
+            :title="studioCopy.drafts.delete"
+            @click.stop="emit('delete-draft', draft)"
+          >
+            ×
+          </button>
+        </div>
+      </div>
+      <p v-else-if="draftsOpen && !draftsLoading && !drafts.length" class="sidebar-empty">{{ studioCopy.sidebar.draftsEmpty }}</p>
     </div>
 
     <div class="sidebar-section">
@@ -337,6 +392,15 @@ const hiddenCount = computed(() => Math.max(0, filteredItems.value.length - visi
   background: #eeeae1;
   color: #7b5b35;
   font-weight: 950;
+}
+
+.minted-icon--draft {
+  background: rgba(47, 111, 94, 0.12);
+  color: #2f6f5e;
+}
+
+.minted-item--draft {
+  border-style: dashed;
 }
 
 .minted-icon img {

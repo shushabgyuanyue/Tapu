@@ -2,6 +2,7 @@ import applicationsRouter from '../routes/applications.js';
 import answerBookRouter from '../routes/answerBook.js';
 import authoringRouter from '../routes/authoring.js';
 import authRouter from '../routes/auth.js';
+import assetsRouter from '../routes/assets.js';
 import checklistsRouter from '../routes/checklists.js';
 import configRouter from '../routes/config.js';
 import contentsRouter from '../routes/contents.js';
@@ -31,6 +32,7 @@ const ROUTE_MODULES = [
   { basePath: '/api/interactions', router: interactionsRouter },
   { basePath: '/api/wishlist', router: wishlistRouter },
   { basePath: '/api/auth', router: authRouter },
+  { basePath: '/api/assets', router: assetsRouter },
   { basePath: '/api/purchases', router: purchasesRouter },
   { basePath: '/api/orders', router: ordersRouter },
   { basePath: '/api/entities', router: entitiesRouter },

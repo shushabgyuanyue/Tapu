@@ -1,3 +1,4 @@
+// Copy module barrel: stable exports for customer-facing copy files grouped by product surface.
 export { commonCopy } from './common';
 export { appCopy } from './apps';
 export { communityCopy } from './community';

@@ -1,3 +1,4 @@
+// Shared user-facing copy: global labels, generic actions, and cross-page UI terms.
 export const commonCopy = {
   brand: 'whatmint',
   nav: {
@@ -6,7 +7,7 @@ export const commonCopy = {
     wishlist: '心愿单',
     official: '官方',
     officialTitle: '官方管理',
-    assets: '我的资产',
+    assets: 'Mint Space',
     appeals: '解绑申诉',
     account: '账户设置',
     logout: '退出登录',
@@ -38,7 +39,7 @@ export const commonCopy = {
     fallbackTitle: '当前内容',
     video: '视频',
     work: '作品',
-    asset: '资产',
+    asset: '内容资产',
     collection: '内容',
     minted: '已铸造',
     item: '物品',

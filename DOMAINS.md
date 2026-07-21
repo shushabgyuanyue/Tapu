@@ -5,7 +5,7 @@
 | 一级域 | 估计完成度 | 状态 | 备注 |
 |--------|------------|------|------|
 | product-flow | 90% | 已联调 | 外部订单 -> token -> 实体 -> 内容 -> NFC 播放主链路已通过 E2E |
-| auth-asset | 90% | 已联调 | token 绑定、未绑定修改、绑定后账号权限、转赠、申诉解绑已实现 |
+| mint-space | 90% | 已联调 | Mint Space、token 绑定、未绑定修改、绑定后账号权限、转赠、申诉解绑已实现 |
 | frontend | 90% | 可继续拆分 | 首页黑紫粉风格已延展到资产/内容/商城/IP详情页，商城卡片已组件化，贴纸页支持分钟级自动刷新 |
 | backend | 90% | 已联调 | Express + SQLite + 上传转码 + 权限收紧 + 持有记录 |
 | storage | 40% | 待对接 | R2 代码已存在，需配置环境变量并做真实 CDN 验证 |
@@ -23,21 +23,27 @@
 
 关键文档：[docs/business-flow.md](docs/business-flow.md)
 
-### auth-asset
+### mint-space
 
 职责：
 
 - token 为 128-bit 随机唯一值，一个 token 对应一个实体。
-- `entities.user_id` 表示当前持有账号，未绑定时为空。
+- `ip_instances.owner_user_id` 表示当前持有账号，未绑定时为空。
 - 未绑定 token 可凭 token 修改公开默认内容。
 - 绑定后必须登录持有账号修改内容、转赠或解绑。
 - 持有变化写入 `entity_ownership_events`。
+- `/api/assets` 是 IP 实例和资产交易的正式 OS 入口；对客页面表达为 Mint Space。
+- `/api/auth` 只负责身份、账户资料和申诉；IP 实例认领、解绑、转赠、默认内容维护都必须走 `/api/assets`。
 
 关键代码：
 
+- `tapu/server/routes/assets.js`
+- `tapu/server/services/assetSpace.js`
+- `tapu/server/services/mintSpaceProfile.js`
 - `tapu/server/routes/auth.js`
 - `tapu/server/routes/entities.js`
 - `tapu/src/views/AssetsPage.vue`
+- `tapu/src/views/MintSpacePartnerPage.vue`
 
 ### frontend
 
@@ -46,10 +52,10 @@
 - 首页与用户主路径保持黑/紫/粉情绪 IP 风格。
 - 商城、社区、心愿单拆成独立顶部导航；社区和心愿单默认关闭。
 - 商城商品卡与筛选条已拆为组件，页面本体只负责数据编排和动作分发。
-- 内容详情支持预览、跳转资产绑定、直接输入 token 写入实体。
-- 资产页顶部和空展馆态提供 token 绑定入口，支持实体 IP 与日常贴纸智能绑定。
+- 内容详情支持预览、跳转 Mint Space 接入实体、直接输入 token 写入实体默认内容。
+- Mint Space 提供 token 接入、灵境合照、伙伴入口、创作入口、默认内容维护、转赠和解绑；高价值事件留在 OS 历史上下文，不作为 Space 首页列表展示。
 - 日常贴纸触碰页支持分钟级 cron 自动静默刷新，刷新后重新触发内容卡动画。
-- 账户下拉菜单顺序固定为“我的资产 -> 解绑申诉 -> 账户设置”。
+- 账户下拉菜单中的 `/assets` 入口对客显示为 Mint Space。
 - `/play?key=...` 是 NFC 播放入口。
 
 关键代码：
@@ -113,10 +119,10 @@
 - 已用临时 DB + 临时上传目录 + 真实 HTTP 服务复测情绪 IP 主链路：外部订单录入生成 128-bit token，订单可按订单号/token 搜索，NFC 写入与 token 发放时间戳存在，未绑定 token 可设置公开默认内容，绑定后防抢绑，持有人可上传私有内容并设默认，转赠后旧持有人失权、新持有人可修改。
 - 产品口径明确：`/play?key=<token>` 通过核心内容解析打开该物件的默认内容；token 只授权当前 IP 实例的默认播放，不提供任意私有内容浏览或管理能力。
 
-### auth-asset
+### mint-space
 
 - `entity_ownership_events` 是实体传承审计链的核心记录；`content_default_set` 事件必须尽量带上 `token` 与 `order_id`，便于从订单、token、内容变更三个维度追踪。
-- 本轮修复了持有人通过 `/auth/entity-default/:entityId` 修改默认内容时事件缺 token/order 的问题。
+- Mint Space 的 OS 主路径已收敛到 `/api/assets`：账号下 IP 实例读取、token 认领、解绑、转赠、默认内容读取/写入都走同一份 OS service。
 
 ### daily-sticker
 
@@ -125,5 +131,5 @@
 
 ### frontend
 
-- 商城、资产展馆、IP 详情页已继续靠近“高端商城 + 社交收藏展馆”的视觉方向，并保持首页黑/紫/粉品牌氛围。
-- 仍需关注体量：`AssetsPage.vue`、`DailyStickerManage.vue`、`IPDetailPage.vue` 已超过 500 行。下一轮若继续开发同域，优先拆为业务组件，避免样式和流程逻辑继续堆在页面文件。
+- 商城、Mint Space、IP 详情页已继续靠近“高端商城 + 生态空间入口”的视觉方向，并保持首页品牌氛围。
+- 仍需关注体量：`IPDetailPage.vue` 仍是硬债，部分官方管理页和 OS 服务超过 500 行。`AssetsPage.vue` 已拆为 Mint Space 编排、composable、组件和独立样式，后续不要再把流程逻辑写回页面文件。

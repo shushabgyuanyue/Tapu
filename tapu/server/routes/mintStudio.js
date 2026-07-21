@@ -22,6 +22,12 @@ import {
   buildContentDetailRoute,
   buildContentPreviewRoute,
 } from '../services/contentRenderingProtocol.js';
+import {
+  deleteStudioAuthoringDraft,
+  listStudioAuthoringDrafts,
+  saveStudioAuthoringDraft,
+} from '../services/studioAuthoringDrafts.js';
+import { saveDb } from '../db/index.js';
 
 const router = Router();
 
@@ -488,9 +494,79 @@ async function getStudioLibrary(req, res) {
   }
 }
 
+async function listDrafts(req, res) {
+  try {
+    const db = await getDb();
+    res.json({ drafts: listStudioAuthoringDrafts(db, req.user) });
+  } catch (error) {
+    console.error('Mint Studio draft list error:', error);
+    res.status(500).json({
+      error: 'Unable to load Studio drafts',
+      code: 'MINT_STUDIO_DRAFT_LIST_FAILED',
+    });
+  }
+}
+
+async function saveDraft(req, res) {
+  try {
+    const db = await getDb();
+    const draft = saveStudioAuthoringDraft(db, req.user, req.body || {});
+    saveDb();
+    res.json({ success: true, draft });
+  } catch (error) {
+    console.error('Mint Studio draft save error:', error);
+    res.status(error.status || 500).json({
+      error: error.status ? error.message : 'Unable to save Studio draft',
+      code: error.code || 'MINT_STUDIO_DRAFT_SAVE_FAILED',
+    });
+  }
+}
+
+async function deleteDraft(req, res) {
+  try {
+    const db = await getDb();
+    const draft = deleteStudioAuthoringDraft(db, req.user, req.params.id);
+    if (!draft) {
+      return res.status(404).json({
+        error: 'Studio draft not found',
+        code: 'MINT_STUDIO_DRAFT_NOT_FOUND',
+      });
+    }
+    saveDb();
+    res.json({ success: true, draft });
+  } catch (error) {
+    console.error('Mint Studio draft delete error:', error);
+    res.status(500).json({
+      error: 'Unable to delete Studio draft',
+      code: 'MINT_STUDIO_DRAFT_DELETE_FAILED',
+    });
+  }
+}
+
 registerRoutes(router, [
   adminRoute('get', '/official-ip/:id', resolveOfficialIpStudio),
   loginRoute('get', '/library', getStudioLibrary),
+  loginRoute('get', '/drafts', listDrafts, [], {
+    operation: 'content:authoring_draft',
+    summary: 'List in-progress Mint Studio authoring drafts for the current account.',
+    response: { drafts: 'array' },
+    tags: ['mint-studio', 'drafts'],
+  }),
+  loginRoute('post', '/drafts', saveDraft, [], {
+    operation: 'content:authoring_draft',
+    summary: 'Save an in-progress Mint Studio authoring draft snapshot.',
+    body: { payload: 'object', resourceSnapshot: 'array' },
+    response: { success: 'boolean', draft: 'object' },
+    errors: ['LOGIN_REQUIRED', 'DRAFT_RESOURCE_NOT_READY'],
+    tags: ['mint-studio', 'drafts'],
+  }),
+  loginRoute('delete', '/drafts/:id', deleteDraft, [], {
+    operation: 'content:authoring_draft',
+    summary: 'Archive an in-progress Mint Studio authoring draft.',
+    response: { success: 'boolean', draft: 'object' },
+    errors: ['LOGIN_REQUIRED', 'MINT_STUDIO_DRAFT_NOT_FOUND'],
+    tags: ['mint-studio', 'drafts'],
+  }),
 ]);
 
 export default router;
