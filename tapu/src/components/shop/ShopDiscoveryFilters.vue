@@ -7,8 +7,6 @@ defineProps<{
   selectedApplication: string;
   selectedTag: string;
   searchQuery: string;
-  experienceOnly: boolean;
-  invitationOnly: boolean;
   resultCount: number;
   totalCount: number;
   hasActiveFilters: boolean;
@@ -18,14 +16,12 @@ defineEmits<{
   'update:selectedApplication': [value: string];
   'update:selectedTag': [value: string];
   'update:searchQuery': [value: string];
-  'update:experienceOnly': [value: boolean];
-  'update:invitationOnly': [value: boolean];
   clear: [];
 }>();
 </script>
 
 <template>
-  <section class="shop-discovery-filters" :aria-label="shopCopy.filters.ariaLabel">
+  <section class="shop-discovery-filters wm-panel" :aria-label="shopCopy.filters.ariaLabel">
     <div class="filter-heading">
       <div>
         <span>{{ shopCopy.filters.eyebrow }}</span>
@@ -37,6 +33,7 @@ defineEmits<{
     <label class="search-field">
       <span>{{ shopCopy.filters.searchLabel }}</span>
       <input
+        class="wm-input"
         :value="searchQuery"
         type="search"
         :placeholder="shopCopy.filters.searchPlaceholder"
@@ -48,7 +45,7 @@ defineEmits<{
       <span class="row-label">{{ shopCopy.filters.application }}</span>
       <div class="filter-chips">
         <button
-          class="filter-chip"
+          class="filter-chip wm-chip"
           :class="{ active: !selectedApplication }"
           @click="$emit('update:selectedApplication', '')"
         >
@@ -57,7 +54,7 @@ defineEmits<{
         <button
           v-for="option in applicationOptions"
           :key="option.value"
-          class="filter-chip"
+          class="filter-chip wm-chip"
           :class="{ active: selectedApplication === option.value }"
           @click="$emit('update:selectedApplication', option.value)"
         >
@@ -70,7 +67,7 @@ defineEmits<{
       <span class="row-label">{{ shopCopy.filters.tag }}</span>
       <div class="filter-chips">
         <button
-          class="filter-chip"
+          class="filter-chip wm-chip"
           :class="{ active: !selectedTag }"
           @click="$emit('update:selectedTag', '')"
         >
@@ -79,7 +76,7 @@ defineEmits<{
         <button
           v-for="tag in tagOptions"
           :key="tag"
-          class="filter-chip"
+          class="filter-chip wm-chip"
           :class="{ active: selectedTag === tag }"
           @click="$emit('update:selectedTag', tag)"
         >
@@ -89,21 +86,7 @@ defineEmits<{
     </div>
 
     <div class="filter-actions">
-      <button
-        class="signal-chip"
-        :class="{ active: experienceOnly }"
-        @click="$emit('update:experienceOnly', !experienceOnly)"
-      >
-        {{ shopCopy.filters.withExperience }}
-      </button>
-      <button
-        class="signal-chip"
-        :class="{ active: invitationOnly }"
-        @click="$emit('update:invitationOnly', !invitationOnly)"
-      >
-        {{ shopCopy.filters.withInvitation }}
-      </button>
-      <button v-if="hasActiveFilters" class="clear-action" @click="$emit('clear')">
+      <button v-if="hasActiveFilters" class="clear-action wm-btn-ghost" @click="$emit('clear')">
         {{ shopCopy.filters.clear }}
       </button>
     </div>
@@ -116,12 +99,10 @@ defineEmits<{
   gap: 14px;
   margin: 0 0 18px;
   padding: 18px;
-  border: 1px solid rgba(55, 28, 66, 0.10);
   border-radius: 30px;
   background:
-    radial-gradient(circle at 4% 0%, rgba(255, 79, 216, 0.14), transparent 26%),
-    linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(255, 249, 253, 0.88));
-  box-shadow: 0 18px 46px rgba(55, 26, 70, 0.08);
+    radial-gradient(circle at 4% 0%, rgba(47, 111, 94, 0.10), transparent 26%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(255, 250, 244, 0.88));
 }
 
 .filter-heading,
@@ -145,19 +126,19 @@ defineEmits<{
 .filter-heading span,
 .row-label,
 .search-field span {
-  color: #a2388d;
+  color: var(--wm-accent);
   font-size: 11px;
   font-weight: 950;
   letter-spacing: 0.08em;
 }
 
 .filter-heading strong {
-  color: #211129;
+  color: var(--wm-ink);
   font-size: 18px;
 }
 
 .filter-heading small {
-  color: #817086;
+  color: var(--wm-muted);
   font-size: 12px;
   font-weight: 850;
 }
@@ -168,20 +149,7 @@ defineEmits<{
 }
 
 .search-field input {
-  width: 100%;
-  min-height: 44px;
-  padding: 0 15px;
-  border: 1px solid #efe3f2;
   border-radius: 18px;
-  color: #25152c;
-  background: rgba(255, 255, 255, 0.78);
-  font: inherit;
-  outline: none;
-}
-
-.search-field input:focus {
-  border-color: rgba(255, 79, 216, 0.42);
-  box-shadow: 0 0 0 4px rgba(255, 79, 216, 0.08);
 }
 
 .filter-row {
@@ -199,36 +167,27 @@ defineEmits<{
 }
 
 .filter-chip,
-.signal-chip,
 .clear-action {
   min-height: 34px;
-  padding: 0 12px;
-  border-radius: 999px;
   font-size: 12px;
-  font-weight: 900;
   cursor: pointer;
 }
 
-.filter-chip,
-.signal-chip {
-  border: 1px solid #efe2f2;
-  color: #604668;
+.filter-chip {
+  border: 1px solid var(--wm-line);
+  color: var(--wm-muted);
   background: rgba(255, 255, 255, 0.74);
 }
 
-.filter-chip.active,
-.signal-chip.active {
+.filter-chip.active {
   border-color: transparent;
-  color: #fff;
-  background: linear-gradient(135deg, #201029, #7c4dff 58%, #ff4fd8);
-  box-shadow: 0 10px 22px rgba(124, 77, 255, 0.16);
+  color: var(--wm-inverse);
+  background: linear-gradient(135deg, var(--wm-ink), var(--wm-accent));
+  box-shadow: var(--wm-shadow-glow);
 }
 
 .clear-action {
   margin-left: auto;
-  border: 0;
-  color: #9b3b84;
-  background: rgba(255, 79, 216, 0.10);
 }
 
 @media (max-width: 640px) {

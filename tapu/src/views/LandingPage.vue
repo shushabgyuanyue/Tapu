@@ -8,6 +8,7 @@ import HomeMintSpacePreview from '../components/home/HomeMintSpacePreview.vue';
 import HomeStudioExamples from '../components/home/HomeStudioExamples.vue';
 import NavBar from '../components/NavBar.vue';
 import { homeCopy } from '../copy';
+import { resolveIpImage } from '../utils/ipImages';
 import '../styles/home.css';
 import '../styles/home-space-studio.css';
 
@@ -21,16 +22,19 @@ const fallbackImages: Record<string, string> = {
 
 const fallbackImageList = Object.values(fallbackImages);
 
-const imageForIp = (ip: any, index: number) => (
-  ip.product_image_url
-  || ip.cover_url
-  || ip.official_default_video_poster
-  || fallbackImageList[index % fallbackImageList.length]
-);
+const imageForIp = (ip: any, index: number) => resolveIpImage({
+  name: ip.name,
+  code: ip.code,
+  applicationCode: ip.application_code,
+  imageUrl: ip.product_image_url || ip.cover_url || ip.official_default_video_poster,
+}, fallbackImageList[index % fallbackImageList.length]);
 
 const fallbackCards = computed(() => homeCopy.ipSection.fallbackCards.map((card) => ({
   ...card,
-  image: fallbackImages[card.imageName],
+  image: resolveIpImage({
+    name: card.name,
+    imageUrl: fallbackImages[card.imageName],
+  }),
 })));
 
 const ipCards = computed(() => {

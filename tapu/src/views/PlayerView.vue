@@ -7,6 +7,9 @@ import {
 } from '../api';
 import OsEntryPrompt from '../components/os/OsEntryPrompt.vue';
 import OsArRenderer from '../components/os/OsArRenderer.vue';
+import WmButton from '../components/common/WmButton.vue';
+import WmLoading from '../components/common/WmLoading.vue';
+import WmState from '../components/common/WmState.vue';
 import { contentCopy } from '../copy';
 import '../styles/player.css';
 
@@ -42,6 +45,18 @@ type PlayableContent = {
     cameraFacingMode: 'environment' | 'user';
     shadow?: boolean;
     perspective?: boolean;
+    ecosystemTargets?: Array<{
+      id: string;
+      label?: string;
+      markerImageUrl?: string;
+      markerTargetUrl?: string;
+      resourceType?: ResourceType;
+      url?: string;
+      poster?: string;
+      scale?: number;
+      shadow?: boolean;
+      yOffset?: number;
+    }>;
   };
 };
 
@@ -55,6 +70,19 @@ const userHasUnmuted = ref(false);
 const videoEnded = ref(false);
 
 let autoplayAttempted = false;
+
+const APP_MARKER_AR_DEFAULTS: Record<string, Partial<PlayableContent['ar']>> = {
+  'tissue-puppy': {
+    mode: 'marker_overlay',
+    engine: 'mindar-image-tracking',
+    placement: 'marker_anchor',
+    tracking: 'marker_image',
+    markerImageUrl: '/ar-placeholders/tissue-puppy-marker.png',
+    scale: 0.68,
+    shadow: true,
+    perspective: true,
+  },
+};
 
 const title = computed(() => content.value?.title || contentCopy.detail.renderer.videoFullscreen);
 const isArRenderer = computed(() => content.value?.renderer === 'ar.camera-overlay');
@@ -82,17 +110,26 @@ function normalizePlayback(raw: any = {}) {
 
 function normalizeAr(raw: any = {}) {
   const ar = raw?.ar || raw?.payload?.ar || {};
+  const appCode = raw?.application_code || raw?.payload?.appCode || '';
+  const appMarkerDefaults = APP_MARKER_AR_DEFAULTS[appCode] || {};
+  const normalized = { ...ar, ...appMarkerDefaults };
+  const ecosystemTargets = Array.isArray(normalized.ecosystemTargets)
+    ? normalized.ecosystemTargets
+    : Array.isArray(normalized.ecosystem_targets)
+      ? normalized.ecosystem_targets
+      : [];
   return {
-    mode: ar.mode || 'camera_overlay',
-    engine: ar.engine || 'os-web-camera-overlay',
-    placement: ar.placement || 'screen_center',
-    tracking: ar.tracking || '',
-    markerImageUrl: ar.markerImageUrl || ar.marker_image_url || '',
-    markerTargetUrl: ar.markerTargetUrl || ar.marker_target_url || '',
-    scale: Number(ar.scale || 0.72),
-    cameraFacingMode: ar.cameraFacingMode === 'user' || ar.camera_facing_mode === 'user' ? 'user' : 'environment',
-    shadow: ar.shadow !== false,
-    perspective: !!ar.perspective,
+    mode: normalized.mode || 'camera_overlay',
+    engine: normalized.engine || 'os-web-camera-overlay',
+    placement: normalized.placement || 'screen_center',
+    tracking: normalized.tracking || '',
+    markerImageUrl: normalized.markerImageUrl || normalized.marker_image_url || '',
+    markerTargetUrl: normalized.markerTargetUrl || normalized.marker_target_url || '',
+    scale: Number(normalized.scale || 0.72),
+    cameraFacingMode: normalized.cameraFacingMode === 'user' || normalized.camera_facing_mode === 'user' ? 'user' : 'environment',
+    shadow: normalized.shadow !== false,
+    perspective: !!normalized.perspective,
+    ecosystemTargets,
   };
 }
 
@@ -320,15 +357,20 @@ onUnmounted(() => {
   <main class="player-container">
     <transition name="fade">
       <div v-if="!isLoaded && !loadFailed" class="loading-screen">
-        <div class="breathing-circle"></div>
+        <WmLoading tone="inverse" />
       </div>
     </transition>
 
-    <section v-if="loadFailed" class="error-screen">
-      <p class="error-text">{{ contentCopy.player.error.title }}</p>
-      <p class="error-hint">{{ contentCopy.player.error.hint }}</p>
-      <button class="error-btn" type="button" @click="router.push('/shop')">{{ contentCopy.player.error.shop }}</button>
-    </section>
+    <WmState
+      v-if="loadFailed"
+      class="error-screen"
+      tone="inverse"
+      action-variant="inverse"
+      :title="contentCopy.player.error.title"
+      :body="contentCopy.player.error.hint"
+      :action-label="contentCopy.player.error.shop"
+      @action="router.push('/shop')"
+    />
 
     <OsArRenderer
       v-else-if="content && isArRenderer"
@@ -359,15 +401,15 @@ onUnmounted(() => {
       ></video>
 
       <transition name="fade">
-        <button v-if="showTapHint && isLoaded" class="tap-hint" type="button" @click.stop="unmute">
+        <WmButton v-if="showTapHint && isLoaded" class="tap-hint" variant="glass" size="sm" type="button" @click.stop="unmute">
           <span>{{ contentCopy.player.sound }}</span>
-        </button>
+        </WmButton>
       </transition>
 
       <transition name="fade">
-        <button v-if="showReplay" class="replay-btn" type="button" @click.stop="replay">
+        <WmButton v-if="showReplay" class="replay-btn" variant="inverse" type="button" @click.stop="replay">
           {{ contentCopy.player.replay }}
-        </button>
+        </WmButton>
       </transition>
       <OsEntryPrompt :prompt="entryPrompt" />
     </section>

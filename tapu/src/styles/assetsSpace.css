@@ -13,17 +13,15 @@
   --asset-space-soft: var(--wm-surface-soft);
 
   min-height: 100vh;
-  background:
-    radial-gradient(circle at 12% 8%, rgba(92, 210, 255, 0.30), transparent 28%),
-    radial-gradient(circle at 84% 4%, rgba(255, 177, 87, 0.24), transparent 26%),
-    radial-gradient(circle at 50% 56%, rgba(83, 255, 190, 0.14), transparent 34%),
-    linear-gradient(180deg, var(--asset-space-deep) 0%, var(--asset-space-mid) 42%, var(--wm-canvas) 42%, var(--wm-canvas-warm) 100%);
+  overflow-x: hidden;
+  background: var(--wm-page-gradient-soft);
   color: var(--asset-space-ink);
   font-family: var(--wm-font-sans);
 }
 
 .assets-shell {
   width: min(1180px, calc(100% - 32px));
+  min-width: 0;
   margin: 0 auto;
   padding: 30px 0 72px;
 }
@@ -498,7 +496,7 @@
   inset: auto 22px 22px 22px;
   z-index: 2;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 760px) minmax(160px, auto);
   align-items: end;
   max-width: none;
   gap: 12px 18px;
@@ -506,6 +504,12 @@
   border: 0;
   background: transparent;
   backdrop-filter: none;
+}
+
+.mint-space-title-block {
+  display: grid;
+  grid-column: 1;
+  gap: 10px;
 }
 
 .mint-space-share-button,
@@ -537,7 +541,9 @@
   display: inline-flex;
   gap: 8px;
   align-items: center;
-  margin-top: 6px;
+  grid-column: 2;
+  grid-row: 3;
+  margin-top: 0;
   padding: 13px 18px;
   border-radius: var(--wm-radius-pill);
   background: rgba(255, 255, 255, 0.88);
@@ -547,7 +553,7 @@
 
 .mint-space-personality {
   display: inline-grid;
-  justify-self: end;
+  justify-self: start;
   gap: 2px;
   padding: 13px 16px;
   border-radius: var(--wm-radius-lg);
@@ -577,15 +583,14 @@
 
 .mint-space-portrait__body h2 {
   color: var(--wm-inverse);
-  grid-column: 1;
-  max-width: min(680px, 72%);
+  max-width: 760px;
   text-shadow: 0 2px 22px rgba(0, 0, 0, 0.34);
   font-size: clamp(34px, 6vw, 64px);
   line-height: 1;
 }
 
 .mint-space-portrait__body p {
-  grid-column: 1 / -1;
+  grid-column: 1;
   max-width: 760px;
   margin: 0;
   padding: 10px 14px;
@@ -707,6 +712,8 @@
 .mint-space-partner-rail {
   position: relative;
   overflow-x: auto;
+  overflow-y: visible;
+  box-sizing: border-box;
   width: min(100%, 980px);
   margin: 0 auto;
   padding: 4px max(18px, calc((100% - 320px) / 2)) 12px;
@@ -722,6 +729,7 @@
 .mint-space-partner-track {
   display: flex;
   width: max-content;
+  max-width: none;
   gap: 18px;
 }
 
@@ -779,18 +787,47 @@
 }
 
 .mint-space-add-partner {
-  flex: 0 0 auto;
+  justify-self: center;
   display: inline-flex;
   gap: 8px;
   align-items: center;
   min-height: 54px;
-  align-self: center;
-  margin: 0 0 0 2px;
+  margin: 14px auto 0;
   padding: 0 18px;
   border-radius: var(--wm-radius-pill);
   background: linear-gradient(135deg, var(--asset-space-cyan), var(--asset-space-gold));
   color: var(--asset-space-deep);
   box-shadow: 0 14px 30px rgba(52, 197, 210, 0.20);
+}
+
+.mint-space-token-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(6, 13, 18, 0.48);
+  backdrop-filter: blur(10px);
+}
+
+.mint-space-token-modal__panel {
+  width: min(620px, 100%);
+}
+
+.mint-space-token-modal .asset-token-access {
+  margin: 0;
+  box-shadow: 0 28px 88px rgba(0, 0, 0, 0.28);
+}
+
+.mint-space-token-modal-enter-active,
+.mint-space-token-modal-leave-active {
+  transition: opacity var(--wm-duration-fast);
+}
+
+.mint-space-token-modal-enter-from,
+.mint-space-token-modal-leave-to {
+  opacity: 0;
 }
 
 .asset-space-empty {
@@ -885,7 +922,7 @@
 
 @media (max-width: 760px) {
   .assets-shell {
-    width: min(100% - 24px, 1180px);
+    width: min(100% - 20px, 1180px);
     padding-top: 18px;
   }
 
@@ -898,12 +935,16 @@
   }
 
   .mint-space-portrait {
-    min-height: 640px;
+    min-height: 620px;
   }
 
   .mint-space-portrait__body {
     inset: auto 12px 12px 12px;
     grid-template-columns: 1fr;
+  }
+
+  .mint-space-title-block {
+    grid-column: 1;
   }
 
   .mint-space-portrait__body h2 {
@@ -912,7 +953,19 @@
 
   .mint-space-personality,
   .mint-space-invite-button {
+    grid-column: 1;
+    grid-row: auto;
     justify-self: start;
+  }
+
+  .mint-space-partner-rail {
+    width: 100%;
+    max-width: 100%;
+    padding: 4px calc((100% - min(300px, 82vw)) / 2) 12px;
+  }
+
+  .mint-space-partner-card {
+    width: min(300px, 82vw);
   }
 
   .mint-space-portrait__partner {

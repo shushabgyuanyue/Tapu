@@ -101,7 +101,7 @@ export const APPLICATION_MANIFESTS = [
       },
       template: {
         renderer: 'ar.camera-overlay',
-        layout: 'camera_center_overlay',
+        layout: 'marker_anchor_overlay',
         nodeType: 'comfort_ar_overlay',
         playback: {
           autoplay: true,
@@ -112,10 +112,15 @@ export const APPLICATION_MANIFESTS = [
           objectFit: 'contain',
         },
         ar: {
-          mode: 'camera_overlay',
-          placement: 'screen_center',
+          mode: 'marker_overlay',
+          engine: 'mindar-image-tracking',
+          placement: 'marker_anchor',
+          tracking: 'marker_image',
+          markerImageUrl: '/ar-placeholders/tissue-puppy-marker.png',
           scale: 0.72,
           cameraFacingMode: 'environment',
+          shadow: true,
+          perspective: true,
           fallbackRenderer: 'video.fullscreen',
         },
       },
@@ -234,6 +239,26 @@ export const APPLICATION_MANIFESTS = [
           shadow: true,
           perspective: true,
           fallbackRenderer: 'image.single',
+          ecosystemTargets: [
+            {
+              id: 'desktop-secret-snow-realm',
+              label: '桌面秘境贴纸',
+              markerImageUrl: '/ar-placeholders/desktop-secret-marker.png',
+              resourceType: 'image',
+              url: '/ar-placeholders/ar.png',
+              scale: 0.58,
+              shadow: true,
+            },
+            {
+              id: 'tissue-puppy-companion',
+              label: '纸巾小狗贴纸',
+              markerImageUrl: '/ar-placeholders/tissue-puppy-marker.png',
+              resourceType: 'image',
+              url: 'whatmint-ip-image:tissue-puppy',
+              scale: 0.52,
+              shadow: true,
+            },
+          ],
         },
       },
       extra: {

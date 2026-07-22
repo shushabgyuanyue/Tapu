@@ -37,6 +37,7 @@
   --wm-shadow-xs: 0 6px 18px rgba(32, 27, 34, 0.05);
   --wm-shadow-sm: 0 10px 28px rgba(32, 27, 34, 0.08);
   --wm-shadow-md: 0 20px 60px rgba(32, 27, 34, 0.12);
+  --wm-shadow-lg: 0 28px 88px rgba(32, 27, 34, 0.16);
   --wm-shadow-glow: 0 18px 48px rgba(47, 111, 94, 0.16);
 
   --wm-page-max: 1120px;
@@ -49,13 +50,261 @@
   --wm-duration-slow: 320ms;
 
   --wm-focus-ring: 0 0 0 3px rgba(47, 111, 94, 0.14);
+
+  --wm-page-bg: var(--wm-page-gradient);
+  --wm-panel-bg: var(--wm-surface);
+  --wm-panel-border: var(--wm-line);
+  --wm-panel-radius: var(--wm-radius-xl);
+  --wm-panel-shadow: var(--wm-shadow-sm);
+  --wm-action-primary-bg: linear-gradient(135deg, var(--wm-ink), var(--wm-accent));
+  --wm-action-primary-color: var(--wm-inverse);
+  --wm-action-secondary-bg: var(--wm-surface-solid);
+  --wm-action-secondary-color: var(--wm-ink);
+  --wm-action-secondary-border: var(--wm-line);
+  --wm-action-danger-bg: var(--wm-rose-soft);
+  --wm-action-danger-color: var(--wm-danger);
+  --wm-action-inverse-bg: rgba(255, 255, 255, 0.92);
+  --wm-action-inverse-color: #071018;
+  --wm-action-glass-bg: rgba(7, 16, 24, 0.56);
+  --wm-action-glass-color: rgba(255, 255, 255, 0.92);
+  --wm-action-glass-border: rgba(255, 255, 255, 0.18);
+  --wm-chip-bg: var(--wm-accent-soft);
+  --wm-chip-color: var(--wm-accent);
+  --wm-modal-backdrop: rgba(15, 12, 18, 0.42);
+  --wm-page-gradient:
+    radial-gradient(circle at 12% 4%, rgba(47, 111, 94, 0.12), transparent 30%),
+    radial-gradient(circle at 88% 0%, rgba(154, 106, 47, 0.12), transparent 28%),
+    linear-gradient(180deg, var(--wm-canvas-warm) 0%, var(--wm-canvas) 100%);
+  --wm-page-gradient-soft:
+    radial-gradient(circle at 16% 6%, rgba(47, 111, 94, 0.10), transparent 30%),
+    radial-gradient(circle at 84% 4%, rgba(201, 39, 82, 0.08), transparent 28%),
+    linear-gradient(180deg, var(--wm-canvas-warm) 0%, var(--wm-canvas) 100%);
 }
 
 .wm-surface {
+  border: 1px solid var(--wm-panel-border);
+  border-radius: var(--wm-panel-radius);
+  background: var(--wm-panel-bg);
+  box-shadow: var(--wm-panel-shadow);
+}
+
+.wm-page {
+  min-height: 100vh;
+  overflow-x: hidden;
+  background: var(--wm-page-bg);
+  color: var(--wm-ink);
+  font-family: var(--wm-font-sans);
+}
+
+.wm-shell {
+  width: min(var(--wm-page-max), calc(100% - 32px));
+  min-width: 0;
+  margin: 0 auto;
+  padding: 30px 0 72px;
+}
+
+.wm-section {
+  display: grid;
+  gap: 18px;
+}
+
+.wm-panel {
+  border: 1px solid var(--wm-panel-border);
+  border-radius: var(--wm-panel-radius);
+  background: var(--wm-panel-bg);
+  box-shadow: var(--wm-panel-shadow);
+}
+
+.wm-action-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+  align-items: center;
+}
+
+.wm-btn-primary,
+.wm-btn-secondary,
+.wm-btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  border-radius: var(--wm-radius-pill);
+  padding: 0 16px;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 900;
+}
+
+.wm-btn-primary {
+  border: 0;
+  background: var(--wm-action-primary-bg);
+  color: var(--wm-action-primary-color);
+  box-shadow: var(--wm-shadow-glow);
+}
+
+.wm-btn-secondary {
+  border: 1px solid var(--wm-action-secondary-border);
+  background: var(--wm-action-secondary-bg);
+  color: var(--wm-action-secondary-color);
+}
+
+.wm-btn-ghost {
+  border: 0;
+  background: transparent;
+  color: var(--wm-accent);
+}
+
+.wm-btn-danger {
+  border: 0;
+  background: var(--wm-action-danger-bg);
+  color: var(--wm-action-danger-color);
+}
+
+.wm-btn-inverse {
+  border: 0;
+  background: var(--wm-action-inverse-bg);
+  color: var(--wm-action-inverse-color);
+  box-shadow: var(--wm-shadow-md);
+}
+
+.wm-btn-glass {
+  border: 1px solid var(--wm-action-glass-border);
+  background: var(--wm-action-glass-bg);
+  color: var(--wm-action-glass-color);
+  backdrop-filter: blur(12px);
+}
+
+.wm-btn-sm {
+  min-height: 34px;
+  padding: 0 12px;
+  font-size: 12px;
+}
+
+.wm-btn-lg {
+  min-height: 48px;
+  padding: 0 22px;
+  font-size: 15px;
+}
+
+.wm-btn-block {
+  width: 100%;
+}
+
+.wm-btn-primary:disabled,
+.wm-btn-secondary:disabled,
+.wm-btn-ghost:disabled,
+.wm-btn-danger:disabled,
+.wm-btn-inverse:disabled,
+.wm-btn-glass:disabled {
+  opacity: 0.46;
+  cursor: not-allowed;
+}
+
+.wm-input {
+  width: 100%;
+  min-height: 44px;
   border: 1px solid var(--wm-line);
-  border-radius: var(--wm-radius-lg);
+  border-radius: var(--wm-radius-md);
+  padding: 0 14px;
+  background: rgba(255, 255, 255, 0.78);
+  color: var(--wm-ink);
+  font: inherit;
+  outline: none;
+}
+
+.wm-input:focus,
+.wm-input:focus-visible {
+  border-color: var(--wm-accent);
+  box-shadow: var(--wm-focus-ring);
+}
+
+.wm-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: var(--wm-radius-pill);
+  background: var(--wm-chip-bg);
+  color: var(--wm-chip-color);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.wm-empty {
+  display: grid;
+  place-items: center;
+  gap: 12px;
+  min-height: 260px;
+  color: var(--wm-muted);
+  text-align: center;
+}
+
+.wm-spinner {
+  width: 28px;
+  height: 28px;
+  border: 2px solid rgba(47, 111, 94, 0.12);
+  border-top-color: var(--wm-accent);
+  border-radius: 50%;
+  animation: wm-spin 0.8s linear infinite;
+}
+
+.wm-spinner-inverse {
+  border-color: rgba(255, 255, 255, 0.18);
+  border-top-color: rgba(255, 255, 255, 0.92);
+}
+
+.wm-state {
+  display: grid;
+  place-items: center;
+  gap: 10px;
+  min-height: 260px;
+  padding: 24px;
+  color: var(--wm-muted);
+  text-align: center;
+}
+
+.wm-state h2,
+.wm-state p {
+  margin: 0;
+}
+
+.wm-state h2 {
+  color: var(--wm-ink);
+  font-size: 20px;
+  letter-spacing: -0.03em;
+}
+
+.wm-state p {
+  max-width: 360px;
+  line-height: 1.7;
+}
+
+.wm-state-inverse {
+  color: rgba(255, 255, 255, 0.66);
+}
+
+.wm-state-inverse h2 {
+  color: rgba(255, 255, 255, 0.94);
+}
+
+.wm-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: var(--wm-modal-backdrop);
+  backdrop-filter: blur(10px);
+}
+
+.wm-modal-panel {
+  width: min(620px, 100%);
+  border: 1px solid rgba(255, 255, 255, 0.32);
+  border-radius: var(--wm-radius-xl);
   background: var(--wm-surface);
-  box-shadow: var(--wm-shadow-sm);
+  box-shadow: var(--wm-shadow-lg);
 }
 
 .wm-focusable {
@@ -92,6 +341,17 @@
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+@keyframes wm-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (max-width: 760px) {
+  .wm-shell {
+    width: min(100% - 20px, var(--wm-page-max));
+    padding-top: 18px;
   }
 }
 

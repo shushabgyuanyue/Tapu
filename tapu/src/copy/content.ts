@@ -141,7 +141,8 @@ export const contentCopy = {
       osLabel: 'WhatMint OS AR',
       cameraFallback: '摄像头未开启，已进入 AR 平面预览',
       preparingTracking: '正在准备 AR 识别',
-      scanningMarker: '请将镜头对准桌面秘境标记',
+      loadingHint: '请稍等，WhatMint 正在校准现实入口。',
+      scanningMarker: '请将镜头对准识别标记',
     },
   },
   remixModal: {

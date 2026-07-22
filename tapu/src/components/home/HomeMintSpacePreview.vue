@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import mintSpacePortraitImage from '../../IPimg/img/mint-space-collage.jpg';
+
 defineProps<{
   section: {
     eyebrow: string;
@@ -29,8 +31,7 @@ defineEmits<{
 
     <div class="home-space-card">
       <div class="home-space-portrait">
-        <div class="home-space-avatar" aria-hidden="true"></div>
-        <span v-for="partner in section.partners" :key="partner.name" class="home-space-orb">{{ partner.name }}</span>
+        <img class="home-space-portrait__image" :src="mintSpacePortraitImage" :alt="section.portraitTitle" />
         <div class="home-space-caption">
           <h3>{{ section.portraitTitle }}</h3>
           <p>{{ section.portraitBody }}</p>

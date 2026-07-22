@@ -22,8 +22,8 @@ const assets = useAssetSpace({ route, router, toast });
 async function focusBindEntrance() {
   showTokenPanel.value = true;
   await nextTick();
-  const element = tokenPanelRef.value?.$el as HTMLElement | undefined;
-  element?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  const input = (tokenPanelRef.value?.$el as HTMLElement | undefined)?.querySelector('input') as HTMLInputElement | null;
+  input?.focus();
 }
 
 function openPartnerDetail(partner: { id: string }) {
@@ -33,10 +33,10 @@ function openPartnerDetail(partner: { id: string }) {
 </script>
 
 <template>
-  <div class="assets-page">
+  <div class="assets-page wm-page">
     <NavBar />
 
-    <main class="assets-shell">
+    <main class="assets-shell wm-shell">
       <AssetLoginGuide
         v-if="assets.loginRequired.value"
         :has-token="!!assets.bindKey.value"
@@ -67,22 +67,6 @@ function openPartnerDetail(partner: { id: string }) {
           @switch-account="assets.switchAccountForCurrentToken"
         />
 
-        <AssetTokenAccessPanel
-          v-else-if="showTokenPanel || assets.bindKey.value || assets.suggestedDefaultContentId.value"
-          ref="tokenPanelRef"
-          v-model:bind-key="assets.bindKey.value"
-          :bind-msg="assets.bindMsg.value"
-          :bind-error="assets.bindError.value"
-          :has-suggested-default="!!assets.suggestedDefaultContentId.value"
-          :is-empty-space="assets.isMintSpaceEmpty.value"
-          :recovery="assets.permissionRecovery.value"
-          @smart-bind="assets.handleSmartBind"
-          @bind-entity="assets.handleBindEntity"
-          @appeal="assets.openAppealForCurrentToken"
-          @switch-account="assets.switchAccountForCurrentToken"
-          @close="showTokenPanel = false"
-        />
-
         <AssetDefaultHint
           v-if="assets.suggestedDefaultContentId.value"
           :content-id-label="assets.formatContentId(assets.suggestedDefaultContentId.value)"
@@ -107,6 +91,33 @@ function openPartnerDetail(partner: { id: string }) {
           @share="assets.downloadMintSpaceShareCard"
           @select="openPartnerDetail"
         />
+
+        <Teleport to="body">
+          <Transition name="mint-space-token-modal">
+            <div
+              v-if="!assets.isMintSpaceEmpty.value && (showTokenPanel || assets.bindKey.value || assets.suggestedDefaultContentId.value)"
+              class="mint-space-token-modal"
+              @click.self="showTokenPanel = false"
+            >
+              <div class="mint-space-token-modal__panel">
+                <AssetTokenAccessPanel
+                  ref="tokenPanelRef"
+                  v-model:bind-key="assets.bindKey.value"
+                  :bind-msg="assets.bindMsg.value"
+                  :bind-error="assets.bindError.value"
+                  :has-suggested-default="!!assets.suggestedDefaultContentId.value"
+                  :is-empty-space="assets.isMintSpaceEmpty.value"
+                  :recovery="assets.permissionRecovery.value"
+                  @smart-bind="assets.handleSmartBind"
+                  @bind-entity="assets.handleBindEntity"
+                  @appeal="assets.openAppealForCurrentToken"
+                  @switch-account="assets.switchAccountForCurrentToken"
+                  @close="showTokenPanel = false"
+                />
+              </div>
+            </div>
+          </Transition>
+        </Teleport>
       </template>
     </main>
   </div>

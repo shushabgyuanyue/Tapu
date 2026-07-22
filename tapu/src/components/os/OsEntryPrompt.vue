@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
+import WmButton from '../common/WmButton.vue';
 import { commonCopy } from '../../copy';
 
 type EntryPrompt = {
@@ -62,15 +63,17 @@ function openTarget(target?: string) {
 
 <template>
   <aside v-if="visible && prompt" :class="promptClass" @click.stop>
-    <button
+    <WmButton
       v-if="prompt.display !== 'corner_link'"
       class="os-entry-prompt__close"
+      variant="inverse"
+      size="sm"
       type="button"
       :aria-label="commonCopy.actions.close"
       @click="closePrompt"
     >
       ×
-    </button>
+    </WmButton>
 
     <div>
       <strong>{{ prompt.title }}</strong>
@@ -78,17 +81,19 @@ function openTarget(target?: string) {
     </div>
 
     <div class="os-entry-prompt__actions">
-      <button v-if="prompt.primary_action" type="button" @click="openTarget(prompt.primary_action.target)">
+      <WmButton v-if="prompt.primary_action" variant="inverse" size="sm" type="button" @click="openTarget(prompt.primary_action.target)">
         {{ prompt.primary_action.label }}
-      </button>
-      <button
+      </WmButton>
+      <WmButton
         v-if="prompt.secondary_action && prompt.display !== 'corner_link'"
         type="button"
+        variant="glass"
+        size="sm"
         class="os-entry-prompt__secondary"
         @click="openTarget(prompt.secondary_action.target)"
       >
         {{ prompt.secondary_action.label }}
-      </button>
+      </WmButton>
     </div>
   </aside>
 </template>

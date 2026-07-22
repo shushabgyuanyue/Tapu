@@ -1,5 +1,6 @@
 import { parseJson } from './coreStore.js';
 import { resultToObjects } from './tokens.js';
+import { getAppManifests } from '../contracts/appManifests.js';
 
 function parsePositiveInt(value, fallback) {
   const num = Number.parseInt(value, 10);
@@ -57,13 +58,31 @@ function baseShopCatalogSql() {
      LEFT JOIN resources resource ON resource.id = resource_link.resource_id`;
 }
 
+function activeManifestAppCodes() {
+  return getAppManifests()
+    .filter(manifest => manifest?.lifecycle?.status !== 'retired')
+    .filter(manifest => manifest?.lifecycle?.surfaces?.shop !== false)
+    .map(manifest => manifest.code)
+    .filter(Boolean);
+}
+
+function manifestAppCodeCondition(values) {
+  const appCodes = activeManifestAppCodes();
+  if (appCodes.length === 0) {
+    return '0 = 1';
+  }
+  values.push(...appCodes);
+  return `app.code IN (${appCodes.map(() => '?').join(', ')})`;
+}
+
 function activeIpConditions(params = {}) {
+  const values = ['active'];
   const conditions = [
     'd.status = ?',
     "app.status = 'active'",
     "COALESCE(json_extract(COALESCE(app.extra_json, '{}'), '$.lifecycle.surfaces.shop'), 1) = 1",
+    manifestAppCodeCondition(values),
   ];
-  const values = ['active'];
   if (params.seriesId) {
     conditions.push('d.primary_series_key = ?');
     values.push(params.seriesId);
@@ -104,12 +123,12 @@ export function listShopIpDefinitions(db, params = {}) {
 }
 
 export function getShopIpDefinition(db, ipDefinitionId) {
+  const { where, values } = activeIpConditions();
   const rows = resultToObjects(db.exec(
-    `${baseShopCatalogSql()}
-     WHERE d.id = ?
-       AND d.status = 'active'
+    `${baseShopCatalogSql()}${where}
+       AND d.id = ?
      GROUP BY d.id`,
-    [ipDefinitionId]
+    [...values, ipDefinitionId]
   ));
   if (rows.length === 0) return null;
   return enrichShopIpDefinition(rows[0]);

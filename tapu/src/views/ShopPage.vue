@@ -7,6 +7,8 @@ import InfiniteScrollTrigger from '../components/InfiniteScrollTrigger.vue';
 import ShopDiscoveryFilters from '../components/shop/ShopDiscoveryFilters.vue';
 import ShopProductCard from '../components/shop/ShopProductCard.vue';
 import { shopCopy } from '../copy';
+import { resolveIpImage } from '../utils/ipImages';
+import { allSceneCategories, resolveIpScenes } from '../utils/ipScenes';
 
 const router = useRouter();
 const toast = inject<{ show: (text: string, duration?: number, type?: string) => void }>('toast');
@@ -18,8 +20,6 @@ const chunkSize = 9;
 const selectedApplication = ref('');
 const selectedTag = ref('');
 const searchQuery = ref('');
-const experienceOnly = ref(false);
-const invitationOnly = ref(false);
 
 const rawTagsFor = (ip: any) => {
   if (Array.isArray(ip.display_tags_list)) {
@@ -31,15 +31,14 @@ const rawTagsFor = (ip: any) => {
     .filter(Boolean);
 };
 
+const sceneTagsFor = (ip: any) => resolveIpScenes(ip);
+
 const filteredIps = computed(() => {
   const query = searchQuery.value.trim().toLowerCase();
   return ips.value.filter((ip) => {
     const applicationKey = ip.application_code || ip.application_name || '';
-    const tagList = rawTagsFor(ip);
-    const hasExperience = Array.isArray(ip.official_experiences)
-      ? ip.official_experiences.length > 0
-      : Boolean(ip.official_default_video_id);
-    const hasInvitation = Boolean(ip.external_purchase_url);
+    const tagList = sceneTagsFor(ip);
+    const rawTagList = rawTagsFor(ip);
     const searchable = [
       ip.name,
       ip.description,
@@ -49,12 +48,11 @@ const filteredIps = computed(() => {
       ip.application_name,
       ip.application_description,
       tagList.join(' '),
+      rawTagList.join(' '),
     ].filter(Boolean).join(' ').toLowerCase();
 
     return (!selectedApplication.value || applicationKey === selectedApplication.value)
       && (!selectedTag.value || tagList.includes(selectedTag.value))
-      && (!experienceOnly.value || hasExperience)
-      && (!invitationOnly.value || hasInvitation)
       && (!query || searchable.includes(query));
   });
 });
@@ -69,31 +67,33 @@ const applicationOptions = computed(() => {
   return Array.from(options, ([value, label]) => ({ value, label }));
 });
 const tagOptions = computed(() => Array.from(new Set(
-  ips.value.flatMap(ip => rawTagsFor(ip))
-)).slice(0, 12));
+  ips.value.flatMap(ip => sceneTagsFor(ip))
+)).sort((a, b) => allSceneCategories().indexOf(a) - allSceneCategories().indexOf(b)).slice(0, 12));
 const visibleIps = computed(() => filteredIps.value.slice(0, page.value * chunkSize));
 const hasMore = computed(() => visibleIps.value.length < filteredIps.value.length);
 const hasActiveFilters = computed(() => Boolean(
   selectedApplication.value
   || selectedTag.value
   || searchQuery.value.trim()
-  || experienceOnly.value
-  || invitationOnly.value
 ));
 
 const productImage = (ip: any) => {
-  if (ip.product_image_url || ip.cover_url || ip.official_default_video_poster) {
-    return ip.product_image_url || ip.cover_url || ip.official_default_video_poster;
-  }
+  const explicitImage = ip.product_image_url || ip.cover_url || ip.official_default_video_poster;
   const name = `${ip.name || ''}${ip.application_code || ''}`.toLowerCase();
-  if (name.includes('贴纸') || name.includes('sticker')) return '/shop/figures/nfc-sticker.svg';
-  if (name.includes('狗') || name.includes('puppy') || name.includes('纸巾')) return '/shop/figures/tissue-puppy.svg';
-  return '/shop/figures/designer-toy-default.svg';
+  const fallback = name.includes('贴纸') || name.includes('sticker')
+    ? '/shop/figures/nfc-sticker.svg'
+    : '/shop/figures/designer-toy-default.svg';
+  return resolveIpImage({
+    name: ip.name,
+    code: ip.code,
+    applicationCode: ip.application_code,
+    imageUrl: explicitImage,
+  }, fallback);
 };
 
 const tagsFor = (ip: any) => {
-  const rawTags = rawTagsFor(ip);
-  return rawTags.length ? rawTags.slice(0, 4) : shopCopy.product.defaultTags;
+  const sceneTags = sceneTagsFor(ip);
+  return sceneTags.length ? sceneTags.slice(0, 4) : shopCopy.product.defaultTags;
 };
 
 const loadData = async () => {
@@ -120,11 +120,9 @@ const clearFilters = () => {
   selectedApplication.value = '';
   selectedTag.value = '';
   searchQuery.value = '';
-  experienceOnly.value = false;
-  invitationOnly.value = false;
 };
 
-watch([selectedApplication, selectedTag, searchQuery, experienceOnly, invitationOnly], () => {
+watch([selectedApplication, selectedTag, searchQuery], () => {
   page.value = 1;
 });
 
@@ -132,17 +130,15 @@ onMounted(loadData);
 </script>
 
 <template>
-  <div class="shop-page">
+  <div class="shop-page wm-page">
     <NavBar />
 
-    <main class="shop-shell">
+    <main class="shop-shell wm-shell">
       <ShopDiscoveryFilters
         v-if="!loading"
         v-model:selected-application="selectedApplication"
         v-model:selected-tag="selectedTag"
         v-model:search-query="searchQuery"
-        v-model:experience-only="experienceOnly"
-        v-model:invitation-only="invitationOnly"
         :application-options="applicationOptions"
         :tag-options="tagOptions"
         :result-count="filteredIps.length"
@@ -152,7 +148,7 @@ onMounted(loadData);
       />
 
       <div v-if="loading" class="shop-loading">
-        <div class="spinner"></div>
+        <div class="wm-spinner"></div>
       </div>
 
       <template v-else>
@@ -168,7 +164,7 @@ onMounted(loadData);
           />
         </div>
 
-        <div v-else class="shop-empty">
+        <div v-else class="shop-empty wm-empty">
           <p>{{ hasActiveFilters ? shopCopy.product.emptyFiltered : shopCopy.product.empty }}</p>
         </div>
 
@@ -185,40 +181,17 @@ onMounted(loadData);
 
 <style scoped>
 .shop-page {
-  min-height: 100vh;
-  background:
-    linear-gradient(120deg, rgba(255, 79, 216, 0.10) 0 1px, transparent 1px 92px),
-    linear-gradient(0deg, rgba(124, 77, 255, 0.08) 0 1px, transparent 1px 84px),
-    radial-gradient(circle at 9% 5%, rgba(255, 79, 216, 0.36), transparent 30%),
-    radial-gradient(circle at 88% 3%, rgba(124, 77, 255, 0.38), transparent 32%),
-    linear-gradient(180deg, #09060d 0%, #17101f 44%, #fff7fb 44%, #ffffff 100%);
-  color: #1b1322;
-  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif;
+  --wm-page-bg: var(--wm-page-gradient);
 }
 
 .shop-shell {
   max-width: 1180px;
-  margin: 0 auto;
-  padding: 30px 24px 70px;
 }
 
 .shop-loading {
   display: flex;
   justify-content: center;
   padding: 72px;
-}
-
-.spinner {
-  width: 28px;
-  height: 28px;
-  border: 2px solid rgba(255, 79, 216, 0.12);
-  border-top-color: #ff4fd8;
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
 }
 
 .shop-grid {
@@ -230,7 +203,7 @@ onMounted(loadData);
 
 .shop-empty {
   padding: 72px 24px;
-  color: #9b8fa2;
+  color: var(--wm-muted);
   text-align: center;
 }
 
@@ -242,7 +215,7 @@ onMounted(loadData);
 
 @media (max-width: 640px) {
   .shop-shell {
-    padding: 22px 14px 52px;
+    padding-bottom: 52px;
   }
 
   .shop-grid {

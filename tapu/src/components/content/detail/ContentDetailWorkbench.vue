@@ -5,8 +5,8 @@ defineProps<{
   summary: string;
   previewCover: string;
   previewAlt: string;
-  modeLabel: string;
-  statusLabel: string;
+  modeLabel?: string;
+  statusLabel?: string;
   contentIdLabel: string;
   resourceLabel: string;
   resourceNames: string[];
@@ -45,8 +45,8 @@ defineEmits<{
       </header>
 
       <div class="maintenance-meta">
-        <span>{{ modeLabel }}</span>
-        <span>{{ statusLabel }}</span>
+        <span v-if="modeLabel">{{ modeLabel }}</span>
+        <span v-if="statusLabel">{{ statusLabel }}</span>
         <button class="copy-id-chip" type="button" @click="$emit('copy-id')">
           <span>{{ copyIdLabel }}</span>
           <small>{{ contentIdLabel }}</small>

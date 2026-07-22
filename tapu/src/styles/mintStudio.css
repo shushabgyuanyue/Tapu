@@ -4,9 +4,7 @@
   --studio-muted: var(--wm-muted);
   --studio-line: var(--wm-line);
   --studio-card: var(--wm-surface);
-  background:
-    radial-gradient(circle at 50% -10%, rgba(47, 111, 94, 0.12), transparent 32%),
-    linear-gradient(180deg, var(--wm-canvas-warm) 0%, var(--wm-canvas) 100%);
+  background: var(--wm-page-gradient-soft);
   color: var(--studio-ink);
   font-family: var(--wm-font-sans);
   font-size: 14px;
@@ -23,7 +21,45 @@
 }
 
 .mobile-sidebar-toggle {
-  display: none;
+  position: fixed;
+  top: 76px;
+  left: 16px;
+  z-index: 920;
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--wm-line);
+  border-radius: 999px;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(255, 250, 244, 0.88));
+  color: var(--wm-ink);
+  box-shadow: var(--wm-shadow-sm);
+  backdrop-filter: blur(14px);
+  cursor: pointer;
+  transition:
+    left 0.22s ease,
+    transform 0.18s ease,
+    background 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+.mobile-sidebar-toggle--open {
+  left: 306px;
+}
+
+.mobile-sidebar-toggle:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--wm-shadow-md);
+}
+
+.mobile-sidebar-toggle span {
+  display: block;
+  color: var(--wm-ink);
+  font-size: 20px;
+  font-weight: 950;
+  line-height: 1;
 }
 
 .mobile-sidebar-backdrop {
@@ -680,24 +716,14 @@
   }
 
   .mobile-sidebar-toggle {
-    position: fixed;
     top: 64px;
     left: 12px;
-    z-index: 920;
-    min-width: 42px;
-    height: 42px;
-    padding: 0 12px;
-    display: grid;
-    place-items: center;
-    border: 1px solid rgba(32, 33, 35, 0.10);
-    border-radius: 15px;
-    background: rgba(255, 255, 255, 0.9);
-    color: #202123;
-    box-shadow: 0 12px 32px rgba(32, 33, 35, 0.12);
-    backdrop-filter: blur(14px);
-    cursor: pointer;
-    font-size: 12px;
-    font-weight: 900;
+    width: 38px;
+    height: 38px;
+  }
+
+  .mobile-sidebar-toggle--open {
+    left: min(284px, calc(86vw - 48px));
   }
 
   .mobile-sidebar-backdrop {

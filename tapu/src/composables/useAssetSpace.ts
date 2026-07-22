@@ -14,6 +14,7 @@ import {
 import type { MintSpaceProfile } from '../api/assets';
 import { userCopy } from '../copy';
 import mintSpacePortraitImage from '../IPimg/img/mint-space-collage.jpg';
+import { resolveIpImage } from '../utils/ipImages';
 
 type Toast = { show: (text: string, duration?: number, type?: string) => void };
 
@@ -65,11 +66,27 @@ export function useAssetSpace(params: {
     return !!value?.profile && Array.isArray(value.partners);
   }
 
+  function normalizeProfileImages(profile: MintSpaceProfile): MintSpaceProfile {
+    return {
+      ...profile,
+      partners: profile.partners.map(partner => ({
+        ...partner,
+        image: resolveIpImage({
+          name: partner.name,
+          code: (partner as any).code,
+          applicationCode: (partner as any).applicationCode || (partner as any).application_code,
+          imageUrl: partner.image,
+        }),
+      })),
+    };
+  }
+
   function applyMintSpaceProfile(result: any, instances = assetInstances.value) {
     if (isMintSpaceProfile(result)) {
       spaceError.value = '';
-      mintSpaceProfile.value = result;
-      const partners = result.partners || [];
+      const normalizedProfile = normalizeProfileImages(result);
+      mintSpaceProfile.value = normalizedProfile;
+      const partners = normalizedProfile.partners || [];
       if (partners.length === 0) {
         selectedPartnerId.value = '';
         return;
@@ -86,13 +103,17 @@ export function useAssetSpace(params: {
   }
 
   function assetImage(instance: any) {
-    if (instance.product_image_url || instance.cover_url || instance.official_default_video_poster) {
-      return instance.product_image_url || instance.cover_url || instance.official_default_video_poster;
-    }
+    const explicitImage = instance.product_image_url || instance.cover_url || instance.official_default_video_poster;
     const name = `${instance.group_name || ''}${instance.application_code || ''}`.toLowerCase();
-    if (name.includes('贴纸') || name.includes('sticker')) return '/shop/figures/nfc-sticker.svg';
-    if (name.includes('狗') || name.includes('puppy') || name.includes('纸巾')) return '/shop/figures/tissue-puppy.svg';
-    return '/shop/figures/designer-toy-default.svg';
+    const fallback = name.includes('贴纸') || name.includes('sticker')
+      ? '/shop/figures/nfc-sticker.svg'
+      : '/shop/figures/designer-toy-default.svg';
+    return resolveIpImage({
+      name: instance.group_name || instance.name,
+      code: instance.ip_definition_code || instance.code,
+      applicationCode: instance.application_code,
+      imageUrl: explicitImage,
+    }, fallback);
   }
 
   function displayToken(raw?: string) {

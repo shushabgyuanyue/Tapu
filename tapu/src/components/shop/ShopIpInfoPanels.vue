@@ -5,11 +5,6 @@ defineProps<{
   ip: any;
   storyParagraphs: string[];
   specRows: Array<{ label: string; value: unknown }>;
-  officialContent: any | null;
-}>();
-
-defineEmits<{
-  experience: [];
 }>();
 </script>
 
@@ -23,11 +18,7 @@ defineEmits<{
     <article class="info-panel app-panel">
       <span class="panel-kicker">{{ shopCopy.detail.appTitle }}</span>
       <h2>{{ ip.application_name || shopCopy.card.defaultApp }}</h2>
-      <p>{{ ip.application_description || ip.interaction_type || shopCopy.detail.appFallback }}</p>
-      <div class="app-meta">
-        <span v-if="ip.app_type">{{ ip.app_type }}</span>
-        <span v-if="ip.interaction_type">{{ ip.interaction_type }}</span>
-      </div>
+      <p>{{ ip.application_description || shopCopy.detail.appFallback }}</p>
     </article>
 
     <article v-if="specRows.length" class="info-panel spec-panel">
@@ -38,13 +29,6 @@ defineEmits<{
           <dd>{{ row.value }}</dd>
         </template>
       </dl>
-    </article>
-
-    <article class="info-panel content-panel">
-      <span class="panel-kicker">{{ shopCopy.detail.contentTitle }}</span>
-      <h2>{{ officialContent?.title || shopCopy.detail.experienceEmpty }}</h2>
-      <p>{{ shopCopy.detail.contentIntro }}</p>
-      <button :disabled="!officialContent" @click="$emit('experience')">{{ shopCopy.detail.experience }}</button>
     </article>
   </section>
 </template>
@@ -92,21 +76,6 @@ defineEmits<{
   min-height: 260px;
 }
 
-.app-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 9px;
-}
-
-.app-meta span {
-  padding: 7px 11px;
-  border-radius: 999px;
-  background: var(--wm-surface-soft);
-  color: var(--wm-muted);
-  font-size: 12px;
-  font-weight: 850;
-}
-
 .spec-panel dl {
   display: grid;
   grid-template-columns: max-content minmax(0, 1fr);
@@ -123,23 +92,6 @@ defineEmits<{
 .spec-panel dd {
   margin: 0;
   color: var(--wm-ink);
-}
-
-.content-panel button {
-  width: fit-content;
-  border: 1px solid var(--wm-line);
-  border-radius: 999px;
-  padding: 12px 18px;
-  background: var(--wm-surface-solid);
-  color: var(--wm-ink);
-  font-weight: 900;
-  cursor: pointer;
-}
-
-.content-panel button:disabled {
-  color: var(--wm-muted);
-  cursor: not-allowed;
-  opacity: 0.55;
 }
 
 @media (max-width: 820px) {

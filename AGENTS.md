@@ -19,6 +19,7 @@ Before making non-trivial changes, read:
 5. `docs/os-app-boundary.md`
 6. `docs/route-permission-principles.md`
 7. `docs/customer-facing-experience-plan.md`
+8. `docs/design-system-governance.md`
 
 ## Repo Map
 
@@ -64,6 +65,11 @@ Before making non-trivial changes, read:
 - Backend messages that may be returned to users must go into `tapu/server/copy/*`; route handlers and services should not invent one-off user-facing error strings.
 - Reuse existing style variables and shared patterns before adding new visual primitives.
 - Similar styles appearing in multiple places should be extracted into shared styles or shared tokens.
+- New customer-facing pages should default to `wm-page` + `wm-shell`, and style differences should be expressed through semantic design tokens before page-local CSS.
+- Buttons, chips, panels, modals, empty states, and loading states should reuse `tapu/src/styles/design-system.css` `.wm-*` base classes unless the page has a clear product reason to diverge.
+- Customer-facing buttons, loading indicators, empty/error states, and OS playback controls should prefer `tapu/src/components/common/WmButton.vue`, `WmLoading.vue`, and `WmState.vue` over raw `<button>` plus local CSS.
+- If a new interaction needs a visual variant such as danger, inverse, glass, loading, or block button, extend the shared component/token layer first; do not define one-off button systems in a page.
+- `/play` and other NFC/tap runtime surfaces are customer-facing OS surfaces; their error prompts, loading animation, replay/unmute controls, and entry prompts must stay aligned with the same design tokens as normal pages.
 - Frontend network access must go through `tapu/src/api/*`; do not scatter raw fetch calls.
 - New backend routes must follow the current `routePermissions + operation + contract` pattern.
 - Do not create parallel admin shells, duplicate route trees, or one-off routing conventions.

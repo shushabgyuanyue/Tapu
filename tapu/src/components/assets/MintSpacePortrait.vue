@@ -41,11 +41,12 @@ const portraitImage = computed(() => props.profile?.collageImageUrl || mintSpace
     </div>
 
     <div class="mint-space-portrait__body">
-      <span class="asset-eyebrow">{{ userCopy.assets.mintSpace.portraitEyebrow }}</span>
-      <h2>{{ profileTitle }}</h2>
-      <div class="mint-space-personality">
-        <strong>{{ profile?.personalityCode || 'MINT' }}</strong>
-        <span>{{ userCopy.assets.mintSpace.personalityPrefix }}</span>
+      <div class="mint-space-title-block">
+        <div class="mint-space-personality">
+          <strong>{{ profile?.personalityCode || 'MINT' }}</strong>
+          <span>{{ userCopy.assets.mintSpace.personalityPrefix }}</span>
+        </div>
+        <h2>{{ profileTitle }}</h2>
       </div>
       <p>{{ profile?.description || profile?.summary || userCopy.assets.mintSpace.emptySummary }}</p>
 

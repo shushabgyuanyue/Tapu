@@ -663,11 +663,17 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="mint-page">
+  <div class="mint-page wm-page">
     <NavBar :key="navKey" />
 
-    <button type="button" class="mobile-sidebar-toggle" @click="sidebarOpen = !sidebarOpen">
-      {{ sidebarOpen ? studioCopy.sidebar.close : studioCopy.sidebar.mintedTitle }}
+    <button
+      type="button"
+      :class="['mobile-sidebar-toggle', { 'mobile-sidebar-toggle--open': sidebarOpen }]"
+      :aria-label="sidebarOpen ? studioCopy.sidebar.close : studioCopy.sidebar.mintedTitle"
+      :title="sidebarOpen ? studioCopy.sidebar.close : studioCopy.sidebar.mintedTitle"
+      @click="sidebarOpen = !sidebarOpen"
+    >
+      <span>{{ sidebarOpen ? '×' : '☰' }}</span>
     </button>
 
     <div :class="['studio-layout', { 'sidebar-collapsed': !sidebarOpen }]">

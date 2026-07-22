@@ -6,6 +6,7 @@
 
 - 适用于 `tapu/` 下前端、后端、文案、样式、路由、OS 抽象和轻应用接入开发。
 - 与 [engineering-governance.md](engineering-governance.md)、[os-app-boundary.md](os-app-boundary.md)、[route-permission-principles.md](route-permission-principles.md) 共同生效。
+- 前端视觉与样式治理同时遵循 [design-system-governance.md](design-system-governance.md)。
 - 如果三者冲突，优先顺序为：
   1. `os-app-boundary.md`
   2. `route-permission-principles.md`
@@ -77,12 +78,17 @@
 
 - 页面专属大样式放 `src/styles/*.css`。
 - 全局 token、基础色、共享层级优先沿用现有变量。
+- 新非管理端页面默认使用 `.wm-page` 与 `.wm-shell`，页面差异优先通过覆盖 semantic token 表达。
+- 按钮、标签、面板、弹窗、空态和加载态优先使用 `design-system.css` 中的 `.wm-*` 基座类。
+- 对客按钮、加载态和空/错状态优先使用 `src/components/common/WmButton.vue`、`WmLoading.vue`、`WmState.vue`；不要在页面里重新定义完整按钮系统。
+- `/play`、NFC 触碰入口、OS entry prompt 和轻应用 runtime 都属于对客 OS 表面，必须遵守同一套按钮、loading、error state 规范。
 - 同类卡片、按钮、表单控件保持一致命名和一致结构。
 
 ### 禁止做法
 
 - 在多个页面复制同一段大样式后各自微调。
 - 有现成 token / 模块样式仍重复写死颜色、阴影、圆角。
+- 页面背景直接写一整套独立色板或硬分割背景，导致后续换风格必须逐页改。
 
 ## 路由与接口规范
 

@@ -1,0 +1,18 @@
+﻿<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640">
+  <rect width="640" height="640" fill="#fff"/>
+  <rect x="42" y="42" width="556" height="556" fill="none" stroke="#161616" stroke-width="24"/>
+  <rect x="76" y="76" width="92" height="92" fill="#161616"/>
+  <rect x="472" y="76" width="92" height="92" fill="#161616"/>
+  <rect x="76" y="472" width="92" height="92" fill="#161616"/>
+  <rect x="472" y="472" width="92" height="92" fill="#161616"/>
+  <ellipse cx="200" cy="264" rx="46" ry="74" fill="#f4a261" stroke="#161616" stroke-width="14"/>
+  <ellipse cx="440" cy="264" rx="46" ry="74" fill="#f4a261" stroke="#161616" stroke-width="14"/>
+  <ellipse cx="320" cy="284" rx="128" ry="118" fill="#fff6e0" stroke="#161616" stroke-width="24"/>
+  <ellipse cx="276" cy="281" rx="14" ry="19" fill="#161616"/>
+  <ellipse cx="364" cy="281" rx="14" ry="19" fill="#161616"/>
+  <ellipse cx="328" cy="328" rx="18" ry="14" fill="#161616"/>
+  <path d="M284 338c22 35 66 35 88 0" fill="none" stroke="#161616" stroke-width="14" stroke-linecap="round"/>
+  <rect x="218" y="416" width="204" height="98" fill="#fff" stroke="#161616" stroke-width="14"/>
+  <path d="M246 458h148" stroke="#f4a261" stroke-width="28" stroke-linecap="round"/>
+  <text x="320" y="556" text-anchor="middle" font-family="Arial, sans-serif" font-size="28" font-weight="900" fill="#161616">TISSUE PUPPY</text>
+</svg>

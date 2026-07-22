@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
+import WmButton from '../common/WmButton.vue';
+import WmLoading from '../common/WmLoading.vue';
 import { studioCopy } from '../../copy';
 import {
   canManageMintedContent,
@@ -55,18 +57,10 @@ function draftSubtitle(item: MintStudioDraftItem) {
 <template>
   <aside :class="['studio-sidebar', { 'studio-sidebar--collapsed': !open }]">
     <div class="sidebar-actions">
-      <button
-        type="button"
-        class="sidebar-icon"
-        :title="open ? studioCopy.sidebar.collapse : studioCopy.sidebar.close"
-        @click="emit('update:open', !open)"
-      >
-        {{ open ? '<' : '>' }}
-      </button>
-      <button type="button" class="new-mint-button" :title="studioCopy.sidebar.newMintTitle" @click="emit('new-mint')">
+      <WmButton type="button" class="new-mint-button" variant="primary" :title="studioCopy.sidebar.newMintTitle" @click="emit('new-mint')">
         <span>+</span>
         <strong>{{ studioCopy.sidebar.newMint }}</strong>
-      </button>
+      </WmButton>
     </div>
 
     <div class="sidebar-section">
@@ -122,14 +116,14 @@ function draftSubtitle(item: MintStudioDraftItem) {
         <i>{{ listOpen ? '−' : '+' }}</i>
       </button>
       <div v-if="open && listOpen && items.length" class="library-tools">
-        <input v-model="query" :placeholder="studioCopy.sidebar.search" />
+        <input v-model="query" class="wm-input" :placeholder="studioCopy.sidebar.search" />
         <div class="library-filters">
-          <button type="button" :class="{ active: filter === 'all' }" @click="filter = 'all'">{{ studioCopy.sidebar.filterAll }}</button>
-          <button type="button" :class="{ active: filter === 'published' }" @click="filter = 'published'">{{ studioCopy.libraryStatus.published }}</button>
-          <button type="button" :class="{ active: filter === 'draft' }" @click="filter = 'draft'">{{ studioCopy.libraryStatus.draft }}</button>
+          <WmButton type="button" size="sm" :variant="filter === 'all' ? 'primary' : 'secondary'" @click="filter = 'all'">{{ studioCopy.sidebar.filterAll }}</WmButton>
+          <WmButton type="button" size="sm" :variant="filter === 'published' ? 'primary' : 'secondary'" @click="filter = 'published'">{{ studioCopy.libraryStatus.published }}</WmButton>
+          <WmButton type="button" size="sm" :variant="filter === 'draft' ? 'primary' : 'secondary'" @click="filter = 'draft'">{{ studioCopy.libraryStatus.draft }}</WmButton>
         </div>
       </div>
-      <p v-if="listOpen && loading && !items.length" class="sidebar-empty">{{ studioCopy.sidebar.loading }}</p>
+      <WmLoading v-if="listOpen && loading && !items.length" class="sidebar-loading" :label="studioCopy.sidebar.loading" />
       <div v-if="listOpen && visibleItems.length" class="minted-list">
         <div
           v-for="item in visibleItems"
@@ -173,17 +167,20 @@ function draftSubtitle(item: MintStudioDraftItem) {
   top: 59px;
   left: 0;
   z-index: 880;
-  width: 266px;
+  width: 292px;
   height: calc(100vh - 59px);
   display: flex;
   flex-direction: column;
   gap: 15px;
   padding: 16px 12px;
-  border-right: 1px solid rgba(32, 33, 35, 0.08);
-  background: rgba(255, 255, 255, 0.64);
-  backdrop-filter: blur(18px);
+  overflow: hidden;
+  border-right: 1px solid var(--wm-line);
+  background:
+    radial-gradient(circle at 0% 0%, rgba(47, 111, 94, 0.10), transparent 34%),
+    rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(20px);
   box-sizing: border-box;
-  box-shadow: 18px 0 48px rgba(32, 33, 35, 0.05);
+  box-shadow: 18px 0 48px rgba(32, 27, 34, 0.07);
   transition:
     width 0.22s ease,
     transform 0.22s ease,
@@ -196,14 +193,9 @@ function draftSubtitle(item: MintStudioDraftItem) {
   gap: 9px;
 }
 
-.sidebar-icon,
 .new-mint-button,
 .minted-item {
-  border: 1px solid rgba(32, 33, 35, 0.10);
-  background: rgba(255, 255, 255, 0.88);
-  color: #202123;
   cursor: pointer;
-  font: inherit;
   transition:
     background 0.16s ease,
     border-color 0.16s ease,
@@ -216,16 +208,6 @@ function draftSubtitle(item: MintStudioDraftItem) {
     radial-gradient(circle at 100% 0%, rgba(47, 111, 94, 0.12), transparent 48%),
     rgba(255, 255, 255, 0.96);
   box-shadow: inset 0 0 0 1px rgba(47, 111, 94, 0.08);
-}
-
-.sidebar-icon {
-  width: 36px;
-  height: 36px;
-  display: grid;
-  place-items: center;
-  border-radius: 13px;
-  font-size: 18px;
-  font-weight: 900;
 }
 
 .new-mint-button {
@@ -245,8 +227,8 @@ function draftSubtitle(item: MintStudioDraftItem) {
   display: grid;
   place-items: center;
   border-radius: 10px;
-  background: #202123;
-  color: #fff;
+  background: rgba(255, 255, 255, 0.18);
+  color: var(--wm-inverse);
   font-size: 17px;
   font-weight: 900;
 }
@@ -260,6 +242,7 @@ function draftSubtitle(item: MintStudioDraftItem) {
   display: flex;
   flex-direction: column;
   gap: 9px;
+  overflow: hidden;
 }
 
 .library-tools {
@@ -269,46 +252,25 @@ function draftSubtitle(item: MintStudioDraftItem) {
 }
 
 .library-tools input {
-  width: 100%;
   min-width: 0;
-  padding: 8px 10px;
-  border: 1px solid var(--wm-line);
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.72);
-  color: var(--wm-ink);
-  font: inherit;
   font-size: 12px;
-  outline: none;
-}
-
-.library-tools input:focus {
-  border-color: var(--wm-accent);
-  box-shadow: var(--wm-focus-ring);
 }
 
 .library-filters {
   display: flex;
   gap: 5px;
   overflow-x: auto;
+  scrollbar-width: none;
 }
 
-.library-filters button {
+.library-filters::-webkit-scrollbar {
+  display: none;
+}
+
+.library-filters :deep(button) {
   flex: 0 0 auto;
-  padding: 5px 8px;
-  border: 1px solid var(--wm-line);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.68);
-  color: var(--wm-muted);
-  cursor: pointer;
-  font: inherit;
   font-size: 10.5px;
-  font-weight: 800;
-}
-
-.library-filters button.active {
-  border-color: var(--wm-ink);
-  background: var(--wm-ink);
-  color: var(--wm-inverse);
 }
 
 .sidebar-title {
@@ -369,9 +331,15 @@ function draftSubtitle(item: MintStudioDraftItem) {
   display: grid;
   gap: 7px;
   overflow-y: auto;
+  padding-right: 2px;
+  scrollbar-width: thin;
 }
 
 .minted-item {
+  border: 1px solid rgba(32, 33, 35, 0.10);
+  background: rgba(255, 255, 255, 0.88);
+  color: var(--wm-ink);
+  font: inherit;
   display: flex;
   align-items: center;
   gap: 9px;
@@ -458,6 +426,11 @@ function draftSubtitle(item: MintStudioDraftItem) {
   line-height: 1.6;
 }
 
+.sidebar-loading {
+  justify-self: start;
+  margin: 4px 8px;
+}
+
 .studio-sidebar--collapsed {
   width: 76px;
   align-items: center;
@@ -472,6 +445,7 @@ function draftSubtitle(item: MintStudioDraftItem) {
 }
 
 .studio-sidebar--collapsed .new-mint-button strong,
+.studio-sidebar--collapsed .sidebar-section,
 .studio-sidebar--collapsed .sidebar-title,
 .studio-sidebar--collapsed .minted-copy,
 .studio-sidebar--collapsed .minted-delete,

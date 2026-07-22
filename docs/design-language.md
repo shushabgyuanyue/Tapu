@@ -25,16 +25,24 @@ WhatMint 的视觉语言服务于同一个产品判断：邀请有灵的存在�
 
 页面允许定义自己的局部变量，例如 `--trail-accent`，但应该从全局 token 延展，而不是重新发明一套视觉系统。
 
+更完整的工程治理规则见 [design-system-governance.md](design-system-governance.md)。设计语言调整应优先修改 semantic tokens 和 `.wm-*` 基座类，而不是逐页替换样式。
+
 ## Shared Components
 
 已有公共类：
 
 - `.wm-surface`：通用卡片/容器质感。
+- `.wm-page`：统一页面背景、字体和横向溢出防护。
+- `.wm-shell`：统一页面最大宽度、左右留白和移动端收口。
+- `.wm-panel`：语义化面板。
 - `.wm-focusable`：统一 focus 反馈。
 - `.wm-btn-primary`：主要行动按钮。
+- `.wm-btn-secondary`：次行动按钮。
+- `.wm-btn-ghost`：弱行动按钮。
 - `.wm-chip`：筛选和轻选择。
 - `.wm-empty`：空状态。
 - `.wm-spinner`：加载状态。
+- `.wm-modal-backdrop` / `.wm-modal-panel`：弹窗背景和面板。
 - `.wm-kicker`：小型上标题。
 
 新增页面优先组合这些类；如果不够用，再补充新的公共类，而不是在页面里反复复制按钮、卡片、输入框样式。

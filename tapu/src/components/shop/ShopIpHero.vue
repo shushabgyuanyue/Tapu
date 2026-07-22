@@ -66,14 +66,14 @@ defineEmits<{
   overflow: hidden;
   background:
     radial-gradient(circle at 50% 24%, rgba(255, 255, 255, 0.48), transparent 28%),
-    linear-gradient(150deg, #1c151b, #2f6f5e 68%, #d98fb7);
+    linear-gradient(150deg, var(--wm-canvas), rgba(47, 111, 94, 0.22) 68%, var(--wm-canvas-warm));
 }
 
 .hero-visual img {
   width: min(76%, 360px);
   max-height: 390px;
   object-fit: contain;
-  filter: drop-shadow(0 34px 44px rgba(0, 0, 0, 0.26));
+  filter: drop-shadow(0 34px 44px rgba(32, 27, 34, 0.18));
 }
 
 .hero-copy {
@@ -131,9 +131,9 @@ defineEmits<{
 }
 
 .primary-action {
-  color: var(--wm-inverse);
-  background: linear-gradient(135deg, var(--wm-ink), var(--wm-mint));
-  box-shadow: 0 16px 36px rgba(47, 111, 94, 0.20);
+  border: 1px solid var(--wm-line);
+  background: var(--wm-surface-solid);
+  color: var(--wm-ink);
 }
 
 .ghost-action {

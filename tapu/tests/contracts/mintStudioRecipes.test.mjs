@@ -169,7 +169,7 @@ async function createMintStudioLibraryDb() {
       'ar',
       'video',
       '{"authoringProtocol":{"createFlow":"single_resource_node","unitLabel":"AR 召唤节点"},"contentShape":{"unit":"comfort_ar_node","slots":[{"key":"comfort_ar_overlay","role":"ar_overlay","type":"video","label":"AR 召唤视频","required":true}]}}',
-      '{"renderer":"ar.camera-overlay","layout":"camera_center_overlay","playback":{"autoplay":true,"mutedByDefault":true},"ar":{"mode":"camera_overlay","placement":"screen_center"}}'
+      '{"renderer":"ar.camera-overlay","layout":"marker_anchor_overlay","playback":{"autoplay":true,"mutedByDefault":true},"ar":{"mode":"marker_overlay","engine":"mindar-image-tracking","placement":"marker_anchor","tracking":"marker_image","markerImageUrl":"/ar-placeholders/tissue-puppy-marker.png"}}'
     )`);
   db.run("INSERT INTO ip_definitions (id, name, primary_series_name) VALUES ('ip-puppy', '纸巾小狗', '永远系列')");
   db.run("INSERT INTO application_definitions (id, code, name, status, extra_json) VALUES ('app-puppy', 'tissue-puppy', '纸巾小狗', 'active', '{\"lifecycle\":{\"status\":\"active\",\"surfaces\":{\"shop\":true,\"nfc\":true,\"studio\":true,\"admin\":true}}}')");
@@ -244,7 +244,10 @@ test('tissue puppy enters Mint Studio through a single AR content definition', (
   assert.equal(manifest.contentDefinition?.authoringSchema?.contentShape?.slots?.[0]?.resourceProfile, 'ar_alpha_overlay');
   assert.equal(manifest.contentDefinition?.authoringSchema?.contentShape?.slots?.[0]?.requiresAlpha, true);
   assert.equal(manifest.contentDefinition?.template?.renderer, 'ar.camera-overlay');
-  assert.equal(manifest.contentDefinition?.template?.ar?.placement, 'screen_center');
+  assert.equal(manifest.contentDefinition?.template?.ar?.engine, 'mindar-image-tracking');
+  assert.equal(manifest.contentDefinition?.template?.ar?.placement, 'marker_anchor');
+  assert.equal(manifest.contentDefinition?.template?.ar?.tracking, 'marker_image');
+  assert.equal(manifest.contentDefinition?.template?.ar?.markerImageUrl, '/ar-placeholders/tissue-puppy-marker.png');
   assert.equal(manifest.contentDefinition?.template?.playback?.mutedByDefault, true);
   assert.equal(manifest.contentDefinition?.template?.playback?.tapToUnmute, true);
   assert.equal(manifest.contentDefinition?.template?.playback?.replayMode, 'loop');
@@ -279,12 +282,16 @@ test('desktop secret enters Mint Studio through the OS AR image renderer definit
 
 test('shop catalog contains the active new-core public IP entries after seed', async () => {
   const db = await createCoreSeedDb();
+  db.run("INSERT INTO application_definitions (id, code, name, interaction_type, status) VALUES ('app-legacy-moment', 'moment', '纪念瞬间', 'tap_to_moment', 'active')");
+  db.run("INSERT INTO ip_definitions (id, code, name, status) VALUES ('ipdef-legacy-moment', 'moment', '纪念瞬间', 'active')");
+  db.run("INSERT INTO ip_definition_application_links (id, ip_definition_id, application_definition_id, relation_role, is_primary) VALUES ('link-legacy-moment', 'ipdef-legacy-moment', 'app-legacy-moment', 'primary', 1)");
   const items = listShopIpDefinitions(db);
   const byCode = new Map(items.map(item => [item.code, item]));
 
   for (const code of ['tissue-puppy', 'desktop-secret']) {
     assert.ok(byCode.has(code), `${code} should be visible in shop catalog`);
   }
+  assert.equal(byCode.has('moment'), false, 'legacy non-manifest IP should not be visible in shop catalog');
   assert.equal(byCode.get('tissue-puppy')?.name, '纸巾小狗');
   assert.equal(byCode.get('tissue-puppy')?.application_code, 'tissue-puppy');
   assert.equal(byCode.get('tissue-puppy')?.official_experiences?.[0]?.id, 'content-tissue-puppy-ar-placeholder');
