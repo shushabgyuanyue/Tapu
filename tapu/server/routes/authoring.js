@@ -30,6 +30,7 @@ import {
   getContentDefinitionBindingConfig,
   hydrateAuthoringResources,
 } from '../services/contentResourceBinding.js';
+import { canManageAllContent } from '../services/accessControl.js';
 
 const router = Router();
 
@@ -123,7 +124,7 @@ async function createDefinitionContent(req, res, { entity, token = '', sourceTyp
     const bindingConfig = getContentDefinitionBindingConfig(contentDefinitionConfig);
     const resources = hydrateAuthoringResources(db, submittedResources, {
       ownerUserId: req.user?.id || null,
-      allowAdmin: req.user?.username === 'admin',
+      allowAdmin: canManageAllContent(req.user),
     });
     assertContentResourcesMatchDefinition(resources, bindingConfig);
     const pages = buildContentResourceNodes(resources, {

@@ -10,6 +10,7 @@ import {
 } from '../services/objectPermissions.js';
 import { serverMessages } from '../copy/messages.js';
 import { deleteContentAsset } from '../services/contentAssets.js';
+import { canManageAllContent } from '../services/accessControl.js';
 
 const router = Router();
 
@@ -104,7 +105,7 @@ async function listVideosHandler(req, res) {
   const limit = Math.min(50, Math.max(1, parseInt(limitStr) || 20));
   const offset = (pageNum - 1) * limit;
 
-  const canSeeAllPrivate = req.user?.username === 'admin' && all;
+  const canSeeAllPrivate = canManageAllContent(req.user) && all;
   const conditions = ["v.content_kind = 'video'"];
   const params = [];
 

@@ -78,7 +78,9 @@
 - IP、系列、实体、订单、官方配置和内容实例管理。
 - 官方模板、卡片、token 的创建和维护。
 
-原则：后台管理类接口默认使用 `admin_required`，不要在 handler 里手写 `req.user.username === 'admin'`。
+原则：后台管理类接口默认使用 `admin_required`，不要在 handler 里手写管理员判断。
+
+管理员判断由 OS 级 `accessControl` 服务根据 `role` / capability 统一完成。当前 `admin` 角色具备 `admin:access`、`ownership:bypass` 和 `content:manage_all` 能力；业务代码需要判断后台访问、跨 owner 管理或内容全量管理时，应调用 `isAdminUser`、`canBypassOwnership` 或 `canManageAllContent`，不要回退到用户名判断。
 
 ### `token_unbound_or_owner`
 
@@ -251,8 +253,19 @@
 3. 如果 token 已绑定但用户未登录，应该引导登录，还是允许匿名继续？
 4. 如果用户已登录但不是 owner，错误码应该是 owner 不匹配，而不是登录错误。
 5. 这个接口是否同时做了上传、绑定、设置默认内容？如果是，应拆成多个交易。
-6. handler 内是否出现了 `req.user.username === 'admin'`、`entity.user_id !== req.user.id`、`owner_user_id !== req.user.id` 这类判断？如果出现，优先考虑迁到权限层。
+6. handler 内是否出现了管理员、owner、实体归属、内容归属等权限判断？如果出现，优先考虑迁到权限层或 `accessControl` / `objectPermissions` 这类 OS 服务。
 7. 权限规则是否能被后续接口复用？如果只能服务一个接口，先确认它是不是业务规则而不是权限规则。
+
+## 登录引导优先级
+
+权限层必须优先返回能指导前端下一步的错误：
+
+1. 未登录且交易需要账号身份时，先返回 `LOGIN_REQUIRED`，前端负责登录引导。
+2. 登录后再判断 admin、entity owner、content owner、token owner 等归属能力。
+3. token 已绑定但访问者不是 owner 时，返回 `OBJECT_BOUND_TO_OTHER_ACCOUNT` 或对应 owner 错误，前端再进入换账号、申诉或停止流程。
+4. 资源、内容状态、模板匹配等业务有效性错误，只应在权限通过后由 handler 或领域服务返回。
+
+这套顺序是 OS 级契约，已由 `tests/contracts/permissionMatrix.test.mjs` 固化。新增权限类型或修改现有权限类型时，必须补充对应矩阵用例。
 
 ## 推荐实现形态
 

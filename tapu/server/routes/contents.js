@@ -27,12 +27,13 @@ import {
 import { buildOsEntryPrompt } from '../services/osEntryPrompt.js';
 import { isApplicationRowSurfaceEnabled } from '../services/applicationLifecycle.js';
 import { resultToObjects } from '../services/tokens.js';
+import { canManageAllContent } from '../services/accessControl.js';
 
 const router = Router();
 
 function canViewContent(req, content) {
   if (!content) return false;
-  if (req.user?.username === 'admin') return true;
+  if (canManageAllContent(req.user)) return true;
   if (content.visibility === 'public' && content.status === 'published') return true;
   return req.user?.id && (
     req.user.id === content.owner_user_id
@@ -100,9 +101,9 @@ function buildContentDetailPayload(req, content) {
     detail_route: buildContentDetailRoute(content),
     owner_user_id: content.owner_user_id || null,
     creator_user_id: content.creator_user_id || null,
-    viewer_is_admin: req.user?.username === 'admin',
+    viewer_is_admin: canManageAllContent(req.user),
     viewer_can_edit: canEditContent(req.user, content),
-    viewer_can_set_official_default: req.user?.username === 'admin' && !!content.ip_definition_id,
+    viewer_can_set_official_default: canManageAllContent(req.user) && !!content.ip_definition_id,
     version_no: Number(content.version_no || 1),
     draft_versions: canEditContent(req.user, content)
       ? getContentDraftVersions(req.permission.db, content.id)
@@ -280,7 +281,7 @@ async function createDraftVersion(req, res) {
       body: req.body?.body,
       resources: Array.isArray(req.body?.resources) ? req.body.resources : [],
       createdBy: req.user?.id || null,
-      allowAdmin: req.user?.username === 'admin',
+      allowAdmin: canManageAllContent(req.user),
     });
     if (!draft) return res.status(404).json({ error: serverMessages.routes.common.contentNotFound });
     saveDb();

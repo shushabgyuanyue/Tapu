@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import { cleanString, parseJson, stringifyJson } from './coreStore.js';
 import { resultToObjects } from './tokens.js';
+import { canBypassOwnership } from './accessControl.js';
 
 function normalizeResourceSnapshot(resources = []) {
   return (Array.isArray(resources) ? resources : [])
@@ -46,7 +47,7 @@ function assertResourcesBelongToUser(db, resources, user) {
       error.code = 'DRAFT_RESOURCE_NOT_READY';
       throw error;
     }
-    if (row.owner_user_id && row.owner_user_id !== user.id && user.username !== 'admin') {
+    if (row.owner_user_id && row.owner_user_id !== user.id && !canBypassOwnership(user)) {
       const error = new Error('不能保存不属于当前账号的资源草稿');
       error.status = 403;
       error.code = 'DRAFT_RESOURCE_OWNER_MISMATCH';

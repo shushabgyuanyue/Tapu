@@ -11,6 +11,7 @@ const router = useRouter();
 const showLogin = ref(false);
 const username = ref('');
 const showDropdown = ref(false);
+const mobileMenuOpen = ref(false);
 const hasOwnedAssets = ref(false);
 
 const navLabelById: Record<PrimaryNavItemId, string> = {
@@ -65,6 +66,7 @@ const logout = () => {
   clearToken();
   username.value = '';
   showDropdown.value = false;
+  mobileMenuOpen.value = false;
   router.push('/');
 };
 
@@ -80,6 +82,10 @@ const onLoginSuccess = (user: { username: string }) => {
 
 const toggleDropdown = () => {
   showDropdown.value = !showDropdown.value;
+};
+
+const closeMobileMenu = () => {
+  mobileMenuOpen.value = false;
 };
 
 const closeDropdown = (e: MouseEvent) => {
@@ -110,7 +116,19 @@ defineExpose({ openLogin });
     <div class="navbar-inner">
       <router-link to="/" class="navbar-brand">{{ commonCopy.brand }}</router-link>
 
-      <nav class="navbar-links">
+      <button
+        type="button"
+        class="navbar-menu-button"
+        :aria-label="mobileMenuOpen ? commonCopy.nav.closeMenu : commonCopy.nav.openMenu"
+        :aria-expanded="mobileMenuOpen"
+        @click="mobileMenuOpen = !mobileMenuOpen"
+      >
+        <span></span>
+        <span></span>
+        <span></span>
+      </button>
+
+      <nav :class="['navbar-links', { 'navbar-links--open': mobileMenuOpen }]">
         <router-link
           v-for="item in navItems"
           :key="item.id"
@@ -118,6 +136,7 @@ defineExpose({ openLogin });
           class="nav-link"
           :class="[`nav-link--${item.id}`]"
           :title="item.title"
+          @click="closeMobileMenu"
         >
           <svg v-if="item.id === 'home'" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11 12 3l9 8"/><path d="M5 10v10h14V10"/><path d="M9 20v-6h6v6"/></svg>
           <svg v-else-if="item.id === 'space'" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4 7v7c0 4 3.5 6.5 8 7 4.5-.5 8-3 8-7V7l-8-4Z"/><path d="M9 12h6"/><path d="M12 9v6"/></svg>
@@ -190,6 +209,10 @@ defineExpose({ openLogin });
   flex: 1;
   gap: 6px;
   min-width: 0;
+}
+
+.navbar-menu-button {
+  display: none;
 }
 
 .nav-link {
@@ -382,23 +405,58 @@ defineExpose({ openLogin });
     font-size: 16px;
   }
 
-  .navbar-links {
-    gap: 2px;
-    overflow-x: auto;
-    scrollbar-width: none;
+  .navbar-menu-button {
+    width: 38px;
+    height: 38px;
+    display: inline-grid;
+    flex: 0 0 auto;
+    gap: 4px;
+    place-content: center;
+    margin-left: auto;
+    border: 1px solid var(--wm-line);
+    border-radius: 14px;
+    background: var(--wm-surface-solid);
+    color: var(--wm-ink);
+    cursor: pointer;
   }
 
-  .navbar-links::-webkit-scrollbar {
-    display: none;
+  .navbar-menu-button span {
+    width: 16px;
+    height: 2px;
+    border-radius: 999px;
+    background: currentColor;
+  }
+
+  .navbar-links {
+    position: fixed;
+    top: 52px;
+    left: 10px;
+    right: 10px;
+    z-index: 160;
+    display: grid;
+    gap: 6px;
+    padding: 10px;
+    border: 1px solid var(--wm-line);
+    border-radius: 20px;
+    background: rgba(255, 250, 247, 0.96);
+    box-shadow: var(--wm-shadow-md);
+    backdrop-filter: blur(18px);
+    transform: translateY(-8px);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--wm-duration-fast), transform var(--wm-duration-fast);
+  }
+
+  .navbar-links--open {
+    transform: translateY(0);
+    opacity: 1;
+    pointer-events: auto;
   }
 
   .nav-link {
-    flex-shrink: 0;
-    padding: 5px 8px;
-  }
-
-  .nav-link svg {
-    display: none;
+    justify-content: flex-start;
+    padding: 11px 12px;
+    border-radius: 14px;
   }
 
   .nav-avatar {

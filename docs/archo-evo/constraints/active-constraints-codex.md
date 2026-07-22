@@ -39,3 +39,9 @@
 - 对客中文话术包括正文、按钮、空态、确认弹窗、toast、表单校验和可恢复错误；新增或修改时必须进入对应 `tapu/src/copy/*` 或 `tapu/server/copy/*`。
 - 每个 copy 文件开头必须声明它负责的模块、页面或错误面；如果找不到合适归属，先补归属说明再继续写组件。
 - 后端 route/service 中可能返回给前端展示的错误不得临时写字符串；先进入 `server/copy/messages.js` 或对应服务端 copy 文件。
+
+## 2026-07-22 r9 新增
+
+- 对客产品入口只认当前核心 manifest 和核心对象；非 manifest 的历史 seed、旧管理行和旧业务表数据必须清理源头，不用前端过滤制造干净假象。
+- 下线轻应用时至少检查 manifest、`application_definitions`、`ip_definitions`、内容实例、IP 实例、关系链接、旧管理表和 checked-in dev DB 是否仍残留产品事实。
+- 浏览器烟测如果仍看到旧 IP，先区分磁盘 DB、启动清理结果和长运行服务内存，再决定是否需要重启服务或继续改代码。

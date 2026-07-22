@@ -34,7 +34,7 @@ function isWithinAppealWindow(createdAt) {
 }
 
 // Register
-router.post('/register', async (req, res) => {
+async function registerHandler(req, res) {
   try {
     const { username, password } = req.body;
     if (!username || !password) {
@@ -45,9 +45,10 @@ router.post('/register', async (req, res) => {
     const password_hash = hashPassword(password);
     const db = await getDb();
 
+    const role = username === 'admin' ? 'admin' : 'user';
     db.run(
-      'INSERT INTO users (id, username, password_hash) VALUES (?, ?, ?)',
-      [id, username, password_hash]
+      'INSERT INTO users (id, username, password_hash, role) VALUES (?, ?, ?, ?)',
+      [id, username, password_hash, role]
     );
     saveDb();
 
@@ -59,10 +60,10 @@ router.post('/register', async (req, res) => {
     console.error('Registration error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+}
 
 // Login (母账户)
-router.post('/login', async (req, res) => {
+async function loginHandler(req, res) {
   try {
     const { username, password } = req.body;
     if (!username || !password) {
@@ -91,7 +92,7 @@ router.post('/login', async (req, res) => {
     console.error('Login error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+}
 
 // Get current user profile
 async function getProfileHandler(req, res) {
@@ -224,8 +225,6 @@ async function listUserEventsHandler(req, res) {
               cd.name as content_definition_name,
               app.code as application_code,
               app.name as application_name,
-              w.name as sticker_world_name,
-              p.name as sticker_persona_name,
               json_extract(ev.payload_json, '$.token') as token,
               json_extract(ev.payload_json, '$.order_id') as order_id,
               json_extract(ev.payload_json, '$.note') as note,
@@ -275,7 +274,7 @@ async function generateEntityKeyHandler(req, res) {
 }
 
 // Verify key
-router.post('/verify-key', async (req, res) => {
+async function verifyKeyHandler(req, res) {
   try {
     const { key } = req.body;
     if (!key) return res.status(400).json({ error: 'key is required' });
@@ -289,7 +288,7 @@ router.post('/verify-key', async (req, res) => {
     console.error('Verify key error:', error);
     res.status(400).json({ error: 'Invalid or corrupted key' });
   }
-});
+}
 
 // Appeal for official manual unbinding within one month of entity/order creation.
 async function createUnbindAppealHandler(req, res) {
@@ -397,6 +396,9 @@ async function resolveUnbindAppealHandler(req, res) {
 }
 
 registerRoutes(router, [
+  publicRoute('post', '/register', registerHandler),
+  publicRoute('post', '/login', loginHandler),
+  publicRoute('post', '/verify-key', verifyKeyHandler),
   loginRoute('get', '/profile', getProfileHandler),
   loginRoute('put', '/password', changePasswordHandler),
   loginRoute('get', '/events', listUserEventsHandler),

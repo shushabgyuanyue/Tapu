@@ -13,6 +13,7 @@ import {
 } from '../api';
 import type { MintSpaceProfile } from '../api/assets';
 import { userCopy } from '../copy';
+import mintSpacePortraitImage from '../IPimg/img/mint-space-collage.jpg';
 
 type Toast = { show: (text: string, duration?: number, type?: string) => void };
 
@@ -256,7 +257,17 @@ export function useAssetSpace(params: {
     selectedPartnerId.value = instanceId;
   }
 
-  function downloadMintSpaceShareCard() {
+  function loadCanvasImage(src: string) {
+    return new Promise<HTMLImageElement>((resolve, reject) => {
+      const image = new Image();
+      image.crossOrigin = 'anonymous';
+      image.onload = () => resolve(image);
+      image.onerror = reject;
+      image.src = src;
+    });
+  }
+
+  async function downloadMintSpaceShareCard() {
     const profile = mintSpaceProfile.value?.profile;
     const partners = mintSpaceProfile.value?.partners || [];
     if (!profile) {
@@ -277,30 +288,23 @@ export function useAssetSpace(params: {
       return;
     }
 
-    const gradient = ctx.createLinearGradient(0, 0, 1080, 1440);
-    gradient.addColorStop(0, palette[0] || '#34c5d2');
-    gradient.addColorStop(0.54, '#101b24');
-    gradient.addColorStop(1, palette[1] || '#f2ae51');
-    ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, 1080, 1440);
+    try {
+      const collage = await loadCanvasImage(profile.collageImageUrl || mintSpacePortraitImage);
+      const scale = Math.max(canvas.width / collage.width, canvas.height / collage.height);
+      const width = collage.width * scale;
+      const height = collage.height * scale;
+      ctx.drawImage(collage, (canvas.width - width) / 2, (canvas.height - height) / 2, width, height);
+    } catch {
+      const gradient = ctx.createLinearGradient(0, 0, 1080, 1440);
+      gradient.addColorStop(0, palette[0] || '#34c5d2');
+      gradient.addColorStop(0.54, '#101b24');
+      gradient.addColorStop(1, palette[1] || '#f2ae51');
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, 1080, 1440);
+    }
 
-    ctx.fillStyle = 'rgba(255,255,255,0.12)';
-    ctx.beginPath();
-    ctx.arc(540, 560, 300, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = 'rgba(255,255,255,0.28)';
-    ctx.lineWidth = 3;
-    ctx.stroke();
-
-    ctx.fillStyle = 'rgba(255,255,255,0.86)';
-    ctx.beginPath();
-    ctx.arc(540, 560, 108, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.textAlign = 'center';
-    ctx.fillStyle = '#071018';
-    ctx.font = '800 42px sans-serif';
-    ctx.fillText(userCopy.assets.mintSpace.you, 540, 575);
+    ctx.fillStyle = 'rgba(4,10,14,0.50)';
+    ctx.fillRect(0, 1040, 1080, 400);
 
     ctx.textAlign = 'left';
     ctx.fillStyle = 'rgba(255,255,255,0.74)';

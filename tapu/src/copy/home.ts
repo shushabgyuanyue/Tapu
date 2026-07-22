@@ -78,12 +78,6 @@ export const homeCopy = {
         description: '碰一下桌面贴纸，让一处小秘境出现在现实桌面。',
         imageName: '永远系列-守护小狗-合集.png',
       },
-      {
-        name: '祈福小狗',
-        label: '祝愿与仪式',
-        description: '把一句祝福变成可以被触碰的长期陪伴。',
-        imageName: '永远系列-祈福小狗-合集.png',
-      },
     ],
   },
   mintSpaceSection: {

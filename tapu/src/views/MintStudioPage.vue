@@ -667,7 +667,7 @@ onUnmounted(() => {
     <NavBar :key="navKey" />
 
     <button type="button" class="mobile-sidebar-toggle" @click="sidebarOpen = !sidebarOpen">
-      Menu
+      {{ sidebarOpen ? studioCopy.sidebar.close : studioCopy.sidebar.mintedTitle }}
     </button>
 
     <div :class="['studio-layout', { 'sidebar-collapsed': !sidebarOpen }]">

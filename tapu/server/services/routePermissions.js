@@ -5,6 +5,7 @@ import { assertStudioActionAllowed } from './studioPermissions.js';
 import { getEntityByToken, resultToObjects } from './tokens.js';
 import { assertEntityOwner } from './objectPermissions.js';
 import { serverMessages } from '../copy/messages.js';
+import { canBypassOwnership, isAdminUser } from './accessControl.js';
 
 function knownError(status, code, message) {
   const error = new Error(message);
@@ -88,18 +89,18 @@ function requireLogin(req) {
 
 function requireAdmin(req) {
   requireLogin(req);
-  if (req.user.username === 'admin') return;
+  if (isAdminUser(req.user)) return;
   throw knownError(403, 'ADMIN_REQUIRED', serverMessages.permissions.adminRequired);
 }
 
 function canCurrentUserOwnEntity(req, entity) {
   if (!entity?.owner_user_id) return false;
-  return req.user?.username === 'admin' || entity.owner_user_id === req.user?.id;
+  return canBypassOwnership(req.user) || entity.owner_user_id === req.user?.id;
 }
 
 function canCurrentUserOwnAccountObject(req, object, userColumn = 'user_id') {
   if (!object?.[userColumn]) return false;
-  return req.user?.username === 'admin' || object[userColumn] === req.user?.id;
+  return canBypassOwnership(req.user) || object[userColumn] === req.user?.id;
 }
 
 function requireTokenEntity(db, req) {
@@ -218,7 +219,7 @@ function assertAppTokenActive(db, req, config) {
   if (config.ownerRequired) {
     requireLogin(req);
     const ownerId = raw[config.userColumn || 'user_id'];
-    if (ownerId && ownerId !== req.user.id && req.user.username !== 'admin') {
+    if (ownerId && ownerId !== req.user.id && !canBypassOwnership(req.user)) {
       throw knownError(403, 'APP_TOKEN_OWNER_REQUIRED', serverMessages.permissions.appTokenOwnerRequired);
     }
   }
@@ -273,7 +274,7 @@ export const PERMISSION_CHECKERS = {
       [contentId]
     ))[0] || null;
     if (content) {
-      if (req.user.username === 'admin'
+      if (canBypassOwnership(req.user)
         || content.owner_user_id === req.user.id
         || content.creator_user_id === req.user.id
         || (content.origin_ip_instance_id && resultToObjects(db.exec(
@@ -298,15 +299,19 @@ export const PERMISSION_CHECKERS = {
   },
 };
 
-async function assertPermission(req, permission) {
+export function checkPermissionForRequest(req, permission, db) {
   const config = permissionConfig(permission);
   const type = permissionType(config);
-  const db = await getDb();
   const checker = PERMISSION_CHECKERS[type];
 
   if (checker) return checker(req, config, db);
 
   throw knownError(500, 'UNKNOWN_PERMISSION', serverMessages.permissions.unknownPermission(type));
+}
+
+async function assertPermission(req, permission) {
+  const db = await getDb();
+  return checkPermissionForRequest(req, permission, db);
 }
 
 export function withPermission(permission) {

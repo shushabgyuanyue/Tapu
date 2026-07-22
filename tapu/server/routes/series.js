@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { getDb, saveDb } from '../db/index.js';
-import { adminRoute, registerRoutes } from '../services/routePermissions.js';
+import { adminRoute, publicRoute, registerRoutes } from '../services/routePermissions.js';
 import { cleanString } from '../services/coreStore.js';
 
 const router = Router();
@@ -18,7 +18,7 @@ function resultToObjects(results) {
 
 
 // List all series (public)
-router.get('/', async (req, res) => {
+async function listSeries(req, res) {
   const db = await getDb();
   const results = db.exec(
     `SELECT d.primary_series_key as id,
@@ -36,7 +36,7 @@ router.get('/', async (req, res) => {
      ORDER BY d.primary_series_name, d.primary_series_key`
   );
   res.json(resultToObjects(results));
-});
+}
 
 // Create series (requires auth)
 async function createSeries(req, res) {
@@ -89,6 +89,7 @@ async function deleteSeries(req, res) {
 }
 
 registerRoutes(router, [
+  publicRoute('get', '/', listSeries),
   adminRoute('post', '/', createSeries),
   adminRoute('put', '/:id', updateSeries),
   adminRoute('delete', '/:id', deleteSeries),

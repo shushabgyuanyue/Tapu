@@ -17,7 +17,6 @@ const shopIps = ref<any[]>([]);
 const fallbackImages: Record<string, string> = {
   '永远系列-纸巾小狗-合集.png': new URL('../IPimg/永远系列-纸巾小狗-合集.png', import.meta.url).href,
   '永远系列-守护小狗-合集.png': new URL('../IPimg/永远系列-守护小狗-合集.png', import.meta.url).href,
-  '永远系列-祈福小狗-合集.png': new URL('../IPimg/永远系列-祈福小狗-合集.png', import.meta.url).href,
 };
 
 const fallbackImageList = Object.values(fallbackImages);

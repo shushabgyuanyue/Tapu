@@ -34,6 +34,7 @@ export type MintSpaceProfile = {
     subtitle: string;
     summary: string;
     description?: string;
+    collageImageUrl?: string;
     personalityCode?: string;
     partnerCount: number;
     axes: MintSpaceAxis[];

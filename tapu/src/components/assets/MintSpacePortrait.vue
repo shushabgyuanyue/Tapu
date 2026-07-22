@@ -26,6 +26,7 @@ const portraitStyle = computed(() => {
 const profileTitle = computed(() => props.profile?.title || userCopy.assets.mintSpace.title);
 
 const portraitAlt = computed(() => profileTitle.value || userCopy.assets.mintSpace.title);
+const portraitImage = computed(() => props.profile?.collageImageUrl || mintSpacePortraitImage);
 </script>
 
 <template>
@@ -36,18 +37,17 @@ const portraitAlt = computed(() => profileTitle.value || userCopy.assets.mintSpa
     </button>
 
     <div class="mint-space-portrait__stage">
-      <img class="mint-space-portrait__image" :src="mintSpacePortraitImage" :alt="portraitAlt" />
+      <img class="mint-space-portrait__image" :src="portraitImage" :alt="portraitAlt" />
     </div>
 
     <div class="mint-space-portrait__body">
       <span class="asset-eyebrow">{{ userCopy.assets.mintSpace.portraitEyebrow }}</span>
       <h2>{{ profileTitle }}</h2>
-      <p>{{ profile?.description || profile?.summary || userCopy.assets.mintSpace.emptySummary }}</p>
-
       <div class="mint-space-personality">
         <strong>{{ profile?.personalityCode || 'MINT' }}</strong>
         <span>{{ userCopy.assets.mintSpace.personalityPrefix }}</span>
       </div>
+      <p>{{ profile?.description || profile?.summary || userCopy.assets.mintSpace.emptySummary }}</p>
 
       <button type="button" class="mint-space-invite-button" @click="$emit('shop')">
         <span>＋</span>

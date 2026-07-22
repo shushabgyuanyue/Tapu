@@ -73,6 +73,17 @@ function removeLegacyOfficialContentTables(database) {
   }
 }
 
+function removeLegacyManagementRows(database) {
+  const tables = ['groups', 'series'];
+  for (const table of tables) {
+    try {
+      database.run(`DELETE FROM ${table}`);
+    } catch {
+      // Legacy management rows are no longer a source of product truth.
+    }
+  }
+}
+
 function removeLegacyLightAppTables(database) {
   const tables = [
     'answer_book_draw_events',
@@ -381,6 +392,7 @@ export async function getDb() {
 
   try {
     db.run("UPDATE users SET role = COALESCE(NULLIF(role, ''), CASE WHEN is_creator = 1 THEN 'creator' ELSE 'user' END)");
+    db.run("UPDATE users SET role = 'admin' WHERE username = 'admin'");
     db.run("UPDATE users SET updated_at = COALESCE(updated_at, created_at, CURRENT_TIMESTAMP)");
   } catch (e) { /* ignore */ }
 
@@ -429,6 +441,7 @@ export async function getDb() {
 
   try {
     removeRetiredProductSeeds(db);
+    removeLegacyManagementRows(db);
   } catch (e) { /* retired product cleanup should never block startup */ }
 
   saveDb();

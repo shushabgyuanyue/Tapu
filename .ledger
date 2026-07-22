@@ -424,3 +424,25 @@ entrypoint: tapu/src/main.ts
 - post-mortem:
   - Installing `mind-ar` directly failed on Windows / Node 22 because the package pulls `canvas` and requires native Visual Studio build tooling. The first stable product path is vendored browser runtime plus a later build-time `.mind` target pipeline.
   - The current OS AR layer supports flat image/video models. Real 3D volume should be added later through a separate model renderer profile rather than changing Desktop Secret's core business model.
+
+## 2026-07-22 Codex Increment 21
+
+- domain: shop, mint-space, mobile-ux, database-cleanup, evo-closeout
+- ref: working-tree
+- branch_context: `tapu-master` direct closeout; this round follows the current mainline context and pushes after validation.
+- todo:
+  - [x] Remove the Shop top hero/cards so the page starts directly from discovery search and filters.
+  - [x] Clean non-current product truth at the source: active manifests now define the retained application/IP data, while retired definitions, content, instances, links and legacy management rows are removed during DB boot.
+  - [x] Confirm source data only contains current new-core apps: `desktop-secret` and `tissue-puppy`; legacy `groups / series` rows are empty after startup cleanup.
+  - [x] Make Mint Space use the official collage as the visual and share-card source, and document the future official collage resource specification.
+  - [x] Convert the Mint Space partner list into a centered carousel with a dedicated add-partner card.
+  - [x] Improve mobile navigation with a collapsed menu and fix Mint Studio mobile sidebar/backdrop layering.
+  - [x] Add S5 r9 observation, retro, and active Codex constraints.
+- evidence:
+  - `npm run check:quality`
+  - `npm run build`
+  - sql.js boot query: application/IP definitions only include `desktop-secret` and `tissue-puppy`; `groups` and `series` return empty arrays.
+  - Browser smoke: `/shop` has no `.shop-hero`; `/assets` loads the Mint Space collage image; `/mint` mounts the Studio sidebar and mobile toggle. The already-running dev server still had stale pre-cleanup Shop data in memory until restart.
+- post-mortem:
+  - The important governance lesson is that obsolete IPs must be removed from seed/management truth, not hidden in customer pages.
+  - Mint Space collage should move next to a small static resource manifest before an official management UI; the current document defines the contract without overbuilding.

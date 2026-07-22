@@ -12,6 +12,8 @@ export const commonCopy = {
     account: '账户设置',
     logout: '退出登录',
     login: '登录',
+    openMenu: '打开导航',
+    closeMenu: '关闭导航',
   },
   states: {
     loading: '加载中...',

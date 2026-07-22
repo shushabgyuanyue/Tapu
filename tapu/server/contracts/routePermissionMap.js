@@ -29,19 +29,6 @@ const ROUTE_MODULES = [
   { basePath: '/api/mint-studio', router: mintStudioRouter },
 ];
 
-// These routes still use direct router.get/post calls. They are listed here so
-// the project has one place to inspect the current endpoint -> permission map.
-const LEGACY_ROUTE_PERMISSIONS = [
-  { method: 'post', path: '/api/auth/register', permission: 'public', permissionType: 'public', legacy: true },
-  { method: 'post', path: '/api/auth/login', permission: 'public', permissionType: 'public', legacy: true },
-  { method: 'post', path: '/api/auth/verify-key', permission: 'public', permissionType: 'public', legacy: true },
-  { method: 'get', path: '/api/config/:key', permission: 'public', permissionType: 'public', legacy: true },
-  { method: 'get', path: '/api/groups', permission: 'public', permissionType: 'public', legacy: true },
-  { method: 'get', path: '/api/groups/:id', permission: 'public', permissionType: 'public', legacy: true },
-  { method: 'get', path: '/api/mint-studio/resolve', permission: 'public', permissionType: 'public', operation: 'view:open', query: { key: 'string' }, response: { token: 'object', app: 'object', recipe: 'object' }, legacy: true },
-  { method: 'get', path: '/api/series', permission: 'public', permissionType: 'public', legacy: true },
-];
-
 function joinPath(basePath, routePath) {
   const base = String(basePath || '').replace(/\/+$/, '');
   const route = String(routePath || '').replace(/^\/+/, '');
@@ -57,7 +44,7 @@ export function getRoutePermissionMap() {
     }))
   ));
 
-  return [...registered, ...LEGACY_ROUTE_PERMISSIONS]
+  return registered
     .sort((a, b) => `${a.path} ${a.method}`.localeCompare(`${b.path} ${b.method}`));
 }
 

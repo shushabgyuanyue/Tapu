@@ -1,3 +1,5 @@
+import { getAppManifests } from '../contracts/appManifests.js';
+
 function runQuietly(db, sql, params = []) {
   try {
     db.run(sql, params);
@@ -63,6 +65,14 @@ const RETIRED_APPLICATIONS = [
     contentDefinitionIdPatterns: ['%check%'],
   },
 ];
+
+const ACTIVE_MANIFEST_APP_CODES = getAppManifests()
+  .filter(manifest => manifest?.lifecycle?.status !== 'retired')
+  .map(manifest => manifest.code);
+
+function placeholders(values = []) {
+  return values.map(() => '?').join(', ');
+}
 
 function appendOrConditions(field, values = []) {
   return values.map(() => `${field} LIKE ?`).join(' OR ');
@@ -210,4 +220,100 @@ export function removeRetiredProductSeeds(db) {
   for (const retired of RETIRED_APPLICATIONS) {
     removeRetiredApplicationData(db, retired);
   }
+  removeNonManifestProductData(db);
+}
+
+function removeNonManifestProductData(db) {
+  if (!ACTIVE_MANIFEST_APP_CODES.length) return;
+  const appPlaceholders = placeholders(ACTIVE_MANIFEST_APP_CODES);
+
+  runQuietly(db, `
+    DELETE FROM ip_instance_content_instance_links
+    WHERE ip_instance_id IN (
+      SELECT i.id
+      FROM ip_instances i
+      LEFT JOIN application_definitions a ON a.id = i.application_definition_id
+      WHERE COALESCE(a.code, '') NOT IN (${appPlaceholders})
+    )
+       OR content_instance_id IN (
+      SELECT c.id
+      FROM content_instances c
+      LEFT JOIN application_definitions a ON a.id = c.application_definition_id
+      WHERE COALESCE(a.code, '') NOT IN (${appPlaceholders})
+    )
+  `, [...ACTIVE_MANIFEST_APP_CODES, ...ACTIVE_MANIFEST_APP_CODES]);
+
+  runQuietly(db, `
+    DELETE FROM content_instance_resource_links
+    WHERE content_instance_id IN (
+      SELECT c.id
+      FROM content_instances c
+      LEFT JOIN application_definitions a ON a.id = c.application_definition_id
+      WHERE COALESCE(a.code, '') NOT IN (${appPlaceholders})
+    )
+  `, ACTIVE_MANIFEST_APP_CODES);
+
+  runQuietly(db, `
+    DELETE FROM content_instances
+    WHERE application_definition_id NOT IN (
+      SELECT id FROM application_definitions WHERE code IN (${appPlaceholders})
+    )
+       OR ip_definition_id IN (
+      SELECT d.id
+      FROM ip_definitions d
+      LEFT JOIN ip_definition_application_links l ON l.ip_definition_id = d.id AND l.is_primary = 1
+      LEFT JOIN application_definitions a ON a.id = l.application_definition_id
+      WHERE COALESCE(a.code, '') NOT IN (${appPlaceholders})
+    )
+  `, [...ACTIVE_MANIFEST_APP_CODES, ...ACTIVE_MANIFEST_APP_CODES]);
+
+  runQuietly(db, `
+    DELETE FROM ip_instances
+    WHERE application_definition_id NOT IN (
+      SELECT id FROM application_definitions WHERE code IN (${appPlaceholders})
+    )
+       OR ip_definition_id IN (
+      SELECT d.id
+      FROM ip_definitions d
+      LEFT JOIN ip_definition_application_links l ON l.ip_definition_id = d.id AND l.is_primary = 1
+      LEFT JOIN application_definitions a ON a.id = l.application_definition_id
+      WHERE COALESCE(a.code, '') NOT IN (${appPlaceholders})
+    )
+  `, [...ACTIVE_MANIFEST_APP_CODES, ...ACTIVE_MANIFEST_APP_CODES]);
+
+  runQuietly(db, `
+    DELETE FROM ip_definition_application_links
+    WHERE application_definition_id NOT IN (
+      SELECT id FROM application_definitions WHERE code IN (${appPlaceholders})
+    )
+       OR ip_definition_id IN (
+      SELECT d.id
+      FROM ip_definitions d
+      LEFT JOIN ip_definition_application_links l ON l.ip_definition_id = d.id AND l.is_primary = 1
+      LEFT JOIN application_definitions a ON a.id = l.application_definition_id
+      WHERE COALESCE(a.code, '') NOT IN (${appPlaceholders})
+    )
+  `, [...ACTIVE_MANIFEST_APP_CODES, ...ACTIVE_MANIFEST_APP_CODES]);
+
+  runQuietly(db, `
+    DELETE FROM ip_definitions
+    WHERE id NOT IN (
+      SELECT l.ip_definition_id
+      FROM ip_definition_application_links l
+      JOIN application_definitions a ON a.id = l.application_definition_id
+      WHERE a.code IN (${appPlaceholders})
+    )
+  `, ACTIVE_MANIFEST_APP_CODES);
+
+  runQuietly(db, `
+    DELETE FROM application_content_definition_links
+    WHERE application_definition_id NOT IN (
+      SELECT id FROM application_definitions WHERE code IN (${appPlaceholders})
+    )
+  `, ACTIVE_MANIFEST_APP_CODES);
+
+  runQuietly(db, `
+    DELETE FROM application_definitions
+    WHERE COALESCE(code, '') NOT IN (${appPlaceholders})
+  `, ACTIVE_MANIFEST_APP_CODES);
 }

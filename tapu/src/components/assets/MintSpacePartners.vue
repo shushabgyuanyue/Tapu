@@ -78,12 +78,12 @@ function moveCarousel(direction: 'prev' | 'next') {
             </div>
           </div>
         </article>
-      </div>
 
-      <button type="button" class="mint-space-add-partner" @click="$emit('bind')">
-        <span>＋</span>
-        {{ userCopy.assets.mintSpace.addPartner }}
-      </button>
+        <button type="button" class="mint-space-add-partner" @click="$emit('bind')">
+          <span>＋</span>
+          {{ userCopy.assets.mintSpace.addPartner }}
+        </button>
+      </div>
     </div>
   </section>
 </template>

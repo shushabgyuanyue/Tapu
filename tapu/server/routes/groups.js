@@ -138,7 +138,7 @@ function resolveCreateApplicationId(db, payload) {
   return resolveApplicationId(db, payload) || applicationIdByCode(db, inferApplicationCode(payload));
 }
 
-router.get('/', async (req, res) => {
+async function listGroups(req, res) {
   const db = await getDb();
   res.json(listShopIpDefinitions(db, {
     seriesId: req.query.series_id,
@@ -146,16 +146,16 @@ router.get('/', async (req, res) => {
     pageSize: req.query.page_size,
     paginate: req.query.page !== undefined || req.query.page_size !== undefined,
   }));
-});
+}
 
-router.get('/:id', async (req, res) => {
+async function getGroup(req, res) {
   const db = await getDb();
   const group = getShopIpDefinition(db, req.params.id);
   if (!group) {
     return res.status(404).json({ error: serverMessages.routes.common.ipNotFound });
   }
   res.json(group);
-});
+}
 
 async function createGroup(req, res) {
   const payload = buildGroupPayload(req.body);
@@ -312,6 +312,8 @@ async function setOfficialDefault(req, res) {
 }
 
 registerRoutes(router, [
+  publicRoute('get', '/', listGroups),
+  publicRoute('get', '/:id', getGroup),
   adminRoute('post', '/', createGroup),
   adminRoute('put', '/:id', updateGroup),
   adminRoute('delete', '/:id', deleteGroup),

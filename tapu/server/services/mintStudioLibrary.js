@@ -6,6 +6,7 @@ import {
 import { getMintStudioAppLabel } from './mintStudioRecipeCatalog.js';
 import { parseJson } from './coreStore.js';
 import { resultToObjects } from './tokens.js';
+import { canManageAllContent } from './accessControl.js';
 
 function appLabel(appCode, fallback) {
   return getMintStudioAppLabel(appCode, fallback || mintStudioCopy.library.fallbackLabels[appCode]);
@@ -22,7 +23,7 @@ export function dedupeLibraryItems(items) {
 }
 
 export function buildCoreContentLibraryItems(db, req) {
-  const isAdmin = req.user.username === 'admin';
+  const isAdmin = canManageAllContent(req.user);
   const params = [];
   const where = isAdmin
     ? `WHERE json_extract(v.payload_json, '$.source') = 'mint-studio-definition-authoring'

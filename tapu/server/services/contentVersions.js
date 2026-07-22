@@ -15,6 +15,7 @@ import {
   getContentDefinitionBindingConfig,
   hydrateAuthoringResources,
 } from './contentResourceBinding.js';
+import { canManageAllContent } from './accessControl.js';
 
 const VERSION_MODES = new Set(['create', 'revise', 'extend', 'remix']);
 
@@ -25,7 +26,7 @@ function normalizeMode(value) {
 
 function canEditContent(user, content) {
   if (!user?.id || !content) return false;
-  if (user.username === 'admin') return true;
+  if (canManageAllContent(user)) return true;
   return content.owner_user_id === user.id || content.creator_user_id === user.id;
 }
 

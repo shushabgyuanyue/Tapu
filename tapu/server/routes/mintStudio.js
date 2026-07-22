@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { getDb } from '../db/index.js';
-import { adminRoute, loginRoute, registerRoutes } from '../services/routePermissions.js';
+import { adminRoute, loginRoute, publicRoute, registerRoutes } from '../services/routePermissions.js';
 import { resolveObjectByToken } from '../services/objectRegistry.js';
 import { applyStudioPermissions } from '../services/studioPermissions.js';
 import { getEntityByToken, normalizeEntityToken, resultToObjects } from '../services/tokens.js';
@@ -345,7 +345,7 @@ function buildLightAppRecipe(db, resolved, token) {
   };
 }
 
-router.get('/resolve', async (req, res) => {
+async function resolveMintStudio(req, res) {
   try {
     const token = normalizeEntityToken(String(req.query.key || ''));
     if (!token) {
@@ -376,7 +376,7 @@ router.get('/resolve', async (req, res) => {
       hint: mintStudioCopy.resolve.retryHint,
     });
   }
-});
+}
 
 async function resolveOfficialIpStudio(req, res) {
   try {
@@ -481,6 +481,13 @@ async function deleteDraft(req, res) {
 }
 
 registerRoutes(router, [
+  publicRoute('get', '/resolve', resolveMintStudio, [], {
+    operation: 'view:open',
+    summary: 'Resolve a Mint Studio recipe for an entity token.',
+    query: { key: 'string' },
+    response: { token: 'object', app: 'object', recipe: 'object' },
+    tags: ['mint-studio', 'resolve'],
+  }),
   adminRoute('get', '/official-ip/:id', resolveOfficialIpStudio),
   loginRoute('get', '/library', getStudioLibrary),
   loginRoute('get', '/drafts', listDrafts, [], {

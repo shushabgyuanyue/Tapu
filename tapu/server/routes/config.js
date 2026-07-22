@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { getDb, saveDb } from '../db/index.js';
-import { adminRoute, registerRoutes } from '../services/routePermissions.js';
+import { adminRoute, publicRoute, registerRoutes } from '../services/routePermissions.js';
 
 const router = Router();
 
@@ -15,7 +15,7 @@ function resultToObjects(results) {
 }
 
 // Get config value
-router.get('/:key', async (req, res) => {
+async function getConfigHandler(req, res) {
   const db = await getDb();
   const results = db.exec('SELECT value FROM site_config WHERE key = ?', [req.params.key]);
   const rows = resultToObjects(results);
@@ -23,7 +23,7 @@ router.get('/:key', async (req, res) => {
     return res.json({ key: req.params.key, value: null });
   }
   res.json({ key: req.params.key, value: rows[0].value });
-});
+}
 
 // Set config value (admin only)
 async function setConfigHandler(req, res) {
@@ -42,6 +42,7 @@ async function setConfigHandler(req, res) {
 }
 
 registerRoutes(router, [
+  publicRoute('get', '/:key', getConfigHandler),
   adminRoute('put', '/:key', setConfigHandler),
 ]);
 

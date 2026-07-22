@@ -1,15 +1,16 @@
 import { getEntityByToken, resultToObjects } from './tokens.js';
 import { serverMessages } from '../copy/messages.js';
+import { canBypassOwnership, canManageAllContent } from './accessControl.js';
 
 export function canManageBoundEntity(user, entity) {
   if (!entity) return false;
   if (!entity.owner_user_id) return true;
-  return user?.username === 'admin' || entity.owner_user_id === user?.id;
+  return canBypassOwnership(user) || entity.owner_user_id === user?.id;
 }
 
 export function canManageEntity(user, entity) {
   if (!entity) return false;
-  return user?.username === 'admin' || entity.owner_user_id === user?.id;
+  return canBypassOwnership(user) || entity.owner_user_id === user?.id;
 }
 
 export function assertEntityOwner(user, entity, message = serverMessages.objectPermissions.entityOwnerRequired) {
@@ -53,7 +54,7 @@ export function assertAccountBoundObjectClaimable(user, object, label = serverMe
 }
 
 export function assertAccountBoundObjectOwner(user, object, label = serverMessages.objectPermissions.assetLabel) {
-  if ((object?.user_id || object?.owner_user_id) === user?.id || user?.username === 'admin') return object;
+  if ((object?.user_id || object?.owner_user_id) === user?.id || canBypassOwnership(user)) return object;
 
   const error = new Error(serverMessages.objectPermissions.accountObjectOwnerRequired(label));
   error.status = 403;
@@ -64,7 +65,7 @@ export function assertAccountBoundObjectOwner(user, object, label = serverMessag
 export function canAssignVideoToEntity(user, video, entityId) {
   if (!video) return false;
   if (Number(video.is_private || 0) !== 1) return true;
-  if (video.entity_id === entityId || user?.username === 'admin') return true;
+  if (video.entity_id === entityId || canBypassOwnership(user)) return true;
   return !video.entity_id && video.owner_user_id === user?.id;
 }
 
@@ -79,7 +80,7 @@ export function assertVideoAssignableToEntity(user, video, entityId) {
 
 export function canManageVideo(db, user, video) {
   if (!video) return false;
-  if (user?.username === 'admin') return true;
+  if (canManageAllContent(user)) return true;
   if (video.owner_user_id && video.owner_user_id === user?.id) return true;
   if (!video.entity_id || !user?.id) return false;
   return resultToObjects(db.exec('SELECT id FROM ip_instances WHERE id = ? AND owner_user_id = ?', [video.entity_id, user.id])).length > 0;
@@ -97,8 +98,8 @@ export function assertVideoManageable(db, user, video) {
 export function canViewPrivateEntityContent(req, entityId, ownerUserId = null) {
   if (entityId && req.verifiedEntityId === entityId) return true;
   if (!req.user?.id) return false;
-  if (!entityId) return req.user.username === 'admin' || req.user.id === ownerUserId;
-  return req.user.username === 'admin' || req.user.id === ownerUserId || req.user.id === req.verifiedEntityOwnerId;
+  if (!entityId) return canManageAllContent(req.user) || req.user.id === ownerUserId;
+  return canManageAllContent(req.user) || req.user.id === ownerUserId || req.user.id === req.verifiedEntityOwnerId;
 }
 
 export function videoViewOperation(video, req) {

@@ -1,14 +1,5 @@
 // Shop module copy: public IP discovery, application introduction, experience preview, and external invitation entry.
 export const shopCopy = {
-  hero: {
-    eyebrow: 'WhatMint Invitation Hall',
-    title: '让日常物品获得数字表达',
-    subtitle: '这里不是商品货架，而是认识现实入口的地方。了解它服务的生活场景、触发体验和实体形式，再决定是否把它带进生活。',
-    pills: ['现实入口', '场景体验', '数字表达'],
-    featured: 'New Arrival',
-    inspectHint: 'Meet this IP',
-    fallbackDescription: '触碰实体后，它会打开自己的小世界',
-  },
   product: {
     defaultTags: ['情绪入口', 'NFC 实体', '现实 UI'],
     empty: '暂时还没有可以邀请的新存在',
