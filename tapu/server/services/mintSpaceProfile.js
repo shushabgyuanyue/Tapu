@@ -20,46 +20,22 @@ const IP_PRESETS = [
     axes: { warmth: 0.95, guarding: 0.78, memory: 0.48, ritual: 0.36, motion: 0.24, mystery: 0.18 },
   },
   {
-    key: 'answer_book',
-    match: ['答案', '书', 'answer', 'book'],
-    role: mintSpaceCopy.presets.answerBook.role,
-    statusLine: mintSpaceCopy.presets.answerBook.statusLine,
-    traits: mintSpaceCopy.presets.answerBook.traits,
-    axes: { mystery: 0.92, memory: 0.72, ritual: 0.58, warmth: 0.42, guarding: 0.34, motion: 0.18 },
-  },
-  {
-    key: 'blessing_puppy',
-    match: ['祈福', '祝愿', 'blessing', 'wish'],
-    role: mintSpaceCopy.presets.blessingPuppy.role,
-    statusLine: mintSpaceCopy.presets.blessingPuppy.statusLine,
-    traits: mintSpaceCopy.presets.blessingPuppy.traits,
-    axes: { ritual: 0.9, warmth: 0.76, guarding: 0.68, memory: 0.54, mystery: 0.36, motion: 0.22 },
-  },
-  {
-    key: 'earphone_girl',
-    match: ['耳机', '声音', '旅行', 'earphone', 'listener', 'story'],
-    role: mintSpaceCopy.presets.earphoneGirl.role,
-    statusLine: mintSpaceCopy.presets.earphoneGirl.statusLine,
-    traits: mintSpaceCopy.presets.earphoneGirl.traits,
-    axes: { motion: 0.86, memory: 0.66, warmth: 0.56, mystery: 0.44, ritual: 0.28, guarding: 0.24 },
-  },
-  {
-    key: 'travel_checklist',
-    match: ['旅行', '清单', '行李', 'travel', 'checklist', 'luggage'],
-    role: mintSpaceCopy.presets.travelChecklist.role,
-    statusLine: mintSpaceCopy.presets.travelChecklist.statusLine,
-    traits: mintSpaceCopy.presets.travelChecklist.traits,
-    axes: { motion: 0.92, memory: 0.48, ritual: 0.42, guarding: 0.32, warmth: 0.28, mystery: 0.24 },
+    key: 'desktop_secret',
+    match: ['桌面', '秘境', 'desktop', 'secret', 'realm'],
+    role: mintSpaceCopy.presets.desktopSecret.role,
+    statusLine: mintSpaceCopy.presets.desktopSecret.statusLine,
+    traits: mintSpaceCopy.presets.desktopSecret.traits,
+    axes: { mystery: 0.86, ritual: 0.54, memory: 0.38, warmth: 0.32, guarding: 0.28, motion: 0.24 },
   },
 ];
 
 const AXIS_KEYWORDS = {
-  warmth: ['温柔', '安慰', '陪伴', '祝愿', '朋友', '柔软', 'warm', 'comfort'],
-  motion: ['旅行', '远方', '流浪', '风', '探索', '冒险', 'travel', 'journey'],
-  mystery: ['神秘', '答案', '梦', '夜', '未知', 'book', 'mystery'],
+  warmth: ['温柔', '安慰', '陪伴', '柔软', 'warm', 'comfort'],
+  motion: ['移动', '风', '探索', 'motion', 'journey'],
+  mystery: ['神秘', '秘境', '梦', '夜', '未知', 'realm', 'mystery'],
   guarding: ['守护', '保护', '靠近', '安全', '小狗', 'guard'],
-  memory: ['故事', '记忆', '纪念', '声音', '照片', 'story', 'memory'],
-  ritual: ['祈福', '祝愿', '仪式', '生日', '晚安', '祝福', 'ritual', 'wish'],
+  memory: ['故事', '记忆', '声音', '照片', 'story', 'memory'],
+  ritual: ['仪式', '晚安', 'ritual'],
 };
 
 function clamp01(value) {
@@ -236,83 +212,6 @@ function buildSpaceDescription(partners, axes) {
   });
 }
 
-function relationNoteForPair(a, b) {
-  const pair = `${a.name}|${b.name}`;
-  if (pair.includes('纸巾') && pair.includes('答案')) {
-    return mintSpaceCopy.notes.tissueAnswer;
-  }
-  if (pair.includes('纸巾') && pair.includes('耳机')) {
-    return mintSpaceCopy.notes.tissueEarphone;
-  }
-  if (pair.includes('祈福') && pair.includes('答案')) {
-    return mintSpaceCopy.notes.blessingAnswer;
-  }
-  return '';
-}
-
-function fetchRelationNotes(db, ipDefinitionIds) {
-  if (ipDefinitionIds.length < 2) return [];
-  const placeholders = ipDefinitionIds.map(() => '?').join(',');
-  return resultToObjects(db.exec(
-    `SELECT r.id, r.narrative, r.relation_label,
-            s.name as source_name, t.name as target_name
-     FROM ip_definition_relation_links r
-     LEFT JOIN ip_definitions s ON s.id = r.source_ip_definition_id
-     LEFT JOIN ip_definitions t ON t.id = r.target_ip_definition_id
-     WHERE r.status = 'active'
-       AND r.source_ip_definition_id IN (${placeholders})
-       AND r.target_ip_definition_id IN (${placeholders})
-     ORDER BY r.sort_order ASC, r.created_at DESC
-     LIMIT 4`,
-    [...ipDefinitionIds, ...ipDefinitionIds]
-  )).map((row, index) => ({
-    id: `relation-${row.id || index}`,
-    text: row.narrative || mintSpaceCopy.notes.relation({
-      sourceName: row.source_name || mintSpaceCopy.fallback.missingRelation,
-      targetName: row.target_name || mintSpaceCopy.fallback.anotherRelation,
-      relationLabel: row.relation_label || mintSpaceCopy.fallback.relationLabel,
-    }),
-    source: 'relation_matrix',
-  }));
-}
-
-function buildNotes(db, partners, axes) {
-  if (partners.length === 0) {
-    return [
-      { id: 'empty', text: mintSpaceCopy.fallback.emptyNote, source: 'space_state' },
-    ];
-  }
-
-  const notes = [
-    {
-      id: 'count',
-      text: mintSpaceCopy.notes.count(partners.length),
-      source: 'space_state',
-    },
-  ];
-
-  const relationNotes = fetchRelationNotes(db, [...new Set(partners.map(partner => partner.ipDefinitionId).filter(Boolean))]);
-  notes.push(...relationNotes);
-
-  for (let i = 0; i < partners.length; i += 1) {
-    for (let j = i + 1; j < partners.length; j += 1) {
-      const text = relationNoteForPair(partners[i], partners[j]);
-      if (text) notes.push({ id: `pair-${partners[i].id}-${partners[j].id}`, text, source: 'rule_relation' });
-    }
-  }
-
-  if (notes.length < 3) {
-    const topAxis = axisEntries(axes)[0];
-    notes.push({
-      id: 'ambience',
-      text: mintSpaceCopy.notes.ambience(topAxis.label),
-      source: 'space_profile',
-    });
-  }
-
-  return notes.slice(0, 5);
-}
-
 function listMintSpaceRows(db, userId) {
   return resultToObjects(db.exec(
     `SELECT e.id, e.ip_definition_id, e.application_definition_id, e.label, e.token, e.entity_key,
@@ -352,7 +251,6 @@ export function buildMintSpaceProfile(db, userId) {
       ambience,
     },
     partners,
-    notes: buildNotes(db, partners, axes),
     emptyState: {
       title: mintSpaceCopy.fallback.emptyStateTitle,
       body: mintSpaceCopy.fallback.emptyStateBody,

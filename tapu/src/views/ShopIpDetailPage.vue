@@ -5,7 +5,6 @@ import { fetchShopIpDetail, getShopExperienceRoute } from '../api';
 import NavBar from '../components/NavBar.vue';
 import ShopIpHero from '../components/shop/ShopIpHero.vue';
 import ShopIpInfoPanels from '../components/shop/ShopIpInfoPanels.vue';
-import ShopIpRelationStories from '../components/shop/ShopIpRelationStories.vue';
 import { shopCopy } from '../copy';
 
 const route = useRoute();
@@ -58,8 +57,6 @@ const specRows = computed(() => [
   { label: shopCopy.detail.specs.nfc, value: ip.value?.nfc_type },
   { label: shopCopy.detail.specs.app, value: ip.value?.application_name },
 ].filter(row => row.value));
-
-const relations = computed(() => Array.isArray(ip.value?.relations) ? ip.value.relations : []);
 
 const loadData = async () => {
   loading.value = true;
@@ -127,8 +124,6 @@ onMounted(loadData);
           :official-content="officialContent"
           @experience="openExperience"
         />
-
-        <ShopIpRelationStories :relations="relations" />
       </template>
     </main>
   </div>

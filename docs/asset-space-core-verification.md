@@ -11,7 +11,7 @@
 - 数据真相只来自核心对象：`users`、`ip_definitions`、`application_definitions`、`content_definitions`、`ip_instances`、`content_instances`、`resources`、`events`。
 - 资产主接口只以 `/api/assets` 表达；`/api/auth` 只负责身份、账户和申诉，不再承载资产业务主路。
 - 资产交易只通过 OS 权限层进入 handler，不在 handler 或前端页面重复写 owner/admin/token 判断。
-- 前端 `/assets` 是 Mint Space，不是旧资产列表或展馆；它聚合 IP 实例、默认内容、体验入口、创作入口、事件、状态和关系碎片。
+- 前端 `/assets` 是 Mint Space，不是旧资产列表或展馆；它聚合 IP 实例、默认内容、体验入口、创作入口、事件和状态。
 - 用户可见话术全部在 `tapu/src/copy/*`，页面和组件不散写中文文案。
 - 资产样式复用 WhatMint 设计变量和共享风格，不另起一套孤立视觉体系。
 - 纸巾小狗作为测试 IP 可以从 token、实例、默认内容、AR/视频渲染、创作中心、内容详情和权限边界完整跑通。
@@ -81,17 +81,17 @@
 
 - 未登录进入 `/assets` 显示登录引导，不展示任何用户资产。
 - 登录后显示 Mint Space。
-- 已拥有用户看到灵境合照、我的伙伴、灵境杂记。
+- 已拥有用户看到 Mint Space 合照、我的伙伴和清晰的体验 / 创作 / 邀请入口。
 - 纸巾小狗实例以伙伴节点展示，点击进入 `/assets/:instanceId`，再处理体验、创作、默认内容、转赠和解绑。
 - 未拥有用户看到“Mint Space 尚未点亮”的引导，不展示仓库式空列表。
-- 登录后无资产用户直接进入 `/assets` 时，应看到空灵境接入页：可输入 token、可去商城探索、可看到默认世界观杂记。
+- 登录后无资产用户直接进入 `/assets` 时，应看到空灵境接入页：可输入 token、可去商城探索，不回退为仓库式空列表。
 - 普通 token 绑定只显示“接入 Mint Space”。
 - 从内容详情带 `defaultContentId` 进入时，显示“接入并设为默认体验 / 仅绑定实体 IP”的分流。
 - token 已绑定但非本人时，前端必须按 OS 权限错误展示“换账号 / 提交申诉”恢复路径，不只显示普通失败 toast。
 - 转赠进入当前账号的实体，应在接收方第一次进入 Mint Space 时出现“新存在进入灵境”的确认提示。
 - 解绑、转赠必须有防误操作确认。
 - 高价值事件作为 OS 历史上下文保留，不进入 Mint Space 首页列表。
-- Mint Space profile 只由后端 `mintSpaceProfile` OS service 聚合；前端不再在接口异常时自行推导空间人格、伙伴和杂记。
+- Mint Space profile 只由后端 `mintSpaceProfile` OS service 聚合；前端不再在接口异常时自行推导空间人格和伙伴。
 
 ### 话术与样式
 

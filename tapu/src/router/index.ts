@@ -3,11 +3,6 @@ import { fetchAssetInstances, getProfile, isLoggedIn } from '../api';
 import { getDefaultEntryPath } from '../navigation/siteNavigation';
 
 const keyAllowedPaths = new Set([
-  '/earphone-girl',
-  '/answer',
-  '/moment',
-  '/trail',
-  '/check',
   '/assets',
   '/mint',
 ]);
@@ -36,31 +31,6 @@ const routes = [
     path: '/play',
     name: 'player',
     component: () => import('../views/PlayerView.vue'),
-  },
-  {
-    path: '/earphone-girl',
-    name: 'earphone-girl',
-    component: () => import('../views/EarphoneGirlPage.vue'),
-  },
-  {
-    path: '/answer',
-    name: 'answer-book',
-    component: () => import('../views/AnswerBookPage.vue'),
-  },
-  {
-    path: '/moment',
-    name: 'moment',
-    component: () => import('../views/MomentPage.vue'),
-  },
-  {
-    path: '/trail',
-    name: 'travel-trail',
-    component: () => import('../views/TravelTrailPage.vue'),
-  },
-  {
-    path: '/check',
-    name: 'check',
-    component: () => import('../views/CheckPage.vue'),
   },
   {
     path: '/content/:id',
@@ -134,19 +104,12 @@ const routes = [
       next('/');
     },
     children: [
-      { path: '', name: 'official-groups', component: () => import('../views/admin/GroupManage.vue') },
+      { path: '', name: 'official-ips', component: () => import('../views/official/IpManage.vue') },
       { path: 'applications', name: 'official-applications', component: () => import('../views/official/ApplicationManage.vue') },
-      { path: 'works', name: 'official-works', component: () => import('../views/official/WorkManage.vue') },
-      { path: 'content-collections', name: 'official-content-collections', component: () => import('../views/official/ContentCollectionManage.vue') },
-      { path: 'answer-book', name: 'official-answer-book', component: () => import('../views/official/AnswerBookManage.vue') },
-      { path: 'moments', name: 'official-moments', component: () => import('../views/official/MomentManage.vue') },
-      { path: 'travel-trails', name: 'official-travel-trails', component: () => import('../views/official/TravelTrailManage.vue') },
-      { path: 'checks', name: 'official-checks', component: () => import('../views/official/CheckManage.vue') },
       { path: 'orders', name: 'official-orders', component: () => import('../views/official/OrderManage.vue') },
       { path: 'appeals', name: 'official-appeals', component: () => import('../views/official/AppealManage.vue') },
       { path: 'ownership', name: 'official-ownership', component: () => import('../views/official/OwnershipManage.vue') },
       { path: 'app-intake', name: 'official-app-intake', component: () => import('../views/official/AppIntakeChecklist.vue') },
-      { path: 'stats', name: 'official-stats', component: () => import('../views/admin/Stats.vue') },
       { path: 'settings', name: 'official-settings', component: () => import('../views/official/SiteSettings.vue') },
     ],
   },

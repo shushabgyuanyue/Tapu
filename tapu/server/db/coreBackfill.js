@@ -84,41 +84,6 @@ function ensureIpDefinitionApplicationBackfill(db) {
   }
 }
 
-function ensureDefaultIpDefinitionApplicationBackfill(db) {
-  const defaultApp = resultToObjects(db.exec(
-    `SELECT id
-     FROM application_definitions
-     WHERE code = 'emotion-ip'
-     LIMIT 1`
-  ))[0] || null;
-  if (!defaultApp?.id) return;
-
-  const rows = resultToObjects(db.exec(
-    `SELECT d.id as ip_definition_id
-     FROM ip_definitions d
-     WHERE NOT EXISTS (
-       SELECT 1
-       FROM ip_definition_application_links l
-       WHERE l.ip_definition_id = d.id
-         AND l.is_primary = 1
-     )`
-  ));
-
-  for (const row of rows) {
-    db.run(
-      `INSERT OR IGNORE INTO ip_definition_application_links
-       (id, ip_definition_id, application_definition_id, relation_role, is_primary, sort_order, metadata_json)
-       VALUES (?, ?, ?, 'primary', 1, 0, ?)`,
-      [
-        `ipapp-${row.ip_definition_id}-${defaultApp.id}`,
-        row.ip_definition_id,
-        defaultApp.id,
-        stringifyJson({ inferred: true, reason: 'missing_primary_application' }),
-      ]
-    );
-  }
-}
-
 function isTissuePuppyDefinition(row) {
   const text = `${row.name || ''} ${row.code || ''} ${row.primary_series_name || ''}`.toLowerCase();
   return text.includes('纸巾') || text.includes('tissue') || text.includes('puppy');
@@ -306,7 +271,6 @@ export function backfillCoreTables(db) {
   ensureIpDefinitionBackfill(db);
   ensureIpDefinitionApplicationBackfill(db);
   ensureTissuePuppyApplicationBackfill(db);
-  ensureDefaultIpDefinitionApplicationBackfill(db);
   ensureIpInstanceBackfill(db);
   syncPrimaryApplicationReferences(db);
   ensureEventBackfill(db);

@@ -67,11 +67,5 @@ defineEmits<{
         {{ userCopy.assets.emptyGateway.shop }}
       </button>
     </div>
-
-    <div class="mint-space-empty-gateway__notes">
-      <article v-for="note in profile?.notes || userCopy.assets.mintSpace.emptyNotes" :key="note.id">
-        <p>{{ note.text }}</p>
-      </article>
-    </div>
   </section>
 </template>

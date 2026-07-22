@@ -4,12 +4,7 @@ import initSqlJs from 'sql.js';
 import {
   recordObjectOperation,
   runOperationPipeline,
-  upsertMeaningfulState,
 } from '../../server/services/contentOperation.js';
-import {
-  resolveEarphoneGirlCompletion,
-  resolveNextEarphoneGirlStory,
-} from '../../server/services/earphoneGirlRuntime.js';
 import { getAppAdapter, getRegisteredAppAdapters } from '../../server/services/appAdapters.js';
 import { resultToObjects } from '../../server/services/tokens.js';
 
@@ -27,7 +22,9 @@ async function createDb() {
   db.run(`CREATE TABLE ip_definitions (
     id TEXT PRIMARY KEY,
     name TEXT,
-    theme_color TEXT
+    theme_color TEXT,
+    cover_url TEXT,
+    product_image_url TEXT
   )`);
   db.run(`CREATE TABLE ip_instances (
     id TEXT PRIMARY KEY,
@@ -194,9 +191,8 @@ async function createDb() {
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
   )`);
   db.run(`INSERT INTO application_definitions (id, code, name, interaction_type, app_type, status) VALUES
-    ('app-emotion', 'emotion-ip', 'Emotion IP', 'tap_to_receive_emotional_content', 'meaning', 'active'),
-    ('app-earphone-girl', 'earphone-girl', 'Earphone Girl', 'audio_story_gateway', 'meaning', 'active'),
-    ('app-moment', 'moment', 'Moment', 'tap_to_saved_moment', 'meaning', 'active')`);
+    ('app-puppy', 'tissue-puppy', 'Tissue Puppy', 'tap_to_comfort_ar', 'meaning', 'active'),
+    ('app-desktop', 'desktop-secret', 'Desktop Secret', 'tap_to_reveal_desktop_realm', 'meaning', 'active')`);
   return db;
 }
 
@@ -208,7 +204,7 @@ function recordFrequentPuppyTouches(db, count = 10) {
       objectId: 'puppy-entity-1',
       tokenId: 'puppy-entity-1',
       token: 'puppy-token',
-      appCode: 'emotion-ip',
+      appCode: 'tissue-puppy',
       ipDefinitionId: 'group-puppy',
       userId: 'user-1',
       metadata: {
@@ -218,7 +214,7 @@ function recordFrequentPuppyTouches(db, count = 10) {
   }
 }
 
-test('emotion touch operations become a single meaningful event and projected state', async () => {
+test('tissue puppy touch operations become a single meaningful event and projected state', async () => {
   const db = await createDb();
 
   recordFrequentPuppyTouches(db, 10);
@@ -237,7 +233,7 @@ test('emotion touch operations become a single meaningful event and projected st
      FROM events`
   ));
   assert.equal(events.length, 1);
-  assert.equal(events[0].event_type, 'emotion.frequent_touch');
+  assert.equal(events[0].event_type, 'comfort.frequent_touch');
   assert.equal(events[0].processing_status, 'processed');
   assert.ok(events[0].source_operation_id);
 
@@ -248,125 +244,15 @@ test('emotion touch operations become a single meaningful event and projected st
   ));
   assert.equal(states.length, 3);
   assert.ok(states.every(state => state.state_key === 'comfort.action_active'));
-  assert.ok(states.every(state => state.source_app_code === 'emotion-ip'));
+  assert.ok(states.every(state => state.source_app_code === 'tissue-puppy'));
   assert.ok(states.some(state => state.subject_type === 'account' && state.subject_id === 'user-1'));
   assert.ok(states.some(state => state.subject_type === 'object' && state.subject_id === 'puppy-entity-1'));
   assert.ok(states.some(state => state.subject_type === 'token' && state.subject_id === 'puppy-token'));
 });
 
-test('earphone girl resolves the next story from per-instance sequence state', async () => {
-  const db = await createDb();
-  db.run('INSERT INTO ip_definitions (id, name, theme_color) VALUES (?, ?, ?)', [
-    'ip-earphone',
-    'Earphone Girl',
-    '#2f7d7a',
-  ]);
-  db.run(`INSERT INTO ip_instances
-    (id, ip_definition_id, owner_user_id, application_definition_id, label, token, entity_key, instance_type, status)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, [
-    'earphone-instance-1',
-    'ip-earphone',
-    'user-1',
-    'app-earphone-girl',
-    'Earphone Girl',
-    'earphone-token',
-    'earphone-token',
-    'physical',
-    'active',
-  ]);
-
-  for (const [id, order] of [['story-1', 1], ['story-2', 2]]) {
-    db.run(`INSERT INTO content_instances
-      (id, ip_definition_id, application_definition_id, title, summary, status, visibility, payload_json)
-      VALUES (?, ?, ?, ?, ?, 'published', 'public', ?)`, [
-      id,
-      'ip-earphone',
-      'app-earphone-girl',
-      `Story ${order}`,
-      `Summary ${order}`,
-      JSON.stringify({ sequenceOrder: order }),
-    ]);
-    db.run(`INSERT INTO ip_instance_content_instance_links
-      (id, ip_instance_id, content_instance_id, relation_role, sort_order)
-      VALUES (?, ?, ?, 'story_sequence', ?)`, [
-      `link-${id}`,
-      'earphone-instance-1',
-      id,
-      order,
-    ]);
-  }
-
-  assert.equal(resolveNextEarphoneGirlStory(db, 'earphone-instance-1').story.id, 'story-1');
-
-  upsertMeaningfulState(db, {
-    stateKey: 'story.sequence_progress',
-    subjectType: 'object',
-    subjectId: 'earphone-instance-1',
-    sourceAppCode: 'earphone-girl',
-    sourceObjectId: 'earphone-instance-1',
-    evidence: {
-      lastConsumedContentInstanceId: 'story-1',
-      lastConsumedOrder: 1,
-    },
-  });
-
-  assert.equal(resolveNextEarphoneGirlStory(db, 'earphone-instance-1').story.id, 'story-2');
-});
-
-test('earphone girl completion only accepts the current story in sequence', async () => {
-  const db = await createDb();
-  db.run('INSERT INTO ip_definitions (id, name, theme_color) VALUES (?, ?, ?)', [
-    'ip-earphone',
-    'Earphone Girl',
-    '#2f7d7a',
-  ]);
-  db.run(`INSERT INTO ip_instances
-    (id, ip_definition_id, owner_user_id, application_definition_id, label, token, entity_key, instance_type, status)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, [
-    'earphone-instance-1',
-    'ip-earphone',
-    'user-1',
-    'app-earphone-girl',
-    'Earphone Girl',
-    'earphone-token',
-    'earphone-token',
-    'physical',
-    'active',
-  ]);
-
-  for (const [id, order] of [['story-1', 1], ['story-2', 2]]) {
-    db.run(`INSERT INTO content_instances
-      (id, ip_definition_id, application_definition_id, title, summary, status, visibility, payload_json)
-      VALUES (?, ?, ?, ?, ?, 'published', 'public', ?)`, [
-      id,
-      'ip-earphone',
-      'app-earphone-girl',
-      `Story ${order}`,
-      `Summary ${order}`,
-      JSON.stringify({ sequenceOrder: order }),
-    ]);
-    db.run(`INSERT INTO ip_instance_content_instance_links
-      (id, ip_instance_id, content_instance_id, relation_role, sort_order)
-      VALUES (?, ?, ?, 'story_sequence', ?)`, [
-      `link-${id}`,
-      'earphone-instance-1',
-      id,
-      order,
-    ]);
-  }
-
-  const progressState = resolveNextEarphoneGirlStory(db, 'earphone-instance-1');
-  assert.equal(resolveEarphoneGirlCompletion(progressState, 'story-2').reason, 'stale_or_out_of_order');
-
-  const completion = resolveEarphoneGirlCompletion(progressState, 'story-1');
-  assert.equal(completion.ok, true);
-  assert.equal(completion.consumed.id, 'story-1');
-  assert.equal(completion.nextContent.id, 'story-2');
-});
-
 test('registered app adapters expose the onboarding contract shape', () => {
   const adapters = getRegisteredAppAdapters();
-  assert.ok(adapters.length >= 6);
+  assert.equal(adapters.length, 2);
   for (const adapter of adapters) {
     assert.ok(adapter.appCode);
     assert.ok(adapter.manifest);
@@ -380,7 +266,7 @@ test('registered app adapters expose the onboarding contract shape', () => {
   }
 });
 
-test('emotion IP adapter resolves core ip instance token into standard object shape', async () => {
+test('tissue puppy adapter resolves core ip instance token into standard object shape', async () => {
   const db = await createDb();
   db.run('INSERT INTO ip_definitions (id, name, theme_color) VALUES (?, ?, ?)', [
     'group-puppy',
@@ -388,9 +274,9 @@ test('emotion IP adapter resolves core ip instance token into standard object sh
     '#ff4fd8',
   ]);
   db.run('INSERT INTO ip_definitions (id, name, theme_color) VALUES (?, ?, ?)', [
-    'group-moment',
-    'Moment Ticket',
-    '#9a6a2f',
+    'group-desktop',
+    'Desktop Secret',
+    '#2f7d7a',
   ]);
   db.run(`INSERT INTO ip_instances
     (id, ip_definition_id, owner_user_id, application_definition_id, label, token, entity_key, instance_type, status)
@@ -398,7 +284,7 @@ test('emotion IP adapter resolves core ip instance token into standard object sh
     'entity-puppy-1',
     'group-puppy',
     null,
-    'app-emotion',
+    'app-puppy',
     null,
     'puppy-token',
     'legacy-puppy-key',
@@ -408,22 +294,21 @@ test('emotion IP adapter resolves core ip instance token into standard object sh
   db.run(`INSERT INTO ip_instances
     (id, ip_definition_id, owner_user_id, application_definition_id, label, token, entity_key, instance_type, status)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, [
-    'entity-moment-1',
-    'group-moment',
+    'entity-desktop-1',
+    'group-desktop',
     null,
-    'app-moment',
+    'app-desktop',
     null,
-    'moment-entity-token',
-    'legacy-moment-key',
+    'desktop-entity-token',
+    'desktop-secret-key',
     'physical',
     'active',
   ]);
 
-  const resolved = getAppAdapter('emotion-ip').resolveObject({ db, key: 'puppy-token' });
+  const resolved = getAppAdapter('tissue-puppy').resolveObject({ db, key: 'puppy-token' });
 
-  assert.equal(resolved.app.code, 'emotion-ip');
+  assert.equal(resolved.app.code, 'tissue-puppy');
   assert.equal(resolved.object.type, 'mint-entity');
   assert.equal(resolved.object.displayName, 'Puppy');
   assert.equal(resolved.object.token, 'puppy-token');
-  assert.equal(getAppAdapter('emotion-ip').resolveObject({ db, key: 'moment-entity-token' }), null);
 });

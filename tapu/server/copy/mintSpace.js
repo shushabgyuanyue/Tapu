@@ -1,4 +1,4 @@
-// Mint Space profile copy: backend-generated space descriptions, partner roles, ambience labels, and world notes.
+// Mint Space profile copy: backend-generated space descriptions, partner roles, and ambience labels.
 export const mintSpaceCopy = {
   axes: {
     warmth: '温度',
@@ -18,10 +18,6 @@ export const mintSpaceCopy = {
     activeSummary: count => `这里已经住进${count}位存在，空间正在显现出自己的光线、天气和性格。`,
     emptySummary: '邀请第一个存在进入这里之后，你的 Mint Space 会开始拥有自己的气质。',
     emptyDescription: '这里还保持着安静的空白。第一位进入的存在，会像一盏小灯，决定这里最初的温度和方向。它的性格还没有急着成形，正等待一次真正的相遇。',
-    emptyNote: '你的 Mint Space 还没有被点亮。第一个被邀请进来的存在，会决定这里最初的天气。',
-    missingRelation: '某位存在',
-    anotherRelation: '另一位存在',
-    relationLabel: '微妙',
     emptyStateTitle: 'Mint Space 还没有被点亮',
     emptyStateBody: '收到实体 token 后，把第一个存在接入这里；或者先去看看有哪些存在适合被邀请。',
   },
@@ -31,25 +27,10 @@ export const mintSpaceCopy = {
       statusLine: '它总会在你需要的时候，往你身边靠近一点。',
       traits: ['柔软', '安慰', '守护'],
     },
-    answerBook: {
-      role: '静默回答者',
-      statusLine: '它不急着回答，只把问题放到更安静的地方。',
-      traits: ['沉静', '内省', '神秘'],
-    },
-    blessingPuppy: {
-      role: '祝愿守护者',
-      statusLine: '它把认真说出口的愿望，放在一个明亮的位置。',
-      traits: ['祝愿', '仪式', '守护'],
-    },
-    earphoneGirl: {
-      role: '旅行倾听者',
-      statusLine: '她从很远的地方回来，带着刚听见的小故事。',
-      traits: ['旅行', '倾听', '连接'],
-    },
-    travelChecklist: {
-      role: '远行整理者',
-      statusLine: '它把远方拆成一件件可以安心准备的小事。',
-      traits: ['远行', '秩序', '风'],
+    desktopSecret: {
+      role: '桌面秘境入口',
+      statusLine: '它让一张普通桌面，短暂打开另一层空间。',
+      traits: ['秘境', '空间', '微光'],
     },
   },
   ambience: {
@@ -78,13 +59,5 @@ export const mintSpaceCopy = {
   description: {
     personality: topAxes => `它的空间人格偏向${topAxes}，更适合收藏那些被认真对待的小事。`,
     active: ({ names, hasMore, personality }) => `由${names}${hasMore ? '等伙伴' : ''}共同形成的空间，已经有了自己的呼吸和秩序。${personality}`,
-  },
-  notes: {
-    count: count => `你的 Mint Space 里现在住着${count}位朋友。`,
-    relation: ({ sourceName, targetName, relationLabel }) => `${sourceName}和${targetName}之间，有一种${relationLabel}的关系。`,
-    tissueAnswer: '纸巾小狗总喜欢靠近答案之书，因为它发现，很多悲伤其实来自还没有被轻轻想明白的事情。',
-    tissueEarphone: '耳机小姐偶尔会坐在纸巾小狗旁边听它讲今天遇见的人，她说温柔也有很小的脚步声。',
-    blessingAnswer: '祈福小狗把愿望交给答案之书时，答案之书通常只翻到一页很安静的空白。',
-    ambience: axisLabel => `这里最近更接近“${axisLabel}”的气质，像一处慢慢被你点亮的小地方。`,
   },
 };

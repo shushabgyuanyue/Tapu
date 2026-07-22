@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import type { MintSpaceProfile } from '../../api/assets';
-import MintSpaceNotes from './MintSpaceNotes.vue';
 import MintSpacePartners from './MintSpacePartners.vue';
 import MintSpacePortrait from './MintSpacePortrait.vue';
 
@@ -29,6 +28,5 @@ defineEmits<{
       @bind="$emit('bind')"
       @select="item => $emit('select', item)"
     />
-    <MintSpaceNotes :notes="profile?.notes || []" />
   </section>
 </template>

@@ -1,31 +1,5 @@
 // Mint Studio server copy: backend-provided authoring profiles, flow actions, and official/user creation guidance.
 export const mintStudioProfiles = {
-  'earphone-girl': {
-    code: 'earphone-girl',
-    name: '耳机小姐',
-    appType: 'meaning',
-    route: '/earphone-girl',
-    studioTitle: '耳机小姐故事空间',
-    objectFallback: '这枚会带回故事的耳机贴纸',
-    introMessages: ['耳机小姐已识别。'],
-    creationModes: [
-      { code: 'open_app', label: '听她讲故事', tone: 'primary' },
-      { code: 'collect_asset', label: '接入 Mint Space', tone: 'quiet', requiresAuth: true, legacy: true },
-    ],
-  },
-  'answer-book': {
-    code: 'answer-book',
-    name: '答案之书',
-    appType: 'state',
-    route: '/answer',
-    studioTitle: '答案之书铸造台',
-    objectFallback: '这枚会回答当下的贴纸',
-    introMessages: ['答案之书已识别。'],
-    creationModes: [
-      { code: 'open_app', label: '获取答案', tone: 'primary' },
-      { code: 'collect_asset', label: '接入 Mint Space', tone: 'quiet', requiresAuth: true, legacy: true },
-    ],
-  },
   'tissue-puppy': {
     code: 'tissue-puppy',
     name: '纸巾小狗',
@@ -52,59 +26,18 @@ export const mintStudioProfiles = {
       { code: 'claim_entity', label: '接入 Mint Space', tone: 'quiet', requiresAuth: true },
     ],
   },
-  moment: {
-    code: 'moment',
-    name: '纪念瞬间',
-    appType: 'meaning',
-    route: '/moment',
-    studioTitle: '纪念瞬间铸造台',
-    objectFallback: '这枚保存瞬间的贴纸',
-    introMessages: ['纪念瞬间已识别。'],
-    creationModes: [
-      { code: 'open_app', label: '打开这个瞬间', tone: 'primary' },
-      { code: 'collect_asset', label: '接入 Mint Space', tone: 'quiet', requiresAuth: true, legacy: true },
-    ],
-  },
-  'travel-trail': {
-    code: 'travel-trail',
-    name: '旅行轨迹',
-    appType: 'meaning',
-    route: '/trail',
-    studioTitle: '旅行轨迹铸造台',
-    objectFallback: '这件会移动的物品',
-    introMessages: ['旅行轨迹已识别。'],
-    creationModes: [
-      { code: 'open_app', label: '写下下一站', tone: 'primary' },
-      { code: 'collect_asset', label: '接入 Mint Space', tone: 'quiet', requiresAuth: true, legacy: true },
-    ],
-  },
-  check: {
-    code: 'check',
-    name: 'Check 检查',
-    appType: 'behavior',
-    route: '/check',
-    studioTitle: 'Check 铸造台',
-    objectFallback: '这件需要被检查的物品',
-    introMessages: ['检查清单已识别。'],
-    creationModes: [
-      { code: 'open_app', label: '开始检查', tone: 'primary' },
-      { code: 'collect_asset', label: '接入 Mint Space', tone: 'quiet', requiresAuth: true, legacy: true },
-    ],
-  },
 };
 
 export const mintStudioCopy = {
   library: {
     fallbackLabels: {
-      'emotion-ip': '情绪 IP',
       'tissue-puppy': '纸巾小狗',
       'desktop-secret': '桌面秘境',
-      'earphone-girl': '耳机小姐',
       content: '内容',
     },
   },
   entityRecipe: {
-    emotionIp: '情绪 IP',
+  objectExpression: '物件表达',
     studioTitle: name => `${name}铸造台`,
     currentContent: '当前内容',
     noContent: '暂无内容',

@@ -114,7 +114,7 @@ export function verifyEntityKey(key, db) {
   }
 }
 
-// Generate legacy-compatible random entity token. The database enforces uniqueness.
+// Generate a compact random entity token. The database enforces uniqueness.
 export function generateEntityKey(payload) {
   return generateToken128();
 }

@@ -52,12 +52,7 @@ test('contracted critical routes declare response shape', () => {
 
 test('light app open routes declare standard runtime context', () => {
   const openRoutes = [
-    'POST /api/videos/resolve',
-    'GET /api/earphone-girl/resolve',
-    'GET /api/answer-book/resolve',
-    'GET /api/moments/resolve',
-    'GET /api/travel-trails/resolve',
-    'GET /api/checks/resolve',
+    'GET /api/contents/resolve-by-token',
   ];
 
   for (const key of openRoutes) {
@@ -71,8 +66,6 @@ test('light app open routes declare standard runtime context', () => {
 test('core tap entry routes record operations before events', () => {
   const routeFiles = [
     'server/routes/contents.js',
-    'server/routes/earphoneGirl.js',
-    'server/routes/answerBook.js',
   ];
 
   for (const file of routeFiles) {

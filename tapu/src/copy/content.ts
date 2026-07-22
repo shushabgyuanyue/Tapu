@@ -9,8 +9,6 @@ export const contentCopy = {
   },
   detail: {
     toasts: {
-      likeLogin: '请先登录或注册后再点赞',
-      favoriteLogin: '请先登录或注册后再收藏',
       previewCopied: '预览链接已复制',
       bindLogin: '请先登录或注册，再到 Mint Space 接入物件并设置默认内容',
       contentIdCopied: '内容 ID 已复制',

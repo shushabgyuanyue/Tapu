@@ -162,7 +162,7 @@ function buildEventPayloadForRule(operation, eventRule, count) {
       || operation.contextSnapshot?.metadata?.objectName
       || operation.contextSnapshot?.metadata?.groupName
       || null,
-    relation_focus: eventRule.relationFocus || null,
+    meaning_focus: eventRule.meaningFocus || null,
   };
 }
 
@@ -241,23 +241,6 @@ function projectStatesFromEventManifest(db, event) {
 
 function findConsumerObjectsForApp(db, appCode, userId) {
   if (!appCode || !userId) return [];
-
-  if (appCode === 'emotion-ip') {
-    return safeRows(
-      db,
-      `SELECT id, token
-       FROM ip_instances
-       WHERE owner_user_id = ?
-         AND status = 'active'
-       ORDER BY COALESCE(bound_at, created_at) DESC`,
-      [userId]
-    ).map(row => ({
-      consumerType: 'object',
-      consumerId: row.id,
-      consumerToken: row.token,
-      raw: row,
-    }));
-  }
 
   return [];
 }
@@ -501,7 +484,7 @@ function buildOwnedMintHints(db, userId) {
   const hints = [];
   const entityRows = safeRows(
     db,
-    `SELECT i.id, i.token, d.name as object_label, COALESCE(a.code, 'emotion-ip') as app_code, COALESCE(a.app_type, 'meaning') as app_type
+    `SELECT i.id, i.token, d.name as object_label, a.code as app_code, a.app_type as app_type
      FROM ip_instances i
      LEFT JOIN ip_definitions d ON d.id = i.ip_definition_id
      LEFT JOIN application_definitions a ON a.id = i.application_definition_id

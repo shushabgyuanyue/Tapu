@@ -145,7 +145,7 @@ registerRoutes(router, [
     permission: 'login_required',
     operation: 'asset:read',
     summary: 'Build the current user Mint Space profile from owned IP instances and IP definition traits.',
-    response: { profile: 'object', partners: 'array', notes: 'array', emptyState: 'object' },
+    response: { profile: 'object', partners: 'array', emptyState: 'object' },
     tags: ['asset', 'mint-space', 'ip-instance'],
     handler: getMintSpaceProfileHandler,
   },

@@ -5,12 +5,9 @@ import { adminRoute, publicRoute, registerRoutes } from '../services/routePermis
 import { serverMessages } from '../copy/messages.js';
 import {
   ensureOfficialIpInstance,
-  getIpDefinitionRelations,
   getPrimaryApplicationForIpDefinition,
-  normalizeRelationType,
   normalizeStatus,
   stringifyJson,
-  upsertIpDefinitionRelation,
   upsertIpInstanceContentLink,
 } from '../services/coreStore.js';
 import { getShopIpDefinition, listShopIpDefinitions } from '../services/shopCatalog.js';
@@ -68,7 +65,8 @@ function uniqueIpCode(db, params = {}) {
 function inferApplicationCode(payload) {
   const text = `${payload.code || ''} ${payload.name || ''} ${payload.series_name || ''}`.toLowerCase();
   if (text.includes('纸巾') || text.includes('tissue') || text.includes('puppy')) return 'tissue-puppy';
-  return 'emotion-ip';
+  if (text.includes('桌面') || text.includes('秘境') || text.includes('desktop') || text.includes('secret')) return 'desktop-secret';
+  return '';
 }
 
 function applicationIdByCode(db, code) {
@@ -76,26 +74,6 @@ function applicationIdByCode(db, code) {
     'SELECT id FROM application_definitions WHERE code = ? LIMIT 1',
     [code]
   ))[0]?.id || null;
-}
-
-function buildRelationPayload(body) {
-  return {
-    target_ip_definition_id: cleanString(body.target_ip_definition_id || body.counterpart_ip_definition_id),
-    relation_type: normalizeRelationType(body.relation_type || body.display_relation_type || 'related'),
-    relation_label: cleanString(body.relation_label),
-    reverse_relation_type: cleanString(body.reverse_relation_type)
-      ? normalizeRelationType(body.reverse_relation_type)
-      : null,
-    reverse_relation_label: cleanString(body.reverse_relation_label),
-    narrative: cleanString(body.narrative),
-    strength: Number.isFinite(Number(body.strength)) ? Number(body.strength) : 1,
-    is_mutual: body.is_mutual === true || body.is_mutual === 'true' || body.is_mutual === 1 || body.is_mutual === '1',
-    sort_order: Number.isFinite(Number(body.sort_order)) ? Number(body.sort_order) : 0,
-    status: cleanString(body.status) || 'active',
-    starts_at: cleanString(body.starts_at) || null,
-    ends_at: cleanString(body.ends_at) || null,
-    metadata: body.metadata && typeof body.metadata === 'object' ? body.metadata : null,
-  };
 }
 
 function buildGroupPayload(body) {
@@ -179,64 +157,6 @@ router.get('/:id', async (req, res) => {
   res.json(group);
 });
 
-async function listGroupRelations(req, res) {
-  const db = await getDb();
-  const exists = resultToObjects(db.exec('SELECT id FROM ip_definitions WHERE id = ? LIMIT 1', [req.params.id]))[0] || null;
-  if (!exists) return res.status(404).json({ error: serverMessages.routes.common.ipNotFound });
-  res.json(getIpDefinitionRelations(db, req.params.id));
-}
-
-async function upsertGroupRelation(req, res) {
-  const payload = buildRelationPayload(req.body || {});
-  if (!payload.target_ip_definition_id) {
-    return res.status(400).json({ error: 'target_ip_definition_id is required' });
-  }
-  if (payload.target_ip_definition_id === req.params.id) {
-    return res.status(400).json({ error: 'source and target ip_definition_id must be different' });
-  }
-
-  const db = await getDb();
-  const source = resultToObjects(db.exec('SELECT id FROM ip_definitions WHERE id = ? LIMIT 1', [req.params.id]))[0] || null;
-  const target = resultToObjects(db.exec('SELECT id FROM ip_definitions WHERE id = ? LIMIT 1', [payload.target_ip_definition_id]))[0] || null;
-  if (!source || !target) {
-    return res.status(404).json({ error: serverMessages.routes.common.ipNotFound });
-  }
-
-  const relationId = upsertIpDefinitionRelation(db, {
-    id: cleanString(req.body?.id) || null,
-    sourceIpDefinitionId: req.params.id,
-    targetIpDefinitionId: payload.target_ip_definition_id,
-    relationType: payload.relation_type,
-    relationLabel: payload.relation_label,
-    reverseRelationType: payload.reverse_relation_type,
-    reverseRelationLabel: payload.reverse_relation_label,
-    narrative: payload.narrative,
-    strength: payload.strength,
-    isMutual: payload.is_mutual,
-    sortOrder: payload.sort_order,
-    status: payload.status,
-    startsAt: payload.starts_at,
-    endsAt: payload.ends_at,
-    metadata: payload.metadata,
-  });
-  saveDb();
-
-  const relation = getIpDefinitionRelations(db, req.params.id, {
-    statuses: ['active', 'draft', 'archived'],
-  }).find(item => item.id === relationId) || null;
-  res.json({ success: true, relation });
-}
-
-async function deleteGroupRelation(req, res) {
-  const db = await getDb();
-  db.run(
-    'DELETE FROM ip_definition_relation_links WHERE id = ? AND (source_ip_definition_id = ? OR target_ip_definition_id = ?)',
-    [req.params.relationId, req.params.id, req.params.id]
-  );
-  saveDb();
-  res.json({ success: true });
-}
-
 async function createGroup(req, res) {
   const payload = buildGroupPayload(req.body);
   if (!payload.name) return res.status(400).json({ error: 'Name is required' });
@@ -244,6 +164,7 @@ async function createGroup(req, res) {
   const db = await getDb();
   const id = uuidv4();
   const applicationId = resolveCreateApplicationId(db, payload);
+  if (!applicationId) return res.status(400).json({ error: 'application_id is required' });
   const code = uniqueIpCode(db, {
     code: payload.code,
     name: payload.name,
@@ -296,6 +217,7 @@ async function updateGroup(req, res) {
     [req.params.id]
   ))[0] || null;
   const applicationId = resolveCreateApplicationId(db, payload);
+  if (!applicationId) return res.status(400).json({ error: 'application_id is required' });
   const code = payload.code
     ? uniqueIpCode(db, {
       code: payload.code,
@@ -390,11 +312,8 @@ async function setOfficialDefault(req, res) {
 }
 
 registerRoutes(router, [
-  publicRoute('get', '/:id/relations', listGroupRelations),
   adminRoute('post', '/', createGroup),
-  adminRoute('post', '/:id/relations', upsertGroupRelation),
   adminRoute('put', '/:id', updateGroup),
-  adminRoute('delete', '/:id/relations/:relationId', deleteGroupRelation),
   adminRoute('delete', '/:id', deleteGroup),
   adminRoute('put', '/:id/official-default', setOfficialDefault),
 ]);

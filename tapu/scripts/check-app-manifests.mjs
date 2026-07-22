@@ -1,6 +1,10 @@
 import { APP_TYPES, CONTENT_CONTAINER_CAPABILITIES, getAppManifests } from '../server/contracts/appManifests.js';
 import { getOperationPolicy } from '../server/contracts/operations.js';
 import { getBuiltInApplications } from '../server/services/applicationRegistry.js';
+import {
+  APPLICATION_LIFECYCLE_STATUSES,
+  getManifestLifecycle,
+} from '../server/services/applicationLifecycle.js';
 
 const manifests = getAppManifests();
 const manifestByCode = new Map(manifests.map(app => [app.code, app]));
@@ -10,6 +14,7 @@ const contentCapabilities = new Set(CONTENT_CONTAINER_CAPABILITIES);
 const failures = [];
 const stateKeyPattern = /^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$/;
 const skillKeyPattern = /^[a-z][a-z0-9_]*(_[a-z0-9]+)*$/;
+const lifecycleStatuses = new Set(APPLICATION_LIFECYCLE_STATUSES);
 
 function requireString(app, field) {
   if (!app[field] || typeof app[field] !== 'string') {
@@ -120,6 +125,18 @@ for (const app of manifests) {
   }
   if (!contentCapabilities.has(app.contentContainer?.defaultModality)) {
     failures.push(`${app.code} must declare a valid contentContainer.defaultModality`);
+  }
+  const lifecycle = getManifestLifecycle(app);
+  if (!lifecycleStatuses.has(lifecycle.status)) {
+    failures.push(`${app.code} has invalid lifecycle status "${lifecycle.status}"`);
+  }
+  for (const surface of ['shop', 'nfc', 'studio', 'admin']) {
+    if (typeof lifecycle.surfaces?.[surface] !== 'boolean') {
+      failures.push(`${app.code} lifecycle surface "${surface}" must be boolean`);
+    }
+  }
+  if (app.mintStudio?.primaryActions?.includes('collect_asset')) {
+    failures.push(`${app.code} uses retired collect_asset action`);
   }
   validateProducesStates(app);
   validateSkills(app);

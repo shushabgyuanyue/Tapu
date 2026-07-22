@@ -8,7 +8,7 @@ const applications = ref<any[]>([]);
 const appTypeMeta: Record<string, { label: string; description: string }> = {
   meaning: {
     label: '意义型',
-    description: '回答人生问题，强调记忆、关系、表达、收藏。',
+    description: '回答具体场景里的表达问题，强调记忆、赠予、收藏。',
   },
   behavior: {
     label: '行为型',
@@ -16,89 +16,40 @@ const appTypeMeta: Record<string, { label: string; description: string }> = {
   },
   state: {
     label: '状态型',
-    description: '回应当下存在，强调氛围、陪伴、情绪状态和空间感。',
+    description: '回应当下存在，强调氛围、陪伴、状态和空间感。',
   },
 };
 
 const installedApps = [
   {
-    code: 'emotion-ip',
-    name: '情绪 IP',
+    code: 'tissue-puppy',
+    name: '纸巾小狗',
     appType: 'meaning',
     stage: '已接入',
-    tone: '实体承载情绪表达，适合商品、礼物和长期关系载体。',
-    runtime: 'entity token / video content',
-    content: '视频、默认内容、私有内容',
-    operatorPath: '/official',
-    publicPath: '/play?key=...',
-    accent: '#2f6f5e',
-  },
-  {
-    code: 'earphone-girl',
-    name: '耳机小姐',
-    appType: 'meaning',
-    stage: '已接入',
-    tone: '住在耳机贴纸里的旅行者和倾听者，按实例队列讲述她遇见的 IP 故事。',
-    runtime: 'core ip instance / story sequence / runtime state',
-    content: '官方故事、联动入口、记忆片段、插画和语音资源',
+    tone: '一个安慰场景入口，让实体礼物或贴纸在被触碰后递上一点温柔。',
+    runtime: 'core ip instance / default content / OS renderer',
+    content: '安慰视频、AR 召唤、默认内容、私有内容',
     operatorPath: '/official/applications',
-    publicPath: '/earphone-girl?key=...',
+    publicPath: '/play?key=...',
+    accent: '#f2ae51',
+  },
+  {
+    code: 'desktop-secret',
+    name: '桌面秘境',
+    appType: 'state',
+    stage: '已接入',
+    tone: '碰一下桌面贴纸，在真实桌面上展开一个轻量 AR 秘境。',
+    runtime: 'core ip instance / marker AR / OS renderer',
+    content: 'AR 图片、marker、阴影、渲染参数、官方默认内容',
+    operatorPath: '/official/applications',
+    publicPath: '/play?key=...',
     accent: '#2f7d7a',
-  },
-  {
-    code: 'answer-book',
-    name: '答案之书',
-    appType: 'state',
-    stage: '已接入',
-    tone: '碰一下，得到一张克制、正念、带一点反差感的回应卡。',
-    runtime: 'whatmint.tap / random draw / events',
-    content: '答案牌组、回应、行动提示',
-    operatorPath: '/official/answer-book',
-    publicPath: '/answer?key=...',
-    accent: '#9a6a2f',
-  },
-  {
-    code: 'moment',
-    name: '纪念瞬间',
-    appType: 'meaning',
-    stage: '已接入',
-    tone: '把一个值得记住的时刻，封存在一个可触碰的物里。',
-    runtime: 'whatmint.tap / content.collections / token binding',
-    content: '照片、视频、音频、文字、日期、地点',
-    operatorPath: '/official/moments',
-    publicPath: '/moment?key=...',
-    accent: '#b98234',
-  },
-  {
-    code: 'travel-trail',
-    name: '旅行轨迹',
-    appType: 'state',
-    stage: '已接入',
-    tone: '贴在行李或旅行物件上，碰一下展开出发与归来的仪式。',
-    runtime: 'whatmint.tap / journey state / events',
-    content: '地点、下一站、归来确认、动态路线',
-    operatorPath: '/official/travel-trails',
-    publicPath: '/trail?key=...',
-    accent: '#2f6f5e',
-  },
-  {
-    code: 'check',
-    name: 'Check 检查',
-    appType: 'behavior',
-    stage: '已接入',
-    tone: '绑定具体物件的行为型检查清单，提供常见模板并允许自定义修改。',
-    runtime: 'whatmint.tap / checklist state / events',
-    content: '场景模板、检查项目、勾选状态、自定义项目',
-    operatorPath: '/official/checks',
-    publicPath: '/check?key=...',
-    accent: '#3b5f7f',
   },
 ];
 
-const futureApps = [
-  { name: '传信小狗', note: '实体成为情绪信箱，适合重要节点留言。' },
-  { name: '收藏作品履历', note: '非标作品拥有故事、履历和收藏关系。' },
-  { name: '第三方轻应用', note: '通过 manifest 描述入口、内容能力和触碰运行时。' },
+const retiredAppNotes = [
+  '实体表达旧入口、答案之书、纪念瞬间、旅行轨迹和 Check 的旧实现已删除，不在应用目录中保留冻结卡片。',
+  '后续若重新上线这些方向，必须按 IP + 应用 + 实体入口 + 场景的新核心范式重新接入。',
 ];
 
 const registryByCode = computed(() => {
@@ -144,15 +95,16 @@ onMounted(loadData);
     <header class="directory-hero">
       <div>
         <p>WhatMint OS</p>
-        <h2>应用目录</h2>
-        <span>这里不再手动“注册应用”。一个场景应用被实现后，会通过系统清单自动出现在这里；运营只进入对应应用工作台。</span>
+        <h2>内部场景入口目录</h2>
+        <span>这里不是开放插件市场。一个自营或联名场景入口被实现后，通过系统清单进入目录；运营只进入对应工作台。</span>
       </div>
       <button @click="loadData">{{ loading ? '同步中...' : '同步应用状态' }}</button>
     </header>
 
     <section class="principle-card">
       <strong>当前范式</strong>
-      <p>应用不是模板库里的一个表单，而是一段已经实现的轻应用体验：它拥有公共入口、运营工作台、内容能力、触碰运行时和事件语义。</p>
+      <p>应用不是模板库里的一个表单，而是一段已经实现的自营场景体验：它拥有实体入口、运营工作台、内容能力、触碰运行时和事件语义。</p>
+      <p v-for="note in retiredAppNotes" :key="note">{{ note }}</p>
     </section>
 
     <section class="type-system">
@@ -210,24 +162,18 @@ onMounted(loadData);
 
     <section class="access-pattern">
       <div>
-        <p>未来接入范式</p>
-        <h3>第三方应用应该像插件一样进入，而不是让运营手动拼表。</h3>
-        <span>先不实施，但方向要清楚：开发者提交 app manifest，声明入口、内容块能力、权限、事件、管理页和公开页，系统自动出现在应用目录。</span>
+        <p>接入范式</p>
+        <h3>自营场景入口应该按 manifest 进入，而不是让运营手动拼表。</h3>
+        <span>当前阶段不做开放第三方平台。官方和联名 IP 先按 manifest 声明入口、内容块能力、权限、事件、管理页和公开页，系统自动出现在目录。</span>
       </div>
       <ol>
-        <li><strong>实现轻应用页面</strong><span>公开触碰页和官方管理页先存在。</span></li>
-        <li><strong>声明 manifest</strong><span>描述 app_code、入口、内容能力、事件和权限。</span></li>
+        <li><strong>实现自营轻应用入口</strong><span>公开触碰入口、必要的官方配置入口和 OS 渲染能力先存在。</span></li>
+        <li><strong>声明 manifest</strong><span>描述 app_code、实体入口、内容定义、事件和权限。</span></li>
         <li><strong>接入运行时</strong><span>返回 whatmint.tap，写入核心 events。</span></li>
-        <li><strong>绑定内容集合</strong><span>需要多媒介内容时使用 Content Collection。</span></li>
+        <li><strong>绑定内容协议</strong><span>需要多媒介内容时声明 content_definitions、资源槽和 renderer profile。</span></li>
       </ol>
     </section>
 
-    <section class="future-grid">
-      <article v-for="item in futureApps" :key="item.name">
-        <strong>{{ item.name }}</strong>
-        <p>{{ item.note }}</p>
-      </article>
-    </section>
   </div>
 </template>
 
@@ -240,8 +186,7 @@ onMounted(loadData);
 .directory-hero,
 .principle-card,
 .app-card,
-.access-pattern,
-.future-grid article {
+.access-pattern {
   border: 1px solid rgba(32, 27, 34, 0.08);
   background: rgba(255, 255, 255, 0.86);
 }
@@ -458,8 +403,7 @@ dd {
   line-height: 1.25;
 }
 
-.access-pattern span,
-.future-grid p {
+.access-pattern span {
   color: #756c78;
   line-height: 1.7;
 }
@@ -506,26 +450,9 @@ ol span {
   font-size: 13px;
 }
 
-.future-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.future-grid article {
-  padding: 16px;
-  border-radius: 18px;
-}
-
-.future-grid p {
-  margin: 6px 0 0;
-  font-size: 13px;
-}
-
 @media (max-width: 960px) {
   .app-grid,
   .type-system,
-  .future-grid,
   .access-pattern {
     grid-template-columns: 1fr;
   }

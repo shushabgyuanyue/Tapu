@@ -293,30 +293,6 @@ CREATE TABLE IF NOT EXISTS ip_definition_application_links (
   UNIQUE(ip_definition_id, application_definition_id, relation_role)
 );
 
-CREATE TABLE IF NOT EXISTS ip_definition_relation_links (
-  id TEXT PRIMARY KEY,
-  source_ip_definition_id TEXT NOT NULL,
-  target_ip_definition_id TEXT NOT NULL,
-  relation_type TEXT NOT NULL,
-  relation_label TEXT,
-  reverse_relation_type TEXT,
-  reverse_relation_label TEXT,
-  narrative TEXT,
-  strength REAL DEFAULT 1,
-  is_mutual INTEGER DEFAULT 0,
-  sort_order INTEGER DEFAULT 0,
-  status TEXT DEFAULT 'active',
-  starts_at DATETIME,
-  ends_at DATETIME,
-  metadata_json TEXT,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  CHECK(source_ip_definition_id != target_ip_definition_id),
-  FOREIGN KEY (source_ip_definition_id) REFERENCES ip_definitions(id) ON DELETE CASCADE,
-  FOREIGN KEY (target_ip_definition_id) REFERENCES ip_definitions(id) ON DELETE CASCADE,
-  UNIQUE(source_ip_definition_id, target_ip_definition_id, relation_type)
-);
-
 CREATE TABLE IF NOT EXISTS application_content_definition_links (
   id TEXT PRIMARY KEY,
   application_definition_id TEXT NOT NULL,
@@ -447,12 +423,6 @@ ON event_consumptions(consumer_type, consumer_id, application_definition_id, sta
 
 CREATE INDEX IF NOT EXISTS idx_ip_definition_application_links_definition
 ON ip_definition_application_links(ip_definition_id, is_primary, sort_order);
-
-CREATE INDEX IF NOT EXISTS idx_ip_definition_relation_links_source
-ON ip_definition_relation_links(source_ip_definition_id, status, sort_order);
-
-CREATE INDEX IF NOT EXISTS idx_ip_definition_relation_links_target
-ON ip_definition_relation_links(target_ip_definition_id, status, sort_order);
 
 CREATE INDEX IF NOT EXISTS idx_application_content_definition_links_application
 ON application_content_definition_links(application_definition_id, is_primary, sort_order);

@@ -2,7 +2,11 @@ import { Router } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { getDb, saveDb } from '../db/index.js';
 import { adminRoute, registerRoutes } from '../services/routePermissions.js';
-import { cleanString, normalizeStatus, stringifyJson } from '../services/coreStore.js';
+import { cleanString, stringifyJson } from '../services/coreStore.js';
+import {
+  APPLICATION_LIFECYCLE_STATUSES,
+  normalizeApplicationLifecycle,
+} from '../services/applicationLifecycle.js';
 
 const router = Router();
 
@@ -27,6 +31,21 @@ function normalizeCode(code, name) {
 function normalizeAppType(value, fallback = 'meaning') {
   const appType = String(value || fallback).trim();
   return ['meaning', 'behavior', 'state'].includes(appType) ? appType : fallback;
+}
+
+function normalizeLifecycleFromBody(body = {}) {
+  return normalizeApplicationLifecycle({
+    ...(body.lifecycle && typeof body.lifecycle === 'object' ? body.lifecycle : {}),
+    status: body.status,
+    version: body.version_no,
+  });
+}
+
+function buildApplicationExtraFromBody(body = {}, lifecycle) {
+  return {
+    ...(body.extra && typeof body.extra === 'object' && !Array.isArray(body.extra) ? body.extra : {}),
+    lifecycle,
+  };
 }
 
 async function listApplications(_req, res) {
@@ -60,6 +79,7 @@ async function createApplication(req, res) {
     const id = uuidv4();
     const appCode = normalizeCode(code, name);
     if (!appCode) return res.status(400).json({ error: 'code is invalid' });
+    const lifecycle = normalizeLifecycleFromBody(req.body);
 
     db.run(
       `INSERT INTO application_definitions
@@ -85,8 +105,8 @@ async function createApplication(req, res) {
         stringifyJson(req.body.key_actions ?? req.body.key_action_schema_json),
         stringifyJson(req.body.route_config),
         stringifyJson(req.body.permission_policy),
-        stringifyJson(req.body.extra),
-        normalizeStatus(status, ['active', 'draft', 'archived'], 'active'),
+        stringifyJson(buildApplicationExtraFromBody(req.body, lifecycle)),
+        lifecycle.status,
       ]
     );
     saveDb();
@@ -109,6 +129,7 @@ async function updateApplication(req, res) {
 
     const appCode = normalizeCode(code, name);
     if (!appCode) return res.status(400).json({ error: 'code is invalid' });
+    const lifecycle = normalizeLifecycleFromBody(req.body);
 
     const db = await getDb();
     db.run(
@@ -136,8 +157,8 @@ async function updateApplication(req, res) {
         stringifyJson(req.body.key_actions ?? req.body.key_action_schema_json),
         stringifyJson(req.body.route_config),
         stringifyJson(req.body.permission_policy),
-        stringifyJson(req.body.extra),
-        normalizeStatus(status, ['active', 'draft', 'archived'], 'active'),
+        stringifyJson(buildApplicationExtraFromBody(req.body, lifecycle)),
+        lifecycle.status,
         req.params.id,
       ]
     );

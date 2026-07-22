@@ -1,22 +1,28 @@
 <script setup lang="ts">
 import { contentCopy } from '../../../copy';
 
-defineProps<{
+withDefaults(defineProps<{
   entityToken: string;
   entityBinding: boolean;
   entityBindMsg: string;
   entityBindError: boolean;
-  officialBinding: boolean;
-  officialDefaultSet: boolean;
-  officialBindMsg: string;
-  officialBindError: boolean;
+  officialBinding?: boolean;
+  officialDefaultSet?: boolean;
+  officialBindMsg?: string;
+  officialBindError?: boolean;
   deleting: boolean;
   canEdit: boolean;
   canBindToEntity: boolean;
-  canSetOfficialDefault: boolean;
+  canSetOfficialDefault?: boolean;
   canDelete: boolean;
   isSingleResource: boolean;
-}>();
+}>(), {
+  officialBinding: false,
+  officialDefaultSet: false,
+  officialBindMsg: '',
+  officialBindError: false,
+  canSetOfficialDefault: false,
+});
 
 defineEmits<{
   (event: 'update:entityToken', value: string): void;

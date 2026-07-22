@@ -34,16 +34,10 @@
 
 | app_code | 当前事件 | 可映射通用事件 | 说明 |
 | --- | --- | --- | --- |
-| `answer-book` | `answer_draw` | `tap_open` + `content_view` | 一次触碰会抽取一张答案卡 |
-| `earphone-girl` | `earphone_girl_touch` | `tap_open` + `content_view` | 一次触碰会展示当前故事空间内容 |
-| `moment` | `moment_tap` | `tap_open` + `content_view` | 一次触碰会打开某个纪念瞬间 |
-| `travel-trail` | `travel_trail_tap` | `tap_open` + `content_view` | 一次触碰会展开旅行轨迹 |
-| `travel-trail` | `travel_next_destination_set` | `action_click` | 用户写下下一站 |
-| `travel-trail` | `travel_return_confirmed` | `action_click` | 用户回来后把下一站加入轨迹 |
-| `check` | `check_tap` | `tap_open` + `content_view` | 一次触碰会打开某个物件的检查清单 |
-| `check` | `check_item_toggled` | `action_click` | 用户勾选或取消某个检查项 |
-| `check` | `check_item_added` | `action_click` | 用户给具体物件新增自定义检查项 |
-| `check` | `check_reset` | `action_click` | 用户重新开始一次检查 |
+| `tissue-puppy` | `object.touch` | `tap_open` + `content_view` | 一次触碰会打开默认安慰视频或 AR 召唤 |
+| `desktop-secret` | `object.touch` | `tap_open` + `content_view` | 一次触碰会打开桌面 AR 场景 |
+
+答案之书、纪念瞬间、旅行轨迹和 Check 的旧应用事件已随旧实现删除。后续若按新核心范式重新接入，应先声明应用自己的 `operationDefinitions` 和 `eventRules`，再补充到本表。
 
 ## metadata 建议
 
@@ -69,4 +63,4 @@
 - 不把 `object_events` 做成完整埋点平台。
 - 不为每一个 UI hover、scroll、曝光写事件。
 - 不在事件名里塞业务对象 id。
-- 不删除旧业务事件表；旧表负责业务细节，`object_events` 负责跨应用观察。
+- 不为已退休旧应用保留第二套业务事件表；新应用的业务细节必须先经过新核心对象和 OS 事件边界设计。

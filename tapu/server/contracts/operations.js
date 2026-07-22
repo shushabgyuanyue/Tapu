@@ -83,8 +83,6 @@ export const STUDIO_ACTION_OPERATIONS = {
   publish_official_definition_content: 'content:official_create',
   append_unit: 'view:preview',
   claim_entity: 'asset:claim',
-  // Legacy light-app alias. New core apps should use claim_entity instead.
-  collect_asset: 'asset:claim',
 };
 
 export const OPERATION_WILDCARDS = {

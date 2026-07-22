@@ -10,7 +10,6 @@ defineProps<{
     portraitBody: string;
     traits: string[];
     partners: Array<{ name: string; status: string }>;
-    notes: string[];
   };
 }>();
 
@@ -47,9 +46,6 @@ defineEmits<{
             <strong>{{ partner.name }}</strong>
             <p>{{ partner.status }}</p>
           </article>
-        </div>
-        <div class="home-note-list">
-          <p v-for="note in section.notes" :key="note">{{ note }}</p>
         </div>
         <div class="home-space-actions">
           <button class="home-primary-action" @click="$emit('openSpace')">{{ section.action }}</button>

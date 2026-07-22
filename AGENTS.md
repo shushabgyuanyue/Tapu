@@ -25,16 +25,18 @@ Before making non-trivial changes, read:
 - Frontend: `tapu/src`
 - Backend: `tapu/server`
 - DB schema: `tapu/server/db/index.js`, `tapu/server/db/schema.sql`, `tapu/server/db/core-schema.sql`
-- Main user surfaces: `/assets`, `/mint`, `/shop`, `/community/ip/:id`, `/content/:id`, `/play`
+- Main user surfaces: `/assets`, `/mint`, `/shop`, `/shop/ip/:id`, `/content/:id`, `/play`
 - Official console: `/official`
 
 ## Core Product Rules
 
-- WhatMint 对客北极星是：帮助用户邀请有灵的存在进入生活，并逐渐打造属于自己的 `Mint Space`。
+- WhatMint 对客北极星是：现实世界 UI，让日常物品在关键生活场景中获得数字表达，补上它原本想表达却无法表达的部分。
+- 当前阶段是封闭自营 App，不按开放第三方平台设计；联名先作为场景 IP 的视觉、话术和资源表达接入。
+- 当前应用建模默认按 `IP + 应用 + 实体入口 + 场景` 推导，一个 IP 默认绑定一个应用、一个实体入口和一个具体场景；不要做大而全 IP，也不要为了世界观叙事预设 IP 间关系或 Space 首页故事模块。
 - `Mint Space` 是拥有后的默认目的地；未拥有用户优先走首页、邀请存在、NFC 体验和创作示例，不强行教育 Space。
 - IP 对客表达为“存在 / 伙伴”，购买对客表达为“邀请”，资产管理能力应下沉到伙伴详情或二级操作。
 - `/assets` 技术路径可以保留，但用户侧页面和文案应优先表达为 `Mint Space`，不得回退为资产仓库、展馆、展品列表。
-- 首页是世界入口，商城 / IP 详情是邀请入口，NFC 触碰页是线下冷启动入口，Mint Studio 是赋予存在新意义的创作入口。
+- 首页是现实世界 UI 入口，商城 / IP 详情是邀请入口，NFC 触碰页是线下冷启动入口，Mint Studio 是赋予物体新表达的创作入口。
 - The project converges toward the core object model:
   - `users`
   - `ip_definitions`
@@ -49,7 +51,7 @@ Before making non-trivial changes, read:
 - Apps own voice, ritual, pacing, story expression, and domain-specific experience.
 - Do not add a new core table just to represent Mint Space; it is a user-facing aggregation of core objects and OS capabilities.
 - When old-architecture logic conflicts with the current core object model, replace it with the new core/OS pattern directly. Do not add compatibility shells, fallback branches, or parallel legacy flows unless the user explicitly asks for temporary migration support.
-- Legacy light apps that have not been reconnected to the new OS skeleton may be frozen, but they must not drive new core design, leak old action names into new IP flows, or reintroduce old content/default/asset semantics. New IP work should follow the core-driven Tissue Puppy pattern unless the user explicitly reopens a legacy app migration.
+- Legacy light apps that were explicitly retired must be removed from active manifests, routes, seeds, Studio profiles, official UI, tests, and app-specific tables. Do not keep frozen placeholder shells for retired apps; future versions must reconnect through the new core OS pattern from scratch.
 
 ## Development Rules
 
@@ -67,6 +69,7 @@ Before making non-trivial changes, read:
 - Do not create parallel admin shells, duplicate route trees, or one-off routing conventions.
 - Customer-facing navigation and copy must respect user state: unknown / unowned users see world and invitation paths first; owned users see Mint Space first.
 - Avoid task, level, gacha, warehouse, shelf, and hard-advertising language unless the user explicitly asks for that direction.
+- Avoid preset IP relationship, CP, friendship matrix, and Space notes as product defaults unless the user explicitly reopens that direction.
 
 ## Refactor Preferences
 

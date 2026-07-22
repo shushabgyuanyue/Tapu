@@ -38,14 +38,4 @@ export const CRITICAL_PERMISSION_FLOWS = [
       { method: 'delete', path: '/api/contents/:id', permissionType: 'content_owner', operation: 'content:owner_manage' },
     ],
   },
-  {
-    id: 'light-app-token-actions',
-    title: 'Behavior apps mutate through active app token',
-    routes: [
-      { method: 'post', path: '/api/checks/items', permissionType: 'app_token_active', operation: 'app:token_operate' },
-      { method: 'put', path: '/api/checks/items/:itemId', permissionType: 'app_token_active', operation: 'app:token_operate' },
-      { method: 'post', path: '/api/travel-trails/places', permissionType: 'app_token_active', operation: 'app:token_operate' },
-      { method: 'post', path: '/api/travel-trails/next-destination', permissionType: 'app_token_active', operation: 'app:token_operate' },
-    ],
-  },
 ];

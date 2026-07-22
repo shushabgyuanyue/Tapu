@@ -5,7 +5,6 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import initSqlJs from 'sql.js';
 import { findAppManifest, getAppManifests } from '../../server/contracts/appManifests.js';
-import { buildCoreContentLibraryItems } from '../../server/routes/mintStudio.js';
 import { resolveDefaultContentForIpInstance } from '../../server/routes/contents.js';
 import { upsertIpInstanceContentLink } from '../../server/services/coreStore.js';
 import { setAssetInstanceDefaultContent } from '../../server/services/assetSpace.js';
@@ -34,8 +33,13 @@ import {
   hydrateAuthoringResources,
 } from '../../server/services/contentResourceBinding.js';
 import { ensureApplicationRegistry } from '../../server/services/applicationRegistry.js';
+import { buildCoreContentLibraryItems } from '../../server/services/mintStudioLibrary.js';
+import {
+  getApplicationLifecycleFromRow,
+  getManifestLifecycle,
+  isApplicationRowSurfaceEnabled,
+} from '../../server/services/applicationLifecycle.js';
 import { ensureCoreOfficialIpSeed } from '../../server/services/coreOfficialIpSeed.js';
-import { ensureEarphoneGirlSeed } from '../../server/services/earphoneGirlSeed.js';
 import { listShopIpDefinitions } from '../../server/services/shopCatalog.js';
 import { backfillCoreTables } from '../../server/db/coreBackfill.js';
 
@@ -75,7 +79,7 @@ async function createMintStudioLibraryDb() {
   )`);
   db.run('CREATE TABLE content_definitions (id TEXT PRIMARY KEY, code TEXT, name TEXT, content_kind TEXT, primary_modality TEXT, authoring_schema_json TEXT, template_json TEXT)');
   db.run('CREATE TABLE ip_definitions (id TEXT PRIMARY KEY, name TEXT, primary_series_name TEXT)');
-  db.run('CREATE TABLE application_definitions (id TEXT PRIMARY KEY, code TEXT, name TEXT)');
+  db.run('CREATE TABLE application_definitions (id TEXT PRIMARY KEY, code TEXT, name TEXT, status TEXT DEFAULT "active", extra_json TEXT)');
   db.run('CREATE TABLE ip_instances (id TEXT PRIMARY KEY, ip_definition_id TEXT, application_definition_id TEXT, owner_user_id TEXT, token TEXT, entity_key TEXT, instance_type TEXT, label TEXT, status TEXT)');
   db.run(`CREATE TABLE content_instance_resource_links (
     id TEXT,
@@ -168,7 +172,7 @@ async function createMintStudioLibraryDb() {
       '{"renderer":"ar.camera-overlay","layout":"camera_center_overlay","playback":{"autoplay":true,"mutedByDefault":true},"ar":{"mode":"camera_overlay","placement":"screen_center"}}'
     )`);
   db.run("INSERT INTO ip_definitions (id, name, primary_series_name) VALUES ('ip-puppy', '纸巾小狗', '永远系列')");
-  db.run("INSERT INTO application_definitions (id, code, name) VALUES ('app-puppy', 'tissue-puppy', '纸巾小狗')");
+  db.run("INSERT INTO application_definitions (id, code, name, status, extra_json) VALUES ('app-puppy', 'tissue-puppy', '纸巾小狗', 'active', '{\"lifecycle\":{\"status\":\"active\",\"surfaces\":{\"shop\":true,\"nfc\":true,\"studio\":true,\"admin\":true}}}')");
   db.run("INSERT INTO ip_instances (id, ip_definition_id, application_definition_id, owner_user_id, token, entity_key, instance_type, label, status) VALUES ('ipinst-puppy', 'ip-puppy', 'app-puppy', 'user-1', 'token-1', 'token-1', 'mint_entity', '纸巾小狗', 'active')");
   db.run("INSERT INTO resources (id, owner_user_id, resource_type, storage_url, preview_url, status) VALUES ('res-puppy', 'user-1', 'video', '/video.mp4', '/poster.jpg', 'ready')");
   db.run("INSERT INTO resources (id, owner_user_id, resource_type, storage_url, preview_url, status) VALUES ('res-puppy-new', 'user-1', 'video', '/new-video.mp4', '/new-poster.jpg', 'ready')");
@@ -183,7 +187,7 @@ async function createMintStudioLibraryDb() {
      'published', '{"source":"mint-studio-definition-authoring","renderer":"video.fullscreen"}', '2026-07-20', '2026-07-20'),
     ('content-legacy', 'ip-puppy', 'cntdef-puppy', 'app-puppy', 'user-1', 'user-1',
      'ipinst-puppy', '旧合集配置', '不应进入创作中心内容列表', 'mixed', 'mixed', 'official', 'public', 'public',
-     'published', '{"sourceTable":"content_collections"}', '2026-07-20', '2026-07-20')`);
+     'published', '{"source":"legacy-official-cms"}', '2026-07-20', '2026-07-20')`);
   db.run(`INSERT INTO ip_instance_content_instance_links
     (id, ip_instance_id, content_instance_id, relation_role, is_primary, sort_order, metadata_json)
     VALUES ('link-puppy-owner-default', 'ipinst-puppy', 'content-puppy', 'owner_default', 1, 0, '{}')`);
@@ -197,7 +201,6 @@ async function createCoreSeedDb() {
   ensureApplicationRegistry(db);
   backfillCoreTables(db);
   ensureCoreOfficialIpSeed(db);
-  ensureEarphoneGirlSeed(db);
   return db;
 }
 
@@ -274,12 +277,12 @@ test('desktop secret enters Mint Studio through the OS AR image renderer definit
   assert.ok(!profile.creationModes.some(mode => mode.code === 'collect_asset'));
 });
 
-test('shop catalog contains the three new-core public IP entries after seed', async () => {
+test('shop catalog contains the active new-core public IP entries after seed', async () => {
   const db = await createCoreSeedDb();
   const items = listShopIpDefinitions(db);
   const byCode = new Map(items.map(item => [item.code, item]));
 
-  for (const code of ['tissue-puppy', 'earphone-girl', 'desktop-secret']) {
+  for (const code of ['tissue-puppy', 'desktop-secret']) {
     assert.ok(byCode.has(code), `${code} should be visible in shop catalog`);
   }
   assert.equal(byCode.get('tissue-puppy')?.name, '纸巾小狗');
@@ -288,17 +291,36 @@ test('shop catalog contains the three new-core public IP entries after seed', as
   assert.equal(byCode.get('desktop-secret')?.official_experiences?.[0]?.id, 'content-desktop-secret-ar-snow-realm');
 });
 
-test('legacy collect_asset action is only allowed on frozen light apps', () => {
+test('no active app manifest uses legacy collect_asset actions', () => {
   for (const manifest of getAppManifests()) {
     const hasLegacyAction = manifest.mintStudio?.primaryActions?.includes('collect_asset');
-    if (hasLegacyAction) {
-      assert.equal(manifest.legacyFrozen, true, `${manifest.code} must be marked frozen before using collect_asset`);
-      const profile = getMintStudioProfile(manifest.mintStudio.profile);
-      assert.ok(profile?.creationModes?.some(mode => mode.code === 'collect_asset' && mode.legacy === true));
-      continue;
-    }
-
     assert.equal(hasLegacyAction, false);
+  }
+});
+
+test('application lifecycle controls customer-facing surfaces', async () => {
+  const db = await createCoreSeedDb();
+  const manifests = new Map(getAppManifests().map(manifest => [manifest.code, manifest]));
+
+  assert.equal(getManifestLifecycle(manifests.get('tissue-puppy')).status, 'active');
+  assert.equal(getManifestLifecycle(manifests.get('tissue-puppy')).surfaces.shop, true);
+  assert.equal(getManifestLifecycle(manifests.get('desktop-secret')).surfaces.nfc, true);
+  for (const retiredCode of ['emotion-ip', 'earphone-girl', 'answer-book', 'moment', 'travel-trail', 'check']) {
+    assert.equal(manifests.has(retiredCode), false, `${retiredCode} should not remain as a manifest`);
+  }
+
+  const rows = db.exec(
+    `SELECT code, version_no, status, extra_json
+     FROM application_definitions
+     WHERE code IN ('tissue-puppy', 'emotion-ip', 'earphone-girl', 'answer-book', 'moment', 'travel-trail', 'check')
+     ORDER BY code`
+  )[0].values.map(([code, version_no, status, extra_json]) => ({ code, version_no, status, extra_json }));
+  const byCode = new Map(rows.map(row => [row.code, row]));
+
+  assert.equal(getApplicationLifecycleFromRow(byCode.get('tissue-puppy')).status, 'active');
+  assert.equal(isApplicationRowSurfaceEnabled(byCode.get('tissue-puppy'), 'shop'), true);
+  for (const retiredCode of ['emotion-ip', 'earphone-girl', 'answer-book', 'moment', 'travel-trail', 'check']) {
+    assert.equal(byCode.has(retiredCode), false, `${retiredCode} should not be seeded into application_definitions`);
   }
 });
 

@@ -1,9 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 700" role="img" aria-label="Earphone Girl story 1">
-  <rect width="1000" height="700" fill="#f7efe2"/>
-  <path d="M110 520 C250 450 360 560 500 480 C640 400 760 430 900 350" fill="none" stroke="#e98d6f" stroke-width="12" stroke-linecap="round"/>
-  <path d="M280 330 C360 210 520 230 560 370" fill="none" stroke="#20353f" stroke-width="18" stroke-linecap="round"/>
-  <circle cx="260" cy="365" r="78" fill="#d7ece8" stroke="#20353f" stroke-width="12"/>
-  <circle cx="600" cy="365" r="78" fill="#fffaf1" stroke="#20353f" stroke-width="12"/>
-  <text x="98" y="118" font-size="52" fill="#20353f" font-family="Georgia, serif">A small road</text>
-  <text x="100" y="170" font-size="26" fill="#58706f" font-family="serif">not lost, just invited</text>
-</svg>

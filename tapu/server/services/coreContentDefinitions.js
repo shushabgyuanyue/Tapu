@@ -1,4 +1,5 @@
 import { getAppManifests } from '../contracts/appManifests.js';
+import { getManifestLifecycle } from './applicationLifecycle.js';
 import { cleanString, stringifyJson } from './coreStore.js';
 import { resultToObjects } from './tokens.js';
 
@@ -53,6 +54,7 @@ function buildDefinitionSchema(manifest) {
 
 export function ensureCoreContentDefinitions(db) {
   for (const manifest of getAppManifests()) {
+    if (getManifestLifecycle(manifest).status === 'retired') continue;
     const app = getApplicationByCode(db, manifest.code);
     if (!app) continue;
 

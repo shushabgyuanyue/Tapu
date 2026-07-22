@@ -17,7 +17,7 @@ function promptCopyFor(appCode, bound) {
 
 export function buildOsEntryPrompt(params = {}) {
   const surface = params.surface || 'nfc_player';
-  const appCode = params.appCode || 'emotion-ip';
+  const appCode = params.appCode || 'unknown';
   const token = params.token || '';
   const object = params.object || {};
   const bound = !!object.owner_user_id;

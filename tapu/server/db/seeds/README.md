@@ -4,7 +4,7 @@ This directory is the forward path for deterministic default data and test fixtu
 
 Rules:
 
-- Use monotonically increasing ids for ordered seeds: `0001_add_check_templates.js`.
+- Use monotonically increasing ids for ordered seeds: `0001_add_core_content_definition.js`.
 - Export a default object with `id`, `title`, `description`, and `apply()`.
 - Keep schema changes in `server/db/migrations`; seeds should only create or update data.
 - Prefer idempotent seeds so local development and tests can run them repeatedly.

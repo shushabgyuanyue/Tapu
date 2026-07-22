@@ -191,19 +191,18 @@ function actionRequiresAuth(action: string) {
   return !!studio.value?.recipe.permissions?.actions?.[action]?.requiresAuth;
 }
 
-function isEntityConnectionAction(action: string, option?: Pick<StudioStepOption, 'legacy'>) {
-  if (['claim_entity', 'set_entity_default_content'].includes(action)) return true;
-  return action === 'collect_asset' && option?.legacy === true;
+function isEntityConnectionAction(action: string) {
+  return ['claim_entity', 'set_entity_default_content'].includes(action);
 }
 
-function pendingLoginActionFor(action: string, option?: Pick<StudioStepOption, 'legacy'>): PendingLoginAction {
-  if (isEntityConnectionAction(action, option)) return 'connect_entity';
+function pendingLoginActionFor(action: string): PendingLoginAction {
+  if (isEntityConnectionAction(action)) return 'connect_entity';
   return '';
 }
 
-function ensureActionLogin(action: string, option?: Pick<StudioStepOption, 'legacy'>) {
+function ensureActionLogin(action: string) {
   if (!actionRequiresAuth(action) || isLoggedIn()) return true;
-  const pending = pendingLoginActionFor(action, option);
+  const pending = pendingLoginActionFor(action);
   if (pending) pendingLoginAction.value = pending;
   showLogin.value = true;
   return false;
@@ -288,7 +287,7 @@ function handleFlowTextSend() {
 }
 
 async function handleFlowOption(option: StudioStepOption) {
-  if (!ensureActionLogin(option.action, option)) return;
+  if (!ensureActionLogin(option.action)) return;
   addMessage('user', option.label);
   flowAnswers.value[currentStep.value?.id || option.id] = option.id;
 
@@ -297,7 +296,7 @@ async function handleFlowOption(option: StudioStepOption) {
     return;
   }
 
-  if (isEntityConnectionAction(option.action, option)) {
+  if (isEntityConnectionAction(option.action)) {
     connectEntity();
     return;
   }
@@ -698,6 +697,7 @@ onUnmounted(() => {
         <MintStudioContentDetailPanel
           v-if="isStudioDetailMode"
           :content-id="selectedContentId"
+          :allow-official-actions="isOfficialStudio"
           @edit="editContentFromDetail"
           @deleted="handleDetailDeleted"
         />

@@ -2,22 +2,22 @@
 export const shopCopy = {
   hero: {
     eyebrow: 'WhatMint Invitation Hall',
-    title: '邀请一个有灵的存在，进入你的 Mint Space',
-    subtitle: '这里不是商品货架，而是认识新伙伴的地方。了解它的性格、应用体验与现实入口，再决定是否把它邀请进生活。',
-    pills: ['IP 存在', '应用体验', '实体入口'],
+    title: '让日常物品获得数字表达',
+    subtitle: '这里不是商品货架，而是认识现实入口的地方。了解它服务的生活场景、触发体验和实体形式，再决定是否把它带进生活。',
+    pills: ['现实入口', '场景体验', '数字表达'],
     featured: 'New Arrival',
     inspectHint: 'Meet this IP',
     fallbackDescription: '触碰实体后，它会打开自己的小世界',
   },
   product: {
-    defaultTags: ['情绪入口', 'NFC 实体', '可接入灵境'],
+    defaultTags: ['情绪入口', 'NFC 实体', '现实 UI'],
     empty: '暂时还没有可以邀请的新存在',
     emptyFiltered: '暂时没有符合这些条件的存在，可以放宽筛选再看看。',
   },
   filters: {
     ariaLabel: '商城筛选',
     eyebrow: 'Discovery Filter',
-    title: '按你的灵境需要寻找',
+    title: '按生活场景寻找入口',
     searchLabel: '关键词',
     searchPlaceholder: '搜索名字、性格、场景或故事线索',
     application: '应用',
@@ -34,7 +34,7 @@ export const shopCopy = {
   },
   card: {
     defaultApp: '轻应用',
-    fallbackDescription: '触碰实体即可进入它的小世界，内容可以更新，也可以成为长期存在的关系载体。',
+    fallbackDescription: '触碰实体即可进入对应的场景体验，内容可以更新，也可以成为长期存在的表达入口。',
     detail: '认识它',
     externalPurchase: '邀请方式',
   },
@@ -55,9 +55,6 @@ export const shopCopy = {
     appFallback: '这个应用会定义触碰后的交互、内容模板和体验节奏。',
     specTitle: '实体信息',
     storyTitle: '关于它',
-    relationsTitle: '它认识谁',
-    relationsIntro: '这些关系帮助 WhatMint 的世界慢慢长出情绪纹理。',
-    relationsEmpty: '它还没有公开的关系故事。',
     contentTitle: '官方体验',
     contentIntro: '这里展示用户在触碰实体或进入空间时会看到的默认体验。',
     specs: {

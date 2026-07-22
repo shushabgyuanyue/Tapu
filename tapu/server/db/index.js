@@ -3,12 +3,9 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { createUniqueEntityToken, resultToObjects } from '../services/tokens.js';
-import { ensureEarphoneGirlSeed } from '../services/earphoneGirlSeed.js';
-import { ensureAnswerBookSeed } from '../services/answerBookSeed.js';
 import { ensureApplicationRegistry } from '../services/applicationRegistry.js';
-import { ensureCheckTemplatesSeed } from '../services/checkTemplateSeed.js';
 import { ensureCoreOfficialIpSeed } from '../services/coreOfficialIpSeed.js';
-import { ensureTravelTrailDemoSeed } from '../services/travelTrailSeed.js';
+import { removeRetiredProductSeeds } from '../services/retiredProducts.js';
 import { backfillCoreTables } from './coreBackfill.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -36,14 +33,6 @@ function runSchemaSafely(database, schema) {
   }
 }
 
-function getTableInfo(database, tableName) {
-  try {
-    return resultToObjects(database.exec(`PRAGMA table_info(${tableName})`));
-  } catch {
-    return [];
-  }
-}
-
 function removeLegacyCommerceTables(database) {
   database.run('DROP TABLE IF EXISTS wishlist');
   database.run('DROP TABLE IF EXISTS purchases');
@@ -51,20 +40,59 @@ function removeLegacyCommerceTables(database) {
   database.run("DELETE FROM site_config WHERE key IN ('community_enabled', 'wishlist_enabled')");
 }
 
-function resetContentBindingSchemaIfNeeded(database) {
-  const bindingColumns = getTableInfo(database, 'app_bindings');
-  const hasOldBindingShape = bindingColumns.some(column => column.name === 'content_collection_id')
-    || bindingColumns.some(column => column.name === 'token')
-    || bindingColumns.some(column => column.name === 'object_id');
-  if (hasOldBindingShape) {
-    database.run('DROP TABLE IF EXISTS app_bindings');
+function removeLegacyCommunityTables(database) {
+  const tables = [
+    'play_events',
+    'interactions',
+    'defaults',
+    'user_defaults',
+  ];
+  for (const table of tables) {
+    try {
+      database.run(`DROP TABLE IF EXISTS ${table}`);
+    } catch {
+      // Legacy community/video metrics cleanup should never block database boot.
+    }
   }
+}
 
-  const collectionColumns = getTableInfo(database, 'content_collections');
-  const slugColumn = collectionColumns.find(column => column.name === 'slug');
-  if (slugColumn && Number(slugColumn.notnull) !== 1) {
-    database.run('DROP TABLE IF EXISTS content_collection_blocks');
-    database.run('DROP TABLE IF EXISTS content_collections');
+function removeLegacyOfficialContentTables(database) {
+  const tables = [
+    'work_versions',
+    'works',
+    'app_bindings',
+    'content_collection_blocks',
+    'content_collections',
+  ];
+  for (const table of tables) {
+    try {
+      database.run(`DROP TABLE IF EXISTS ${table}`);
+    } catch {
+      // Legacy official CMS cleanup should never block database boot.
+    }
+  }
+}
+
+function removeLegacyLightAppTables(database) {
+  const tables = [
+    'answer_book_draw_events',
+    'answer_book_tokens',
+    'answer_book_cards',
+    'answer_book_decks',
+    'moment_tokens',
+    'travel_trail_places',
+    'travel_trails',
+    'checklist_items',
+    'checklists',
+    'check_template_items',
+    'check_templates',
+  ];
+  for (const table of tables) {
+    try {
+      database.run(`DROP TABLE IF EXISTS ${table}`);
+    } catch {
+      // Legacy light-app cleanup should never block database boot.
+    }
   }
 }
 
@@ -116,11 +144,16 @@ export async function getDb() {
   const coreSchema = fs.readFileSync(CORE_SCHEMA_PATH, 'utf-8');
   runSchemaSafely(db, schema);
   runSchemaSafely(db, coreSchema);
-  resetContentBindingSchemaIfNeeded(db);
   removeLegacyCommerceTables(db);
+  removeLegacyCommunityTables(db);
+  removeLegacyOfficialContentTables(db);
+  removeLegacyLightAppTables(db);
   runSchemaSafely(db, schema);
   runSchemaSafely(db, coreSchema);
   removeLegacyCommerceTables(db);
+  removeLegacyCommunityTables(db);
+  removeLegacyOfficialContentTables(db);
+  removeLegacyLightAppTables(db);
 
   // Migrations: add columns if missing
   const migrations = [
@@ -155,7 +188,6 @@ export async function getDb() {
     'ALTER TABLE users ADD COLUMN avatar_url TEXT',
     'ALTER TABLE users ADD COLUMN profile_json TEXT',
     'ALTER TABLE users ADD COLUMN updated_at DATETIME',
-    'ALTER TABLE interactions ADD COLUMN user_id TEXT',
     `CREATE TABLE IF NOT EXISTS site_config (
       key TEXT PRIMARY KEY,
       value TEXT
@@ -164,11 +196,6 @@ export async function getDb() {
     "ALTER TABLE orders ADD COLUMN order_source TEXT DEFAULT 'platform'",
     'ALTER TABLE orders ADD COLUMN nfc_written_at DATETIME',
     'ALTER TABLE orders ADD COLUMN token_delivered_at DATETIME',
-    'ALTER TABLE moment_tokens ADD COLUMN work_id TEXT',
-    'ALTER TABLE travel_trails ADD COLUMN work_id TEXT',
-    'ALTER TABLE travel_trails ADD COLUMN next_place TEXT',
-    'ALTER TABLE travel_trails ADD COLUMN next_place_note TEXT',
-    "ALTER TABLE travel_trails ADD COLUMN journey_state TEXT DEFAULT 'planning'",
     `CREATE TABLE IF NOT EXISTS auth_sessions (
       token TEXT PRIMARY KEY,
       user_id TEXT NOT NULL,
@@ -309,189 +336,6 @@ export async function getDb() {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )`,
-    `CREATE TABLE IF NOT EXISTS content_collections (
-      id TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      slug TEXT UNIQUE NOT NULL,
-      description TEXT,
-      primary_modality TEXT DEFAULT 'mixed',
-      theme_color TEXT,
-      status TEXT DEFAULT 'draft' CHECK(status IN ('draft', 'published', 'archived')),
-      metadata_json TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    )`,
-    `CREATE TABLE IF NOT EXISTS content_collection_blocks (
-      id TEXT PRIMARY KEY,
-      collection_id TEXT NOT NULL,
-      kind TEXT NOT NULL,
-      role TEXT,
-      title TEXT,
-      body TEXT,
-      url TEXT,
-      alt TEXT,
-      poster TEXT,
-      caption TEXT,
-      tag TEXT,
-      href TEXT,
-      label TEXT,
-      action TEXT,
-      emphasis TEXT,
-      metadata_json TEXT,
-      sort_order INTEGER DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (collection_id) REFERENCES content_collections(id) ON DELETE CASCADE
-    )`,
-    `CREATE TABLE IF NOT EXISTS app_bindings (
-      id TEXT PRIMARY KEY,
-      app_code TEXT NOT NULL,
-      scope_type TEXT DEFAULT 'app' CHECK(scope_type IN ('app', 'token', 'object')),
-      scope_id TEXT NOT NULL DEFAULT '',
-      collection_id TEXT NOT NULL,
-      binding_role TEXT DEFAULT 'primary',
-      status TEXT DEFAULT 'active' CHECK(status IN ('active', 'paused')),
-      starts_at DATETIME,
-      ends_at DATETIME,
-      metadata_json TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (collection_id) REFERENCES content_collections(id) ON DELETE CASCADE,
-      UNIQUE(app_code, scope_type, scope_id, binding_role)
-    )`,
-    `CREATE TABLE IF NOT EXISTS works (
-      id TEXT PRIMARY KEY,
-      title TEXT NOT NULL,
-      description TEXT,
-      app_code TEXT NOT NULL,
-      intent TEXT DEFAULT 'commemorate',
-      status TEXT DEFAULT 'draft' CHECK(status IN ('draft', 'active', 'archived')),
-      collection_id TEXT,
-      entity_id TEXT,
-      token_id TEXT,
-      token TEXT,
-      recipient_name TEXT,
-      sender_name TEXT,
-      starts_at DATETIME,
-      ends_at DATETIME,
-      version INTEGER DEFAULT 1,
-      created_by TEXT,
-      metadata_json TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (collection_id) REFERENCES content_collections(id) ON DELETE SET NULL,
-      FOREIGN KEY (entity_id) REFERENCES entities(id) ON DELETE SET NULL,
-      FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
-    )`,
-    `CREATE TABLE IF NOT EXISTS work_versions (
-      id TEXT PRIMARY KEY,
-      work_id TEXT NOT NULL,
-      version INTEGER NOT NULL,
-      title TEXT NOT NULL,
-      description TEXT,
-      app_code TEXT NOT NULL,
-      intent TEXT,
-      collection_id TEXT,
-      snapshot_json TEXT,
-      created_by TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (work_id) REFERENCES works(id) ON DELETE CASCADE,
-      FOREIGN KEY (collection_id) REFERENCES content_collections(id) ON DELETE SET NULL,
-      FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
-      UNIQUE(work_id, version)
-    )`,
-    `CREATE TABLE IF NOT EXISTS moment_tokens (
-      id TEXT PRIMARY KEY,
-      token TEXT UNIQUE NOT NULL,
-      work_id TEXT,
-      collection_id TEXT NOT NULL,
-      title TEXT NOT NULL,
-      subtitle TEXT,
-      object_label TEXT,
-      event_date TEXT,
-      place TEXT,
-      cover_url TEXT,
-      theme_color TEXT,
-      status TEXT DEFAULT 'active' CHECK(status IN ('active', 'draft', 'archived')),
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (work_id) REFERENCES works(id) ON DELETE SET NULL,
-      FOREIGN KEY (collection_id) REFERENCES content_collections(id) ON DELETE CASCADE
-    )`,
-    `CREATE TABLE IF NOT EXISTS travel_trails (
-      id TEXT PRIMARY KEY,
-      token TEXT UNIQUE NOT NULL,
-      work_id TEXT,
-      title TEXT NOT NULL,
-      subtitle TEXT,
-      object_label TEXT,
-      next_place TEXT,
-      next_place_note TEXT,
-      journey_state TEXT DEFAULT 'planning' CHECK(journey_state IN ('planning', 'traveling', 'returned')),
-      theme_color TEXT,
-      status TEXT DEFAULT 'active' CHECK(status IN ('active', 'draft', 'archived')),
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (work_id) REFERENCES works(id) ON DELETE SET NULL
-    )`,
-    `CREATE TABLE IF NOT EXISTS travel_trail_places (
-      id TEXT PRIMARY KEY,
-      trail_id TEXT NOT NULL,
-      name TEXT NOT NULL,
-      note TEXT,
-      visited_at TEXT,
-      lat REAL,
-      lng REAL,
-      sort_order INTEGER DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (trail_id) REFERENCES travel_trails(id) ON DELETE CASCADE
-    )`,
-    `CREATE TABLE IF NOT EXISTS check_templates (
-      id TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      scenario TEXT,
-      description TEXT,
-      object_hint TEXT,
-      theme_color TEXT DEFAULT '#2f6f5e',
-      status TEXT DEFAULT 'active' CHECK(status IN ('active', 'draft', 'archived')),
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    )`,
-    `CREATE TABLE IF NOT EXISTS check_template_items (
-      id TEXT PRIMARY KEY,
-      template_id TEXT NOT NULL,
-      label TEXT NOT NULL,
-      hint TEXT,
-      sort_order INTEGER DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (template_id) REFERENCES check_templates(id) ON DELETE CASCADE
-    )`,
-    `CREATE TABLE IF NOT EXISTS checklists (
-      id TEXT PRIMARY KEY,
-      token TEXT UNIQUE NOT NULL,
-      work_id TEXT,
-      template_id TEXT,
-      title TEXT NOT NULL,
-      subtitle TEXT,
-      object_label TEXT,
-      scenario TEXT,
-      theme_color TEXT DEFAULT '#2f6f5e',
-      status TEXT DEFAULT 'active' CHECK(status IN ('active', 'draft', 'archived')),
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (work_id) REFERENCES works(id) ON DELETE SET NULL,
-      FOREIGN KEY (template_id) REFERENCES check_templates(id) ON DELETE SET NULL
-    )`,
-    `CREATE TABLE IF NOT EXISTS checklist_items (
-      id TEXT PRIMARY KEY,
-      checklist_id TEXT NOT NULL,
-      label TEXT NOT NULL,
-      hint TEXT,
-      is_required INTEGER DEFAULT 0,
-      is_checked INTEGER DEFAULT 0,
-      checked_at DATETIME,
-      sort_order INTEGER DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (checklist_id) REFERENCES checklists(id) ON DELETE CASCADE
-    )`,
     `CREATE TABLE IF NOT EXISTS orders (
       id TEXT PRIMARY KEY,
       buyer_user_id TEXT NOT NULL,
@@ -514,49 +358,6 @@ export async function getDb() {
     "ALTER TABLE orders ADD COLUMN order_source TEXT DEFAULT 'platform'",
     'ALTER TABLE orders ADD COLUMN nfc_written_at DATETIME',
     'ALTER TABLE orders ADD COLUMN token_delivered_at DATETIME',
-    `CREATE TABLE IF NOT EXISTS answer_book_decks (
-      id TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      subtitle TEXT,
-      description TEXT,
-      tone_notes TEXT,
-      theme_color TEXT DEFAULT '#2f6f5e',
-      status TEXT DEFAULT 'active',
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    )`,
-    `CREATE TABLE IF NOT EXISTS answer_book_cards (
-      id TEXT PRIMARY KEY,
-      deck_id TEXT NOT NULL,
-      answer TEXT NOT NULL,
-      response TEXT,
-      action TEXT,
-      tag TEXT,
-      status TEXT DEFAULT 'active',
-      sort_order INTEGER DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (deck_id) REFERENCES answer_book_decks(id) ON DELETE CASCADE
-    )`,
-    `CREATE TABLE IF NOT EXISTS answer_book_tokens (
-      id TEXT PRIMARY KEY,
-      deck_id TEXT NOT NULL,
-      token TEXT UNIQUE NOT NULL,
-      label TEXT,
-      status TEXT DEFAULT 'active',
-      issued_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (deck_id) REFERENCES answer_book_decks(id) ON DELETE CASCADE
-    )`,
-    `CREATE TABLE IF NOT EXISTS answer_book_draw_events (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      token_id TEXT,
-      deck_id TEXT,
-      card_id TEXT,
-      user_agent TEXT,
-      drawn_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (token_id) REFERENCES answer_book_tokens(id) ON DELETE SET NULL,
-      FOREIGN KEY (deck_id) REFERENCES answer_book_decks(id) ON DELETE SET NULL,
-      FOREIGN KEY (card_id) REFERENCES answer_book_cards(id) ON DELETE SET NULL
-    )`,
   ];
   for (const sql of migrations) {
     try { db.run(sql); } catch (e) { /* Column already exists */ }
@@ -564,6 +365,14 @@ export async function getDb() {
 
   try {
     removeLegacyCommerceTables(db);
+  } catch (e) { /* ignore */ }
+
+  try {
+    removeLegacyCommunityTables(db);
+  } catch (e) { /* ignore */ }
+
+  try {
+    removeLegacyOfficialContentTables(db);
   } catch (e) { /* ignore */ }
 
   try {
@@ -603,9 +412,6 @@ export async function getDb() {
     db.run('CREATE INDEX IF NOT EXISTS idx_entity_ownership_events_entity ON entity_ownership_events(entity_id)');
     db.run('CREATE INDEX IF NOT EXISTS idx_entity_ownership_events_token ON entity_ownership_events(token)');
     db.run('CREATE INDEX IF NOT EXISTS idx_entity_ownership_events_order ON entity_ownership_events(order_id)');
-    db.run('CREATE INDEX IF NOT EXISTS idx_answer_book_cards_deck ON answer_book_cards(deck_id)');
-    db.run('CREATE INDEX IF NOT EXISTS idx_answer_book_tokens_deck ON answer_book_tokens(deck_id)');
-    db.run('CREATE INDEX IF NOT EXISTS idx_answer_book_draw_events_token ON answer_book_draw_events(token_id)');
     db.run('CREATE INDEX IF NOT EXISTS idx_meaningful_states_subject ON meaningful_states(subject_type, subject_id)');
     db.run('CREATE INDEX IF NOT EXISTS idx_meaningful_states_key ON meaningful_states(state_key)');
     db.run('CREATE INDEX IF NOT EXISTS idx_meaningful_states_source ON meaningful_states(source_app_code, source_object_id)');
@@ -619,52 +425,11 @@ export async function getDb() {
     db.run('CREATE INDEX IF NOT EXISTS idx_content_instance_versions_content ON content_instance_versions(content_instance_id, status, version_no)');
     db.run('CREATE UNIQUE INDEX IF NOT EXISTS idx_ip_instance_content_primary_unique ON ip_instance_content_instance_links(ip_instance_id, relation_role) WHERE is_primary = 1');
     db.run('CREATE INDEX IF NOT EXISTS idx_studio_authoring_drafts_user ON studio_authoring_drafts(user_id, status, updated_at)');
-    db.run('CREATE INDEX IF NOT EXISTS idx_content_collection_blocks_collection ON content_collection_blocks(collection_id)');
-    db.run('CREATE INDEX IF NOT EXISTS idx_app_bindings_app ON app_bindings(app_code)');
-    db.run('CREATE INDEX IF NOT EXISTS idx_app_bindings_scope ON app_bindings(scope_type, scope_id)');
-    db.run('CREATE INDEX IF NOT EXISTS idx_app_bindings_app_scope ON app_bindings(app_code, scope_type, scope_id)');
-    db.run('CREATE INDEX IF NOT EXISTS idx_app_bindings_collection ON app_bindings(collection_id)');
-    db.run('CREATE INDEX IF NOT EXISTS idx_works_app ON works(app_code)');
-    db.run('CREATE INDEX IF NOT EXISTS idx_works_intent ON works(intent)');
-    db.run('CREATE INDEX IF NOT EXISTS idx_works_collection ON works(collection_id)');
-    db.run('CREATE INDEX IF NOT EXISTS idx_works_token ON works(token)');
-    db.run('CREATE INDEX IF NOT EXISTS idx_work_versions_work ON work_versions(work_id)');
-    db.run('CREATE INDEX IF NOT EXISTS idx_moment_tokens_work ON moment_tokens(work_id)');
-    db.run('CREATE INDEX IF NOT EXISTS idx_moment_tokens_token ON moment_tokens(token)');
-    db.run('CREATE INDEX IF NOT EXISTS idx_moment_tokens_collection ON moment_tokens(collection_id)');
-    db.run('CREATE INDEX IF NOT EXISTS idx_moment_tokens_status ON moment_tokens(status)');
-    db.run('CREATE INDEX IF NOT EXISTS idx_travel_trails_token ON travel_trails(token)');
-    db.run('CREATE INDEX IF NOT EXISTS idx_travel_trails_work ON travel_trails(work_id)');
-    db.run('CREATE INDEX IF NOT EXISTS idx_travel_trails_status ON travel_trails(status)');
-    db.run('CREATE INDEX IF NOT EXISTS idx_travel_trail_places_trail ON travel_trail_places(trail_id, sort_order)');
-    db.run('CREATE INDEX IF NOT EXISTS idx_check_template_items_template ON check_template_items(template_id, sort_order)');
-    db.run('CREATE INDEX IF NOT EXISTS idx_checklists_token ON checklists(token)');
-    db.run('CREATE INDEX IF NOT EXISTS idx_checklists_template ON checklists(template_id)');
-    db.run('CREATE INDEX IF NOT EXISTS idx_checklists_work ON checklists(work_id)');
-    db.run('CREATE INDEX IF NOT EXISTS idx_checklist_items_checklist ON checklist_items(checklist_id, sort_order)');
   } catch (e) { /* ignore */ }
 
   try {
-    db.run(`CREATE UNIQUE INDEX IF NOT EXISTS idx_interactions_user_unique
-      ON interactions(video_id, type, user_id)
-      WHERE user_id IS NOT NULL AND type IN ('like', 'favorite')`);
-  } catch (e) { /* ignore */ }
-
-  try {
-    ensureEarphoneGirlSeed(db);
-  } catch (e) { /* earphone girl seed should never block startup */ }
-
-  try {
-    ensureAnswerBookSeed(db);
-  } catch (e) { /* answer book seed should never block startup */ }
-
-  try {
-    ensureCheckTemplatesSeed(db);
-  } catch (e) { /* check templates seed should never block startup */ }
-
-  try {
-    ensureTravelTrailDemoSeed(db);
-  } catch (e) { /* travel trail demo seed should never block startup */ }
+    removeRetiredProductSeeds(db);
+  } catch (e) { /* retired product cleanup should never block startup */ }
 
   saveDb();
 

@@ -25,11 +25,11 @@
 
 - `/api/assets` 是 IP 实例和资产交易的唯一正式 OS 入口；`/api/auth` 只保留身份、账户资料和申诉职责。
 - `assetSpace` service 统一负责：账号下 IP 实例读取、token 认领、解绑、转赠、读取/设置实例默认内容、通过 token 设置默认内容。
-- `mintSpaceProfile` service 统一负责：根据账号持有的 `ip_instances`、对应 `ip_definitions` 和 `application_definitions` 推导 Mint Space 的伙伴、空间人格轴、氛围、合照布局提示和规则化灵境杂记；前端不再维护第二套 profile fallback。
+- `mintSpaceProfile` service 统一负责：根据账号持有的 `ip_instances`、对应 `ip_definitions` 和 `application_definitions` 推导 Mint Space 的伙伴、空间人格轴、氛围和合照布局提示；前端不再维护第二套 profile fallback。
 - `osEntryPrompt` service 统一负责触碰 / 应用入口后的 Space Invitation Prompt：OS 判断登录、绑定状态、展示频率、关闭状态和跳转目标；应用 manifest 只声明展示形式与频率，官方文案集中在 `server/copy/osEntryPrompts.js`。
 - `ip_instance_content_links` 约束同一 `ip_instance_id + relation_role` 只能有一个 primary 内容，避免默认体验出现多重业务真相。
 - 前端 Mint Space 只通过 `src/api/assets.ts` / `src/api/index.ts` 的资产 helper 访问接口，不在页面或组件里散写请求。
-- Mint Space 页面作为 OS 聚合入口，负责灵境合照、伙伴展示、灵境杂记、进入体验、创作中心、商城和伙伴二级管理；`/assets/:instanceId` 是统一伙伴详情页，具体 IP 的表达和渲染继续由应用定义、内容定义与 `/play` 渲染协议承接。
+- Mint Space 页面作为 OS 聚合入口，负责合照展示、伙伴展示、进入体验、创作中心、商城和伙伴二级管理；`/assets/:instanceId` 是统一伙伴详情页，具体 IP 的表达和渲染继续由应用定义、内容定义与 `/play` 渲染协议承接。
 - Mint Space 专项验收见：[Mint Space 新核心验收策略](asset-space-core-verification.md)。
 - 对客状态化导航和重构顺序见：[对客体验与 Mint Space 重构规划](customer-facing-experience-plan.md)。
 
@@ -119,11 +119,11 @@ MindAR 目前以 vendored browser build 接入，避免 `mind-ar` npm 包在 Win
 - Skill matching：应用定义声明订阅事件和技能，OS 负责任务匹配。
 - Event consumption：记录某事件被哪个 IP / skill 消费，避免重复触发失控。
 
-### 关系与生态
+### 场景上下文与生态
 
-- IP relation matrix：官方设定的 IP 情感关系、强度、叙事规则。
-- Relationship-aware runtime hints：OS 输出“谁和谁有什么关系”，应用只负责表达语气和剧情。
-- 商品/IP 详情展示关系设定，但不让关系逻辑散落到商城页面。
+- Scene-aware runtime hints：OS 输出用户拥有哪些现实入口、最近发生过哪些高价值场景事件，应用只负责把这些上下文转成自己的表达。
+- Meaning focus：事件规则记录 `meaning_focus`，用于安慰、出发、祝愿、桌面空间等场景语义，不再预设 IP 之间的朋友、CP 或固定关系。
+- 商品/IP 详情展示应用场景、实体入口和触碰后的数字表达，不展示官方关系设定。
 
 ### 工程治理
 

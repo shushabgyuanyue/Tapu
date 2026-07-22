@@ -47,11 +47,6 @@ export type MintSpaceProfile = {
     };
   };
   partners: MintSpacePartner[];
-  notes: Array<{
-    id: string;
-    text: string;
-    source: string;
-  }>;
   emptyState: {
     title: string;
     body: string;

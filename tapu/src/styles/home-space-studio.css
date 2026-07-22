@@ -114,22 +114,16 @@
   font-weight: 950;
 }
 
-.home-partner-list,
-.home-note-list {
+.home-partner-list {
   display: grid;
   gap: 10px;
 }
 
-.home-partner-list article,
-.home-note-list p {
+.home-partner-list article {
   padding: 16px;
   border: 1px solid var(--wm-line);
   border-radius: 22px;
   background: rgba(255, 255, 255, 0.64);
-}
-
-.home-note-list p {
-  margin: 0;
 }
 
 .home-studio-panel {

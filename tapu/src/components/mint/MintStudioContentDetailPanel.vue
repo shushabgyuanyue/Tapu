@@ -13,9 +13,12 @@ import { contentCopy, studioCopy } from '../../copy';
 import { emitContentChanged } from '../../events/appEvents';
 import '../../styles/contentDetail.css';
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   contentId: string;
-}>();
+  allowOfficialActions?: boolean;
+}>(), {
+  allowOfficialActions: false,
+});
 
 const emit = defineEmits<{
   (event: 'edit', contentId: string): void;
@@ -86,7 +89,7 @@ const detailSummary = computed(() => (
 const canEditContent = computed(() => !!content.value?.viewer_can_edit);
 const canDeleteContent = computed(() => !!content.value?.viewer_can_edit);
 const canBindToIpEntity = computed(() => !!content.value?.ip_definition_id);
-const canSetOfficialDefault = computed(() => !!content.value?.viewer_can_set_official_default);
+const canSetOfficialDefault = computed(() => props.allowOfficialActions && !!content.value?.viewer_can_set_official_default);
 
 async function loadContent() {
   if (!props.contentId) return;

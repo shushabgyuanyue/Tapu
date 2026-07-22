@@ -6,22 +6,20 @@ import { applyStudioPermissions } from '../services/studioPermissions.js';
 import { getEntityByToken, normalizeEntityToken, resultToObjects } from '../services/tokens.js';
 import {
   cleanString,
-  parseJson,
 } from '../services/coreStore.js';
 import { mintStudioCopy } from '../copy/studio.js';
 import {
-  getMintStudioAppLabel,
-  getMintStudioOpenRoute,
   getMintStudioProfile,
 } from '../services/mintStudioRecipeCatalog.js';
 import {
   buildDefinitionDrivenStudioFlow,
   getApplicationContentDefinitionGuides,
 } from '../services/mintStudioContentGuides.js';
+import { isApplicationRowSurfaceEnabled } from '../services/applicationLifecycle.js';
 import {
-  buildContentDetailRoute,
-  buildContentPreviewRoute,
-} from '../services/contentRenderingProtocol.js';
+  buildCoreContentLibraryItems,
+  dedupeLibraryItems,
+} from '../services/mintStudioLibrary.js';
 import {
   deleteStudioAuthoringDraft,
   listStudioAuthoringDrafts,
@@ -45,88 +43,12 @@ function compactToken(token) {
   return `${token.slice(0, 10)}...${token.slice(-6)}`;
 }
 
-function routeForApp(appCode, token) {
-  return getMintStudioOpenRoute(appCode, token);
-}
-
-function appLabel(appCode, fallback) {
-  return getMintStudioAppLabel(appCode, fallback || mintStudioCopy.library.fallbackLabels[appCode]);
-}
-
-function dedupeLibraryItems(items) {
-  const seen = new Set();
-  return items.filter(item => {
-    const key = item.id;
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
-}
-
-export function buildCoreContentLibraryItems(db, req) {
-  const isAdmin = req.user.username === 'admin';
-  const params = [];
-  const where = isAdmin
-    ? `WHERE json_extract(v.payload_json, '$.source') = 'mint-studio-definition-authoring'
-       AND COALESCE(v.status, 'draft') != 'archived'`
-    : `WHERE (
-        v.owner_user_id = ?
-        OR v.creator_user_id = ?
-        OR v.origin_ip_instance_id IN (SELECT id FROM ip_instances WHERE owner_user_id = ?)
-      )
-      AND json_extract(v.payload_json, '$.source') = 'mint-studio-definition-authoring'
-      AND COALESCE(v.status, 'draft') != 'archived'`;
-  if (!isAdmin) params.push(req.user.id, req.user.id, req.user.id);
-
-  return resultToObjects(db.exec(
-    `SELECT v.*, cd.name as content_definition_name, cd.code as content_definition_code,
-            d.name as group_name, d.primary_series_name as series_name,
-            cd.id as content_definition_id,
-            a.id as application_definition_id,
-            a.code as application_code, a.name as application_name,
-            i.id as ip_instance_id,
-            r.preview_url as poster_url
-     FROM content_instances v
-     LEFT JOIN content_definitions cd ON cd.id = v.content_definition_id
-     LEFT JOIN ip_definitions d ON d.id = v.ip_definition_id
-     LEFT JOIN application_definitions a ON a.id = v.application_definition_id
-     LEFT JOIN ip_instances i ON i.id = v.origin_ip_instance_id
-     LEFT JOIN content_instance_resource_links rl ON rl.content_instance_id = v.id AND rl.is_primary = 1
-     LEFT JOIN resources r ON r.id = rl.resource_id
-     ${where}
-     ORDER BY v.created_at DESC
-     LIMIT 60`,
-    params
-  )).map(row => {
-    const payload = parseJson(row.payload_json, {});
-    return { row, payload };
-  }).map(({ row, payload }) => {
-    const appCode = row.application_code || payload.appCode || 'emotion-ip';
-    return {
-      id: `content:${row.id}`,
-      contentInstanceId: row.id,
-      source: 'content',
-      title: row.title || row.content_definition_name || 'Content asset',
-      subtitle: row.summary || row.group_name || row.series_name || '',
-      appCode,
-      appName: appLabel(appCode, row.application_name),
-      ipDefinitionId: row.ip_definition_id || null,
-      ipInstanceId: row.ip_instance_id || null,
-      contentDefinitionId: row.content_definition_id || null,
-      applicationDefinitionId: row.application_definition_id || null,
-      previewRoute: buildContentPreviewRoute({
-        id: row.id,
-        content_kind: row.content_kind,
-        primary_modality: row.primary_modality,
-        renderer: payload.renderer,
-      }),
-      detailRoute: buildContentDetailRoute({ id: row.id }),
-      thumb: row.poster_url || payload.cover_url || payload.poster_url || '',
-      status: row.status || 'draft',
-      createdAt: row.created_at,
-      updatedAt: row.updated_at || row.created_at,
-    };
-  });
+function canUseStudio(row = {}) {
+  return isApplicationRowSurfaceEnabled({
+    status: row.application_status || 'active',
+    version_no: row.version_no || '1.0.0',
+    extra_json: row.application_extra_json || '{}',
+  }, 'studio');
 }
 
 function findEntityRecipeSource(db, rawToken) {
@@ -140,7 +62,7 @@ function findEntityRecipeSource(db, rawToken) {
             d.primary_series_name as series_name,
             a.id as application_definition_id,
             a.code as application_code, a.name as application_name,
-            a.app_type, a.interaction_type,
+            a.app_type, a.interaction_type, a.status as application_status, a.extra_json as application_extra_json,
             c.title as official_default_content_title,
             r.preview_url as official_default_content_poster,
             r.storage_url as official_default_content_url
@@ -170,7 +92,7 @@ function findOfficialIpRecipeSource(db, ipDefinitionId) {
             d.theme_color, d.cover_url, d.hero_url, d.product_image_url,
             d.rarity_label, d.primary_series_name as series_name,
             a.code as application_code, a.name as application_name,
-            a.app_type, a.interaction_type,
+            a.app_type, a.interaction_type, a.status as application_status, a.extra_json as application_extra_json,
             official.id as official_instance_id,
             l.content_instance_id as official_default_content_id,
             c.title as official_default_content_title,
@@ -194,9 +116,11 @@ function findOfficialIpRecipeSource(db, ipDefinitionId) {
 }
 
 function buildEntityRecipe(db, row, token) {
-  const appCode = row.application_code || 'emotion-ip';
+  if (!canUseStudio(row)) return null;
+  const appCode = row.application_code;
+  if (!appCode) return null;
   const profile = getMintStudioProfile(appCode);
-  const objectName = row.group_name || row.series_name || row.application_name || profile?.name || mintStudioCopy.entityRecipe.emotionIp;
+  const objectName = row.group_name || row.series_name || row.application_name || profile?.name || mintStudioCopy.entityRecipe.objectExpression;
   const studioTitle = profile?.studioTitle || mintStudioCopy.entityRecipe.studioTitle(objectName);
   const themeColor = row.theme_color || '#2f6f5e';
   const defaultContentId = row.official_default_content_id || null;
@@ -220,7 +144,7 @@ function buildEntityRecipe(db, row, token) {
     },
     app: {
       code: appCode,
-      name: row.application_name || profile?.name || mintStudioCopy.entityRecipe.emotionIp,
+      name: row.application_name || profile?.name || mintStudioCopy.entityRecipe.objectExpression,
       appType: row.app_type || 'meaning',
       interactionType: row.interaction_type || 'tap_to_emotional_content',
     },
@@ -275,7 +199,9 @@ function buildEntityRecipe(db, row, token) {
 }
 
 function buildOfficialIpRecipe(db, row) {
-  const objectName = row.group_name || row.series_name || row.application_name || mintStudioCopy.entityRecipe.emotionIp;
+  if (!canUseStudio(row)) return null;
+  if (!row.application_code) return null;
+  const objectName = row.group_name || row.series_name || row.application_name || mintStudioCopy.entityRecipe.objectExpression;
   const studioTitle = `${objectName} · 官方内容工作台`;
   const themeColor = row.theme_color || '#2f6f5e';
   const defaultContentId = row.official_default_content_id || null;
@@ -301,7 +227,7 @@ function buildOfficialIpRecipe(db, row) {
       image: row.product_image_url || row.cover_url || row.official_default_content_poster || null,
     },
     app: {
-      code: row.application_code || 'emotion-ip',
+      code: row.application_code,
       name: row.application_name || objectName,
       appType: row.app_type || 'meaning',
       interactionType: row.interaction_type || 'tap_to_emotion_content',
@@ -359,6 +285,7 @@ function buildLightAppRecipe(db, resolved, token) {
 
   const objectLabel = resolved.object.displayName || resolved.object.label || profile.objectFallback;
   const raw = resolved.raw || {};
+  if (!canUseStudio(raw)) return null;
   const route = buildRoute(profile.route, token);
   const contentGuides = getApplicationContentDefinitionGuides(db, raw.application_definition_id || resolved.app.id || profile.code);
   const studioFlow = buildDefinitionDrivenStudioFlow(contentGuides);
@@ -434,7 +361,10 @@ router.get('/resolve', async (req, res) => {
     }
 
     const entityRow = findEntityRecipeSource(db, token);
-    if (entityRow) return res.json(buildEntityRecipe(db, entityRow, token));
+    if (entityRow) {
+      const recipe = buildEntityRecipe(db, entityRow, token);
+      if (recipe) return res.json(recipe);
+    }
 
     const error = studioError(404, 'TOKEN_NOT_FOUND', mintStudioCopy.resolve.tokenNotFound, mintStudioCopy.resolve.tokenNotFoundHint);
     return res.status(error.status).json(error.payload);
@@ -458,7 +388,14 @@ async function resolveOfficialIpStudio(req, res) {
         code: 'OFFICIAL_IP_NOT_FOUND',
       });
     }
-    res.json(buildOfficialIpRecipe(db, row));
+    const recipe = buildOfficialIpRecipe(db, row);
+    if (!recipe) {
+      return res.status(404).json({
+        error: 'Official IP is not available in Studio',
+        code: 'APPLICATION_STUDIO_DISABLED',
+      });
+    }
+    res.json(recipe);
   } catch (error) {
     console.error('Mint Studio official IP resolve error:', error);
     res.status(500).json({

@@ -2,8 +2,8 @@
 export const homeCopy = {
   hero: {
     eyebrow: 'WhatMint',
-    title: '邀请有灵的存在，慢慢形成你的 Mint Space。',
-    subtitle: '现实里的一个小物，可以承载安慰、祝愿、答案和关系。WhatMint 让这些被赋予意义的存在进入数字灵境，并在触碰、创作和相遇中继续生长。',
+    title: '把现实世界，变成可以被触碰的界面。',
+    subtitle: 'WhatMint 让日常物品在关键生活场景中获得数字表达。一个贴纸、摆件或礼物，不只是多了功能，而是补上它原本想表达却无法表达的部分。',
     primaryShop: '邀请新的存在',
     secondarySpace: '进入 Mint Space',
   },
@@ -12,12 +12,12 @@ export const homeCopy = {
     detailMissing: '这个相遇还在整理中。',
     detailPrimary: '进入相关入口',
     title: '这个世界正在出现新的相遇',
-    subtitle: '首页不是货架，而是 WhatMint 正在呼吸的入口。新的 IP、官方体验和用户创作会让这个世界持续变得不同。',
+    subtitle: '首页不是货架，而是 WhatMint 正在发生的入口。新的 IP、官方体验和用户创作会让现实中的小物不断获得新的表达。',
     featured: {
-      id: 'mint-space-notes',
-      label: 'World Update',
-      title: '关系杂记开始进入 Mint Space',
-      body: 'IP 之间的情绪关系会以小故事的方式被看见。',
+      id: 'desktop-secret-ar',
+      label: 'Scene Update',
+      title: '桌面秘境开始测试 AR 场景',
+      body: '碰一下桌面贴纸，让一个数字秘境出现在真实桌面上。',
     },
     cards: [
       {
@@ -40,23 +40,23 @@ export const homeCopy = {
         actionRoute: '/shop',
       },
       {
-        id: 'mint-space-notes',
-        label: '世界观',
-        title: '关系杂记开始进入 Mint Space',
-        body: 'IP 之间的情绪关系会以小故事的方式被看见。',
-        hero: '灵境杂记不是日志，也不是任务提醒。它是一种很轻的世界观回声，让用户感觉自己的 Mint Space 里真的住着一些正在彼此靠近的存在。',
+        id: 'desktop-secret-ar',
+        label: '新体验',
+        title: '桌面秘境开始测试 AR 场景',
+        body: '它不是给桌面多加一个功能，而是让桌面在专注、休息或重新开始时拥有一个可被看见的秘境入口。',
+        hero: '桌面秘境是 WhatMint “现实世界 UI”的典型样本：用户触碰桌面上的实体标记，浏览器打开摄像头，在贴纸附近看到一个轻量的数字场景。',
         sections: [
           {
-            title: '杂记表达什么',
-            body: '它表达 IP 之间的关系、用户空间的气质，以及这个世界正在发生的小事。比如纸巾小狗靠近答案之书，因为它发现许多悲伤来自没有想明白。',
+            title: '为什么属于桌面',
+            body: '桌面本来就是学习、工作和短暂出神的地方。桌面秘境让这个场景多一个可触发的空间表达，而不是要求用户打开一个复杂应用。',
           },
           {
-            title: '为什么先由官方提供',
-            body: '第一版先用官方文案保证调性：有灵气、有个性、成熟克制。后续再根据 IP 设定、关系矩阵和用户拥有组合，生成更丰富的版本。',
+            title: 'OS 承担什么',
+            body: 'token 解析、摄像头授权、AR 渲染、内容资源和绑定提示都由 OS 统一处理；应用只决定这个秘境该如何出现、停留和离开。',
           },
         ],
-        actionLabel: '进入 Mint Space',
-        actionRoute: '/assets',
+        actionLabel: '认识桌面秘境',
+        actionRoute: '/shop',
       },
     ],
   },
@@ -73,10 +73,10 @@ export const homeCopy = {
         imageName: '永远系列-纸巾小狗-合集.png',
       },
       {
-        name: '答案之书',
-        label: '自我回应',
-        description: '一本帮助你听见自己答案的书。',
-        imageName: '永远系列-祈福小狗-合集.png',
+        name: '桌面秘境',
+        label: '桌面与空间',
+        description: '碰一下桌面贴纸，让一处小秘境出现在现实桌面。',
+        imageName: '永远系列-守护小狗-合集.png',
       },
       {
         name: '祈福小狗',
@@ -88,36 +88,32 @@ export const homeCopy = {
   },
   mintSpaceSection: {
     eyebrow: 'Mint Space',
-    title: '拥有之后，你得到的是一个会变化的灵境',
-    subtitle: 'Mint Space 是用户最终想打造的个人世界。每一次邀请、绑定和创作，都会让它拥有不同的气质。',
+    title: '拥有之后，你会得到一组属于自己的现实入口',
+    subtitle: 'Mint Space 聚合你已经接入的实体和场景。它不是资产仓库，而是查看、管理和继续触发这些数字表达的个人入口。',
     action: '进入我的 Mint Space',
     inviteAction: '邀请新的伙伴',
-    portraitTitle: '初晴后的安静房间',
-    portraitBody: '这里住着三位小小的存在：一个负责温柔，一个负责答案，一个负责祝愿。它们让这个空间显得清透、克制，也有一点不声张的浪漫。',
-    traits: ['温柔型', '留白感', '轻仪式', '适合分享'],
+    portraitTitle: '由现实物件点亮的私人界面',
+    portraitBody: '这里收着几种不同的生活瞬间：需要安慰时的小狗、桌面上短暂出现的秘境、以及后续继续接入的新场景。它们共同组成你的 Mint Space。',
+    traits: ['现实入口', '场景触发', '轻量表达', '可继续创造'],
     partners: [
       {
         name: '纸巾小狗',
-        status: '正在练习一次 AR 出场',
+        status: '在需要安慰的瞬间出现',
       },
       {
-        name: '答案之书',
-        status: '今天给出了一句很轻的回答',
+        name: '桌面秘境',
+        status: '让桌面出现一个可触发的数字场景',
       },
       {
-        name: '祈福小狗',
-        status: '把祝愿收在房间角落',
+        name: '新的存在',
+        status: '等待按新核心范式接入',
       },
-    ],
-    notes: [
-      '纸巾小狗总喜欢靠近答案之书，因为它发现，很多悲伤其实来自没有想明白的事情。',
-      '祈福小狗不常说话，但每次天光变亮，它都会把房间整理得更温柔一点。',
     ],
   },
   studioSection: {
     eyebrow: 'Mint Studio',
-    title: '关系可以继续被赋予新的意义',
-    subtitle: 'WhatMint 不是买完结束。用户可以通过创作中心，把祝福、声音、影像和专属内容铸造成新的内容资产。',
+    title: '表达可以继续被创造',
+    subtitle: 'WhatMint 不是买完结束。用户可以通过创作中心，把祝福、声音、影像和专属内容铸造成物体下一次触碰时的表达。',
     action: '开始创作',
     examples: [
       {
@@ -130,7 +126,7 @@ export const homeCopy = {
       },
       {
         title: '为一个 IP 续写新的体验',
-        body: '内容节点可以更新，关系也可以随着使用慢慢生长。',
+        body: '内容节点可以更新，让同一个实体在新的生活时刻表达新的意义。',
       },
     ],
   },

@@ -10,7 +10,7 @@ const form = reactive({
   ipType: '官方核心 IP',
   personality: '',
   userRelationship: '',
-  worldRole: '',
+  sceneRole: '',
   emotionalValue: '',
   forbiddenTone: '',
   coreObject: '',
@@ -21,7 +21,7 @@ const form = reactive({
   shopFocus: '',
   visualNeeds: '',
   appName: '',
-  appType: '故事空间',
+  appType: '意义表达',
   touchReason: '',
   firstStep: '',
   flow: '',
@@ -29,7 +29,7 @@ const form = reactive({
   cadence: '按队列',
   instanceProgress: '是',
   contentTypes: '',
-  relatedIps: '',
+  contextHints: '',
   keyOperations: '',
   eventRules: '',
   userCreation: '允许',
@@ -47,7 +47,7 @@ const presets = {
   creationFlow: '官方和用户统一走创作中心',
   resources: '所有图片、音频、视频、Lottie、AI 文件统一进入 resources',
   operations: '触碰、播放、完成、点击入口等先进入 operations',
-  events: '只有可继续驱动状态、内容或关系的高价值事实进入 events',
+  events: '只有可继续驱动状态、内容或后续体验的高价值事实进入 events',
   defaultPolicy: '官方内容不自动绑定，必须由官方权限手动设为默认',
   skillMode: 'fixed_rules_v1，不引入 AI',
 };
@@ -71,7 +71,7 @@ const intake = computed(() => ({
     creator_user: presets.creator,
     personality: yamlValue(form.personality),
     user_relationship: yamlValue(form.userRelationship),
-    world_role: yamlValue(form.worldRole),
+    scene_role: yamlValue(form.sceneRole),
     emotional_value: linesOf(form.emotionalValue),
     forbidden_tone: linesOf(form.forbiddenTone),
     physical: {
@@ -99,7 +99,7 @@ const intake = computed(() => ({
     skill_mode: presets.skillMode,
   },
   content_definitions: linesOf(form.contentTypes),
-  ip_relations: linesOf(form.relatedIps),
+  context_hints: linesOf(form.contextHints),
   operations_and_events: {
     key_operations: linesOf(form.keyOperations),
     event_rules: linesOf(form.eventRules),
@@ -123,7 +123,7 @@ const outputMarkdown = computed(() => `# WhatMint IP / 应用接入清单
 - 创作者：${presets.creator}
 - 核心人格：${yamlValue(form.personality)}
 - 对用户的关系：${yamlValue(form.userRelationship)}
-- 对其他 IP 的世界角色：${yamlValue(form.worldRole)}
+- 场景角色：${yamlValue(form.sceneRole)}
 - 情绪价值：
 ${yamlList(linesOf(form.emotionalValue))}
 - 禁忌口吻：
@@ -156,8 +156,8 @@ ${yamlList(linesOf(form.flow))}
 ## 四、内容定义
 ${yamlList(linesOf(form.contentTypes), '待补充：内容类型 / 需要字段 / 需要资源 / 展示方式')}
 
-## 五、IP 关系
-${yamlList(linesOf(form.relatedIps), '待补充：关联 IP / 关系类型 / 关系描述 / 是否展示 / 是否触发联动')}
+## 五、上下文提示
+${yamlList(linesOf(form.contextHints), '待补充：这个应用后续可能读取哪些 OS 上下文，例如拥有状态、最近完成、最近触碰、内容播放完成')}
 
 ## 六、操作与事件
 - 关键操作：
@@ -203,35 +203,35 @@ const copyText = async (text: string, label: string) => {
   }, 1800);
 };
 
-const loadEarphoneExample = () => {
+const loadTissuePuppyExample = () => {
   Object.assign(form, {
-    ipName: '耳机小姐',
-    oneLine: '一位喜欢旅行和收集故事的小伙伴，住在你的耳机里，把世界各处发生的小事讲给你听。',
+    ipName: '纸巾小狗',
+    oneLine: '一只总会在你需要的时候递上一点温柔的小狗。',
     ipType: '官方核心 IP',
-    personality: '冒险家；倾听者；朋友；有灵气；成熟克制；歌颂美好但不过甜。',
-    userRelationship: '朋友，不是主人、客户或导购对象。',
-    worldRole: '旅行者和倾听者，因为她会遇见其他 IP，所以能把关系讲成故事。',
-    emotionalValue: '呈现奇妙的 IP 世界\n讲故事\n发现与连接\n关系情绪实体化',
-    forbiddenTone: '导购口吻\n信息播报口吻\n过度煽情\n强行鸡汤',
-    coreObject: '耳机贴纸',
+    personality: '温柔；安静；靠近但不打扰；成熟克制；有一点笨拙的真诚。',
+    userRelationship: '在需要安慰的瞬间出现的小小陪伴，不是治疗师，也不是鸡汤播报。',
+    sceneRole: '安慰场景的现实入口，把一个礼物或摆件原本想表达的关心补出来。',
+    emotionalValue: '安慰\n陪伴\n表达关心\n让实体礼物拥有被触碰后的回应',
+    forbiddenTone: '医疗承诺\n过度煽情\n强行治愈\n硬广口吻',
+    coreObject: '纸巾小狗实体 / 贴纸',
     carrier: 'NFC 贴纸',
-    material: 'NFC 贴纸 / 耳机贴纸',
-    size: '轻量贴纸',
+    material: '贴纸 / 玩偶 / 摆件',
+    size: '按实体形态补充',
     inviteChannel: '外部渠道，用户拿到 token 后回到 Mint Space 接入',
-    shopFocus: '声音陪伴\n手账感视觉\n跨 IP 关系入口',
-    visualNeeds: '生活插画\n声音可视化\n留白\n柔和但不幼稚',
-    appName: '耳机小姐 · 故事空间',
-    appType: '故事空间',
-    touchReason: '用户想听她带回来的故事，也通过她认识其他 IP。',
-    firstStep: '进入声音空间，解析该实例下一段故事。',
-    flow: '触碰耳机小姐\n进入声音空间\n检查该实例故事队列\n播放插画与语音\n二次触碰时展示联动邀请\n点击进入关联 IP 官方示例',
-    frequency: '高频',
-    cadence: '按实例队列',
-    instanceProgress: '是',
-    contentTypes: '周期故事：标题、正文、语音文案、插画、语音、可选音乐\n联动邀请：场景文字、关系标签、联动插画、音乐、入口\n记忆故事：标题、摘要、发生过的故事、可选图片/语音',
-    relatedIps: '纸巾小狗：好朋友，会互相惦记；商品详情展示；可触发联动\n答案之书：老师，偶尔点醒她；商品详情展示；可触发联动\n旅行检查单：欣赏它把出发前的世界整理清楚；商品详情展示',
-    keyOperations: 'object.touch\nstory.play\nstory.play_completed\ngateway.open_ip\nmemory.view',
-    eventRules: 'story.play_completed 推进实例级故事队列\n高频触碰可提炼为 emotion.frequent_touch\n联动入口点击可记录 relationship.gateway_opened',
+    shopFocus: '安慰场景\n实体触碰后的数字表达\nAR / 视频召唤体验\n可自定义内容',
+    visualNeeds: '柔软但不幼稚\n像真实出现在身边\n留白\n轻量仪式感',
+    appName: '纸巾小狗 · 安慰空间',
+    appType: '意义表达',
+    touchReason: '用户在需要安慰、表达关心或想看见小狗出现时触碰它。',
+    firstStep: '解析 token，找到该实体默认内容，并用 OS 渲染器全屏播放或 AR 展示。',
+    flow: '触碰纸巾小狗\n解析实体 token\n读取默认内容\n播放视频或 AR 召唤\n引导未绑定实体接入 Mint Space',
+    frequency: '中频',
+    cadence: '按默认内容',
+    instanceProgress: '否',
+    contentTypes: '安慰视频：标题、视频、可选封面、播放参数\nAR 召唤：标题、透明视频或平面素材、可选 marker、渲染参数',
+    contextHints: '未绑定 token：可展示接入 Mint Space 提示\n已绑定实体：不再展示商业提示\n播放完成：可记录 content.play_completed',
+    keyOperations: 'object.touch\ncontent.resolve\ncontent.play\ncontent.play_completed\nspace_invitation.open',
+    eventRules: '高频触碰可提炼为 comfort.frequent_touch\n播放完成可成为后续体验上下文\n绑定成功记录 entity.claimed',
   });
 };
 </script>
@@ -242,15 +242,15 @@ const loadEarphoneExample = () => {
       <div>
         <p>WhatMint OS Intake</p>
         <h2>IP / 应用接入清单</h2>
-        <span>你只填产品灵魂、实体、体验、内容和关系。系统字段、连接表、事件边界和权限策略由范式推导。</span>
+        <span>你只填产品灵魂、现实场景、实体入口、触碰体验和内容形态。系统字段、连接表、事件边界和权限策略由范式推导。</span>
       </div>
-      <button type="button" @click="loadEarphoneExample">载入耳机小姐示例</button>
+      <button type="button" @click="loadTissuePuppyExample">载入纸巾小狗示例</button>
     </header>
 
     <section class="guide-strip">
       <article>
         <strong>你负责</strong>
-        <p>它是谁、为什么被触碰、会如何回应、和谁有关系。</p>
+        <p>它是谁、为什么被触碰、会如何回应、补上物原本想表达的哪一部分。</p>
       </article>
       <article>
         <strong>系统预设</strong>
@@ -266,14 +266,14 @@ const loadEarphoneExample = () => {
       <form class="intake-form" @submit.prevent>
         <section class="form-card">
           <h3>一、IP 是谁</h3>
-          <label>IP 名称<input v-model="form.ipName" placeholder="例如：耳机小姐" /></label>
+          <label>IP 名称<input v-model="form.ipName" placeholder="例如：纸巾小狗" /></label>
           <label>一句话介绍<textarea v-model="form.oneLine" rows="2" /></label>
           <div class="field-grid">
             <label>IP 类型<select v-model="form.ipType"><option>官方核心 IP</option><option>官方普通 IP</option><option>用户创作 IP</option></select></label>
-            <label>核心人格<input v-model="form.personality" placeholder="冒险家；倾听者；朋友" /></label>
+            <label>核心人格<input v-model="form.personality" placeholder="温柔；守护；克制" /></label>
           </div>
-          <label>对用户的关系<input v-model="form.userRelationship" placeholder="朋友 / 陪伴者 / 记录者..." /></label>
-          <label>对其他 IP 的关系角色<input v-model="form.worldRole" placeholder="倾听者 / 老师 / 旅行者 / 守护者..." /></label>
+          <label>对用户的关系<input v-model="form.userRelationship" placeholder="陪伴者 / 入口 / 记录者..." /></label>
+          <label>场景角色<input v-model="form.sceneRole" placeholder="安慰入口 / 出发仪式 / 选择回应 / 桌面空间..." /></label>
           <label>情绪价值<textarea v-model="form.emotionalValue" rows="3" placeholder="一行一个，例如：讲故事" /></label>
           <label>禁忌口吻<textarea v-model="form.forbiddenTone" rows="3" placeholder="一行一个，例如：导购口吻" /></label>
         </section>
@@ -297,7 +297,7 @@ const loadEarphoneExample = () => {
           <h3>三、它怎么活着</h3>
           <div class="field-grid">
             <label>应用名称<input v-model="form.appName" placeholder="不填则按 IP 名称生成" /></label>
-            <label>应用类型<select v-model="form.appType"><option>故事空间</option><option>陪伴空间</option><option>答案空间</option><option>检查空间</option><option>纪念空间</option><option>其他</option></select></label>
+            <label>应用类型<select v-model="form.appType"><option>意义表达</option><option>行为辅助</option><option>状态空间</option><option>AR 场景</option><option>留言传递</option><option>其他</option></select></label>
           </div>
           <label>用户为什么触碰它<textarea v-model="form.touchReason" rows="2" /></label>
           <label>触碰后第一步发生什么<textarea v-model="form.firstStep" rows="2" /></label>
@@ -310,9 +310,9 @@ const loadEarphoneExample = () => {
         </section>
 
         <section class="form-card">
-          <h3>四、内容、关系、事件</h3>
+          <h3>四、内容、上下文、事件</h3>
           <label>内容类型<textarea v-model="form.contentTypes" rows="5" placeholder="一行一种：内容类型：字段、资源、展示方式" /></label>
-          <label>关联 IP<textarea v-model="form.relatedIps" rows="5" placeholder="一行一个：IP：关系、描述、是否展示、是否联动" /></label>
+          <label>上下文提示<textarea v-model="form.contextHints" rows="5" placeholder="一行一个：可能读取的 OS 上下文，例如未绑定、已拥有、最近完成、播放完成" /></label>
           <label>关键操作<textarea v-model="form.keyOperations" rows="4" placeholder="一行一个：触碰、播放、完成、点击入口..." /></label>
           <label>事件提炼规则<textarea v-model="form.eventRules" rows="4" placeholder="一行一个：什么操作在什么条件下变成事件" /></label>
         </section>

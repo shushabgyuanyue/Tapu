@@ -1,6 +1,6 @@
 # WhatMint Content Operation
 
-Content Operation is not a traditional CMS. It is the OS layer that lets official content, object events, meaningful states, Mint relationships, and app skills assemble into new experiences.
+Content Operation is not a traditional CMS. It is the OS layer that lets official content, object operations, meaningful states, runtime context, and app skills assemble into new experiences.
 
 ## Core Flow
 
@@ -17,7 +17,7 @@ Object Event
 
 - Content Asset: official videos, story entries, audio, images, and mixed content blocks.
 - Meaningful State: product-level state derived from object use, such as `comfort.action_active`.
-- Skill and Relationship: app manifests declare what an app can produce and what states it can respond to.
+- Skill and Context: app manifests declare what an app can produce and what states or scene contexts it can respond to.
 - Runtime Context: OS packages states, unlocked skills, owned Mint hints, and content modifiers for apps.
 - Experience Assembly: the app adapter turns runtime context into visible story, behavior, or interface changes.
 
@@ -47,34 +47,20 @@ The current implementation keeps the layer intentionally thin:
 - `objectRegistry.js` resolves app tokens through registered object resolver entries.
 - `mintStudioRecipeCatalog.js` keeps creator-entry app routes and UI profile diagnostics aligned with app adapters.
 - `osCapabilityMap.js` checks that each app is connected across manifest, adapter, Studio, open API, runtime context, and permission operations.
-- Earphone Girl uses its adapter to turn `guest_character_story` into a visible crossover block.
-- Emotion IP, Answer Book, Moment, Travel Trail, and Check now return the same `runtime_context` shape.
+- Paper Puppy and Desktop Secret are the only active app samples. They use content definitions plus the OS renderer to switch between video and AR without rewriting the asset or permission flow.
+- Retired light apps must not be kept as compatibility shells. If an answer, checklist, memorial, or travel direction returns later, it must reconnect through manifests, adapters, content definitions, `/play`, and Mint Studio from scratch.
 
 ## Demo Sample
 
-The built-in earphones story token has a seeded `comfort.action_active` state from `emotion-ip / 纸巾小狗`.
-
-When the Earphone Girl app resolves that token, it unlocks:
-
-```text
-guest_character_story
-```
-
-The returned content includes a crossover block:
-
-```text
-纸巾小狗来过
-
-今天遇到了纸巾小狗。
-它说，最近好像有人需要一点安慰，所以带来了一张特别的纸巾。
-```
+Paper Puppy can use the same entity token, content instance, resource links, and `/play` entry while changing its renderer from `video.fullscreen` to `ar.camera-overlay` through `content_definitions`.
 
 This proves the first Content Operation loop:
 
 ```text
-Mint app produces meaningful state
--> WhatMint OS stores and matches it
--> another Mint changes its content experience
+content definition declares meaning and renderer
+-> Resource Pipeline adapts uploaded media
+-> /play resolves the entity default content
+-> OS renderer assembles the final scene experience
 ```
 
 ## Design Guardrails

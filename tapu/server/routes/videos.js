@@ -9,11 +9,6 @@ import {
   videoListPrivacyScope,
 } from '../services/objectPermissions.js';
 import { serverMessages } from '../copy/messages.js';
-import { buildAppRuntimeContext } from '../services/appAdapters.js';
-import { recordObjectOperation, runOperationPipeline } from '../services/contentOperation.js';
-import {
-  getPrimaryLinkedContent,
-} from '../services/coreStore.js';
 import { deleteContentAsset } from '../services/contentAssets.js';
 
 const router = Router();
@@ -147,11 +142,7 @@ async function listVideosHandler(req, res) {
 
   let orderBy = 'ORDER BY v.created_at DESC';
   if (sort === 'hot') {
-    orderBy = `ORDER BY (
-      COALESCE((SELECT COUNT(*) FROM play_events pe WHERE pe.video_id = v.id), 0) +
-      COALESCE((SELECT COUNT(*) FROM interactions il WHERE il.video_id = v.id AND il.type = 'like'), 0) * 2 +
-      COALESCE((SELECT COUNT(*) FROM interactions if2 WHERE if2.video_id = v.id AND if2.type = 'favorite'), 0) * 3
-    ) DESC, v.created_at DESC`;
+    orderBy = 'ORDER BY v.created_at DESC';
   }
 
   const where = `WHERE ${conditions.join(' AND ')}`;
@@ -214,137 +205,10 @@ async function deleteVideoHandler(req, res) {
   res.json({ success: true });
 }
 
-async function resolvePlaybackHandler(req, res) {
-  const { key } = req.body;
-  if (!key) return res.status(400).json({ error: 'key is required' });
-
-  const db = await getDb();
-  const payload = verifyEntityKey(key, db);
-  if (!payload) return res.status(400).json({ error: serverMessages.routes.common.invalidKey });
-
-  const { user_id, group_id, entity_id } = payload;
-  const tokenViewReq = {
-    ...req,
-    verifiedEntityId: entity_id,
-    verifiedEntityOwnerId: user_id || null,
-  };
-  const canViewPrivate = canViewPrivateEntityContent(tokenViewReq, entity_id, user_id || null);
-
-  const entity = resultToObjects(db.exec(
-    `SELECT i.*, d.name as group_name, d.primary_series_name as series_name,
-            a.code as application_code, a.name as application_name
-     FROM ip_instances i
-     LEFT JOIN ip_definitions d ON d.id = i.ip_definition_id
-     LEFT JOIN application_definitions a ON a.id = i.application_definition_id
-     WHERE i.id = ? LIMIT 1`,
-    [entity_id]
-  ))[0] || null;
-  if (!entity) {
-    return res.status(404).json({ error: serverMessages.routes.common.ipNotFound });
-  }
-
-  const ownerDefault = getPrimaryLinkedContent(db, entity_id, ['owner_default']);
-  const officialInstance = resultToObjects(db.exec(
-    `SELECT id FROM ip_instances
-     WHERE ip_definition_id = ? AND instance_type = 'official_demo'
-     LIMIT 1`,
-    [group_id]
-  ))[0] || null;
-  const officialDefault = officialInstance ? getPrimaryLinkedContent(db, officialInstance.id, ['official_default']) : null;
-  const defaultVideoId = ownerDefault?.id || officialDefault?.id || null;
-
-  const visibilitySql = canViewPrivate ? "(v.visibility = 'public' OR v.origin_ip_instance_id = ?)" : "v.visibility = 'public'";
-  const queryParams = canViewPrivate
-    ? [group_id, entity_id, defaultVideoId || '', entity_id]
-    : [group_id, defaultVideoId || '', entity_id];
-  const videos = resultToObjects(db.exec(
-    `${videoSelectSql()} ${videoFromSql()}
-     WHERE v.ip_definition_id = ?
-       AND v.status = 'published'
-       AND ${visibilitySql}
-     ORDER BY CASE WHEN v.id = ? THEN 0 WHEN v.origin_ip_instance_id = ? THEN 1 ELSE 2 END,
-              v.created_at DESC`,
-    queryParams
-  )).map(shapeVideoRow);
-
-  if (videos.length === 0) {
-    return res.status(404).json({ error: serverMessages.routes.common.noPlayableContent });
-  }
-
-  const appCode = entity.application_code || 'emotion-ip';
-  const operationId = recordObjectOperation(db, {
-    operationType: 'object.touch',
-    objectType: 'mint-entity',
-    objectId: entity_id,
-    tokenId: entity_id,
-    token: payload.token || key,
-    appCode,
-    contentId: defaultVideoId || videos[0]?.id || null,
-    userId: user_id || req.user?.id || null,
-    userAgent: req.headers['user-agent'] || null,
-    ipDefinitionId: group_id,
-    metadata: {
-      groupId: group_id,
-      groupName: entity.group_name || null,
-      objectName: entity.group_name || null,
-      defaultVideoId,
-      contentCount: videos.length,
-    },
-  });
-  runOperationPipeline(db, { operationIds: [operationId] });
-  saveDb();
-
-  const runtimeContext = buildAppRuntimeContext(db, {
-    object: {
-      id: entity_id,
-      type: 'mint-entity',
-      token: payload.token || key,
-      displayName: entity.group_name || null,
-    },
-    app: {
-      code: appCode,
-      name: entity.application_name || null,
-    },
-    raw: {
-      id: entity_id,
-      user_id: user_id || null,
-      token: payload.token || key,
-    },
-  }, {
-    userId: user_id || req.user?.id || null,
-    token: payload.token || key,
-    appCode,
-  });
-
-  res.json({
-    videos,
-    group: {
-      id: group_id,
-      name: entity.group_name,
-      series_name: entity.series_name,
-      application_code: entity.application_code,
-      application_name: entity.application_name,
-      official_default_video_id: officialDefault?.id || null,
-    },
-    entity_id,
-    user_id,
-    default_video_id: defaultVideoId,
-    runtime_context: runtimeContext,
-  });
-}
-
 registerRoutes(router, [
   publicRoute('get', '/', listVideosHandler, [optionalKeyVerify]),
   publicRoute('get', '/:id/siblings', getSiblingVideosHandler, [optionalKeyVerify]),
   publicRoute('get', '/:id', getVideoHandler, [optionalKeyVerify]),
-  publicRoute('post', '/resolve', resolvePlaybackHandler, [], {
-    operation: 'view:open',
-    summary: 'Resolve playable content for an entity token.',
-    body: { key: 'string' },
-    response: { videos: 'array', group: 'object', entity_id: 'string', default_video_id: 'string|null', runtime_context: 'object' },
-    errors: ['ENTITY_NOT_FOUND', 'CONTENT_NOT_FOUND'],
-    tags: ['touch', 'content'],
-  }),
   {
     method: 'delete',
     path: '/:id',

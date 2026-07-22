@@ -1,19 +1,17 @@
+import {
+  buildApplicationLifecycleExtra,
+  getManifestLifecycle,
+} from './applicationLifecycle.js';
+import { getAppManifests } from '../contracts/appManifests.js';
+import { stringifyJson } from './coreStore.js';
+
 const BUILT_IN_APPLICATIONS = [
-  {
-    name: '情绪 IP',
-    code: 'emotion-ip',
-    app_type: 'meaning',
-    interaction_type: 'tap_to_emotion_content',
-    description: '实体承载情绪表达，触碰后进入对应内容。',
-    status: 'active',
-  },
   {
     name: '纸巾小狗',
     code: 'tissue-puppy',
     app_type: 'meaning',
     interaction_type: 'tap_to_comfort_ar',
     description: '触碰纸巾小狗，在现实画面里召唤一段温柔、克制的陪伴内容。',
-    status: 'active',
   },
   {
     name: '桌面秘境',
@@ -21,49 +19,10 @@ const BUILT_IN_APPLICATIONS = [
     app_type: 'meaning',
     interaction_type: 'tap_to_reveal_desktop_realm',
     description: '触碰桌面贴纸，打开摄像头，在桌面锚点上召唤一处悬浮小秘境。',
-    status: 'active',
-  },
-  {
-    name: '耳机小姐',
-    code: 'earphone-girl',
-    app_type: 'meaning',
-    interaction_type: 'audio_story_gateway',
-    description: '一枚耳机贴纸打开会旅行、会倾听、会带回故事的朋友。',
-    status: 'active',
-  },
-  {
-    name: '答案之书',
-    code: 'answer-book',
-    app_type: 'state',
-    interaction_type: 'tap_to_mindful_answer',
-    description: '触碰现实物体，随机获得一张克制、正念式回应卡。',
-    status: 'active',
-  },
-  {
-    name: '纪念瞬间',
-    code: 'moment',
-    app_type: 'meaning',
-    interaction_type: 'tap_to_saved_moment',
-    description: '把一个值得纪念的时刻封存在可触碰的物里。',
-    status: 'active',
-  },
-  {
-    name: '旅行轨迹',
-    code: 'travel-trail',
-    app_type: 'state',
-    interaction_type: 'tap_to_travel_trace',
-    description: '贴在行李或旅行物件上，触碰后把去过的地点画成一条动态轨迹。',
-    status: 'active',
-  },
-  {
-    name: 'Check 检查',
-    code: 'check',
-    app_type: 'behavior',
-    interaction_type: 'tap_to_object_check',
-    description: '绑定到具体物件的检查清单，支持常见场景模板和自定义修改。',
-    status: 'active',
   },
 ];
+
+const manifestByCode = new Map(getAppManifests().map(manifest => [manifest.code, manifest]));
 
 export function getBuiltInApplications() {
   return BUILT_IN_APPLICATIONS;
@@ -71,26 +30,31 @@ export function getBuiltInApplications() {
 
 export function ensureApplicationRegistry(db) {
   for (const app of BUILT_IN_APPLICATIONS) {
+    const manifest = manifestByCode.get(app.code);
+    const lifecycle = getManifestLifecycle(manifest);
     db.run(
       `INSERT INTO application_definitions
-       (id, name, code, version_no, app_type, interaction_type, description, status)
-       VALUES (?, ?, ?, '1.0.0', ?, ?, ?, ?)
+       (id, name, code, version_no, app_type, interaction_type, description, extra_json, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(code) DO UPDATE SET
          name = excluded.name,
          version_no = excluded.version_no,
          app_type = excluded.app_type,
          interaction_type = excluded.interaction_type,
          description = excluded.description,
+         extra_json = excluded.extra_json,
          status = excluded.status,
          updated_at = CURRENT_TIMESTAMP`,
       [
         app.code,
         app.name,
         app.code,
+        lifecycle.activeVersion,
         app.app_type,
         app.interaction_type,
         app.description,
-        app.status,
+        stringifyJson(buildApplicationLifecycleExtra(manifest)),
+        lifecycle.status,
       ]
     );
   }

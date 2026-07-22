@@ -8,14 +8,8 @@ import {
 } from '../services/mintStudioRecipeCatalog.js';
 
 export const APP_OPEN_ENDPOINTS = {
-  'emotion-ip': { method: 'get', path: '/api/contents/resolve-by-token' },
   'tissue-puppy': { method: 'get', path: '/api/contents/resolve-by-token' },
   'desktop-secret': { method: 'get', path: '/api/contents/resolve-by-token' },
-  'earphone-girl': { method: 'get', path: '/api/earphone-girl/resolve' },
-  'answer-book': { method: 'get', path: '/api/answer-book/resolve' },
-  moment: { method: 'get', path: '/api/moments/resolve' },
-  'travel-trail': { method: 'get', path: '/api/travel-trails/resolve' },
-  check: { method: 'get', path: '/api/checks/resolve' },
 };
 
 function routeKey(method, path) {

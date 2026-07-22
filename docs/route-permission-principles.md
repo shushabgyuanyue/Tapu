@@ -37,7 +37,7 @@
 - 内容资产是否属于同一个 IP。
 - 内容状态是否是 `ready` 或 `processing`。
 - 标题、地点、清单项是否为空。
-- 旅行轨迹是否还在可编辑时间窗口内。
+- 某个场景应用是否还在可编辑时间窗口内。
 - 某个应用是否允许这类动作。
 
 如果一个判断会在多个接口反复出现，它大概率应该进入 OS 权限层；如果它只属于某个应用的内容规则，它应留在业务层。
@@ -75,7 +75,7 @@
 适合：
 
 - 官方后台应用管理。
-- IP、系列、实体、订单、内容集合管理。
+- IP、系列、实体、订单、官方配置和内容实例管理。
 - 官方模板、卡片、token 的创建和维护。
 
 原则：后台管理类接口默认使用 `admin_required`，不要在 handler 里手写 `req.user.username === 'admin'`。
@@ -156,9 +156,8 @@
 
 适合：
 
-- Check 的勾选、添加、重置。
-- 旅行轨迹的添加地点、设置下一站、确认归来。
-- 纪念瞬间通过 token 保存作品。
+- 后续行为型应用通过有效 token 修改自身轻量状态。
+- 后续不直接绑定 `ip_instances` 但仍需要 app token 权限的场景对象。
 
 它应至少判断：
 
@@ -229,9 +228,9 @@
 
 原因：实体已经属于某个账号，必须由 owner/admin 修改。
 
-### 后台创建卡片或模板
+### 后台维护应用配置
 
-接口：例如 `POST /api/answer-book/cards`
+接口：例如未来某个自营应用的官方配置接口。
 
 建议权限：`admin_required`
 
@@ -239,11 +238,9 @@
 
 ### 轻应用 token 操作
 
-接口：例如 `POST /api/checks/items`
+接口：例如未来某个行为型应用通过 token 修改轻量状态。
 
-建议权限：`app_token_active`
-
-原因：用户不是因为登录账号而操作，而是因为触碰或输入了有效物件 token。是否允许匿名操作应由应用配置决定，而不是散落在 handler 内。
+建议权限：优先判断是否能使用 `token_unbound_or_owner` 或 `entity_owner`。只有该应用不是实体内容默认链路、且确实需要独立 app token 主体时，才使用 `app_token_active`。
 
 ## 新增接口检查清单
 
@@ -334,18 +331,11 @@ npm run check:permissions
 - `POST /api/authoring/content-by-token`
 - `DELETE /api/videos/:id`
 - `PUT /api/config/:key`
-- `POST /api/checks/items`
-- `PUT /api/checks/items/:itemId`
-- `POST /api/checks/reset`
-- `POST /api/travel-trails/places`
-- `POST /api/travel-trails/next-destination`
-- `POST /api/travel-trails/return`
-
 优先迁移下一批：
 
 - 剩余后台管理接口：`admin_required`
 - 剩余登录账号接口：`login_required`
-- 纪念瞬间和 Mint Studio 的 token 写接口：`app_token_active` 或 `token_unbound_or_owner`
+- 后续新轻应用的 token 写接口：优先 `token_unbound_or_owner`，必要时再使用 `app_token_active`
 - 匿名互动统计：`anonymous_fingerprint` 或 `public`
 
 ## 判断标准

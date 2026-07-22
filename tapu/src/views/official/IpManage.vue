@@ -133,7 +133,7 @@ const submitForm = async () => {
 };
 
 const handleDelete = async (id: string) => {
-  if (!confirm('确定删除该分组？')) return;
+  if (!confirm('确定删除该 IP 定义？')) return;
   await deleteGroup(id);
   loadData();
 };
@@ -152,7 +152,7 @@ const submitSeries = async () => {
 };
 
 const handleDeleteSeries = async (id: string) => {
-  if (!confirm('确定删除该系列？')) return;
+  if (!confirm('确定删除该展示分组？')) return;
   await deleteSeries(id);
   if (activeSeries.value === id) activeSeries.value = '';
   loadData();
@@ -201,11 +201,11 @@ onMounted(loadData);
 
 <template>
   <div class="gm">
-    <!-- Series section -->
+    <!-- Display grouping section -->
     <div class="gm-section">
       <div class="gm-section-header">
-        <h3>系列管理</h3>
-        <button class="gm-add-btn" @click="showSeriesForm = true">+ 新建系列</button>
+        <h3>展示分组</h3>
+        <button class="gm-add-btn" @click="showSeriesForm = true">+ 新建分组</button>
       </div>
       <div class="gm-chips">
         <span
@@ -218,10 +218,10 @@ onMounted(loadData);
           <small v-if="s.application_name" class="gm-chip-app">{{ s.application_name }}</small>
           <button class="gm-chip-del" @click.stop="handleDeleteSeries(s.id)">×</button>
         </span>
-        <span v-if="seriesList.length === 0" class="gm-empty-hint">暂无系列</span>
+        <span v-if="seriesList.length === 0" class="gm-empty-hint">暂无展示分组</span>
       </div>
       <div v-if="showSeriesForm" class="gm-inline-form">
-        <input v-model="seriesFormName" placeholder="系列名称" @keyup.enter="submitSeries" />
+        <input v-model="seriesFormName" placeholder="展示分组名称" @keyup.enter="submitSeries" />
         <select v-model="seriesFormApplicationId" class="gm-inline-select">
           <option value="">不绑定应用</option>
           <option v-for="app in applications" :key="app.id" :value="app.id">{{ app.name }}</option>
@@ -234,7 +234,7 @@ onMounted(loadData);
     <!-- Groups/IP section -->
     <div class="gm-section">
       <div class="gm-section-header">
-        <h3>IP分组 ({{ filteredGroups.length }})</h3>
+      <h3>IP 定义 ({{ filteredGroups.length }})</h3>
         <button class="gm-add-btn" @click="openCreate">+ 新建IP</button>
       </div>
 
@@ -274,7 +274,7 @@ onMounted(loadData);
           </div>
 
         </div>
-        <div v-if="groups.length === 0" class="gm-empty">暂无分组</div>
+        <div v-if="groups.length === 0" class="gm-empty">暂无 IP 定义</div>
       </div>
       <AdminPagination v-model="page" :total="totalGroups" :page-size="pageSize" @update:page-size="pageSize = $event" />
     </div>
@@ -288,7 +288,7 @@ onMounted(loadData);
             <div class="gm-form">
               <input v-model="formName" placeholder="IP名称" />
               <select v-model="formSeriesId">
-                <option value="">不属于任何系列</option>
+                <option value="">不使用展示分组</option>
                 <option v-for="s in seriesList" :key="s.id" :value="s.id">{{ s.name }}</option>
               </select>
               <label class="gm-form-label">商品图 URL</label>
@@ -298,9 +298,9 @@ onMounted(loadData);
               <label class="gm-form-label">详情主视觉 URL</label>
               <input v-model="formHeroUrl" placeholder="用于 IP 详情页头图，可留空" />
               <label class="gm-form-label">一句话介绍</label>
-              <input v-model="formDescription" placeholder="例如：把关系实体化的纸巾小狗" />
+              <input v-model="formDescription" placeholder="例如：碰一下就递出温柔的纸巾小狗" />
               <label class="gm-form-label">IP 故事</label>
-              <textarea v-model="formStory" placeholder="用于 IP 详情页，可分段描述世界观、玩法和情绪价值"></textarea>
+              <textarea v-model="formStory" placeholder="用于 IP 详情页，可分段描述场景、触碰体验和数字表达"></textarea>
               <label class="gm-form-label">设计师 / 材质 / 尺寸</label>
               <div class="gm-form-row">
                 <input v-model="formDesigner" placeholder="设计师" />
@@ -309,7 +309,7 @@ onMounted(loadData);
               </div>
               <label class="gm-form-label">稀有度 / 标签 / 外部邀请入口</label>
               <input v-model="formRarityLabel" placeholder="例如：首发限量 300" />
-              <input v-model="formDisplayTags" placeholder="逗号分隔，例如：高级贺卡,情绪礼物,可绑定资产" />
+              <input v-model="formDisplayTags" placeholder="逗号分隔，例如：高级贺卡,安慰礼物,可接入实体" />
               <input v-model="formExternalPurchaseUrl" placeholder="外部邀请入口链接，可留空" />
               <label class="gm-form-label">主题色</label>
               <input v-model="formThemeColor" placeholder="#ff4fd8" />

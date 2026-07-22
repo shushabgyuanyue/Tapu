@@ -5,7 +5,6 @@ import {
   deleteContentInstance,
   fetchContentInstance,
   isLoggedIn,
-  setIpDefinitionOfficialDefaultContent,
   setIpInstanceContentByToken,
 } from '../api';
 import NavBar from '../components/NavBar.vue';
@@ -23,10 +22,6 @@ const content = ref<any>(null);
 const loading = ref(true);
 const failed = ref(false);
 const deleting = ref(false);
-const officialBinding = ref(false);
-const officialDefaultSet = ref(false);
-const officialBindMsg = ref('');
-const officialBindError = ref(false);
 const entityToken = ref('');
 const entityBinding = ref(false);
 const entityBindMsg = ref('');
@@ -56,7 +51,6 @@ const isSingleVideoContent = computed(() => (
 const canEditContent = computed(() => !!content.value?.viewer_can_edit);
 const canDeleteContent = computed(() => !!content.value?.viewer_can_edit);
 const canBindToIpEntity = computed(() => !!content.value?.ip_definition_id);
-const canSetOfficialDefault = computed(() => !!content.value?.viewer_can_set_official_default);
 const contentIdLabel = computed(() => content.value?.id ? content.value.id.replace(/-/g, '').toUpperCase() : '');
 const resourceNames = computed(() => resources.value.map((resource: any) => (
   resource.original_filename
@@ -167,27 +161,6 @@ async function bindContentToIpEntity() {
   entityBindError.value = true;
 }
 
-async function bindAsOfficialDefault() {
-  if (!content.value?.id || !content.value?.ip_definition_id) return;
-  officialBindMsg.value = '';
-  officialBindError.value = false;
-  officialBinding.value = true;
-
-  const result = await setIpDefinitionOfficialDefaultContent(content.value.ip_definition_id, content.value.id);
-
-  officialBinding.value = false;
-  if (result?.success) {
-    officialDefaultSet.value = true;
-    officialBindMsg.value = contentCopy.detail.officialDefault.successHint;
-    emitContentChanged('bound', content.value.id);
-    toast?.show(contentCopy.detail.officialDefault.successToast, 2200, 'success');
-    return;
-  }
-
-  officialBindMsg.value = result?.error || contentCopy.detail.officialDefault.failed;
-  officialBindError.value = true;
-}
-
 async function deleteCurrentContent() {
   if (!content.value?.id || deleting.value) return;
   if (!window.confirm(contentCopy.detail.actions.confirmDelete(content.value.title))) return;
@@ -240,19 +213,13 @@ function goBack() {
             :entity-binding="entityBinding"
             :entity-bind-msg="entityBindMsg"
             :entity-bind-error="entityBindError"
-            :official-binding="officialBinding"
-            :official-default-set="officialDefaultSet"
-            :official-bind-msg="officialBindMsg"
-            :official-bind-error="officialBindError"
             :deleting="deleting"
             :can-edit="canEditContent"
             :can-bind-to-entity="canBindToIpEntity"
-            :can-set-official-default="canSetOfficialDefault"
             :can-delete="canDeleteContent"
             :is-single-resource="isSingleVideoContent"
             @edit="openContentAuthoring"
             @bind-entity="bindContentToIpEntity"
-            @set-official-default="bindAsOfficialDefault"
             @delete="deleteCurrentContent"
           />
         </template>

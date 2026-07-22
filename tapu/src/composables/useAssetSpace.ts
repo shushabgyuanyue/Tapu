@@ -61,7 +61,7 @@ export function useAssetSpace(params: {
   }) || null);
 
   function isMintSpaceProfile(value: any): value is MintSpaceProfile {
-    return !!value?.profile && Array.isArray(value.partners) && Array.isArray(value.notes);
+    return !!value?.profile && Array.isArray(value.partners);
   }
 
   function applyMintSpaceProfile(result: any, instances = assetInstances.value) {

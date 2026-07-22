@@ -1,4 +1,4 @@
-import { getIpDefinitionRelations, parseJson } from './coreStore.js';
+import { parseJson } from './coreStore.js';
 import { resultToObjects } from './tokens.js';
 
 function parsePositiveInt(value, fallback) {
@@ -29,12 +29,12 @@ function baseShopCatalogSql() {
   return `SELECT d.*,
             d.primary_series_key as series_id,
             d.primary_series_name as series_name,
-            COALESCE(app.id, fallback_app.id) as application_id,
-            COALESCE(app.name, fallback_app.name) as application_name,
-            COALESCE(app.description, fallback_app.description) as application_description,
-            COALESCE(app.code, fallback_app.code) as application_code,
-            COALESCE(app.interaction_type, fallback_app.interaction_type) as interaction_type,
-            COALESCE(app.app_type, fallback_app.app_type) as app_type,
+            app.id as application_id,
+            app.name as application_name,
+            app.description as application_description,
+            app.code as application_code,
+            app.interaction_type as interaction_type,
+            app.app_type as app_type,
             content.id as official_default_video_id,
             content.title as official_default_video_title,
             resource.preview_url as official_default_video_poster,
@@ -44,7 +44,6 @@ function baseShopCatalogSql() {
        ON link.ip_definition_id = d.id
       AND link.is_primary = 1
      LEFT JOIN application_definitions app ON app.id = link.application_definition_id
-     LEFT JOIN application_definitions fallback_app ON fallback_app.code = 'emotion-ip'
      LEFT JOIN ip_instances owned ON owned.ip_definition_id = d.id AND owned.instance_type != 'official_demo'
      LEFT JOIN ip_instances official ON official.ip_definition_id = d.id AND official.instance_type = 'official_demo'
      LEFT JOIN ip_instance_content_instance_links content_link
@@ -59,7 +58,11 @@ function baseShopCatalogSql() {
 }
 
 function activeIpConditions(params = {}) {
-  const conditions = ['d.status = ?'];
+  const conditions = [
+    'd.status = ?',
+    "app.status = 'active'",
+    "COALESCE(json_extract(COALESCE(app.extra_json, '{}'), '$.lifecycle.surfaces.shop'), 1) = 1",
+  ];
   const values = ['active'];
   if (params.seriesId) {
     conditions.push('d.primary_series_key = ?');
@@ -68,12 +71,21 @@ function activeIpConditions(params = {}) {
   return { where: ` WHERE ${conditions.join(' AND ')}`, values };
 }
 
+function shopCatalogCountSql() {
+  return `SELECT COUNT(DISTINCT d.id) as total
+     FROM ip_definitions d
+     LEFT JOIN ip_definition_application_links link
+       ON link.ip_definition_id = d.id
+      AND link.is_primary = 1
+     LEFT JOIN application_definitions app ON app.id = link.application_definition_id`;
+}
+
 export function listShopIpDefinitions(db, params = {}) {
   const page = parsePositiveInt(params.page, 1);
   const pageSize = parsePositiveInt(params.pageSize, 10);
   const shouldPaginate = Boolean(params.paginate);
   const { where, values } = activeIpConditions(params);
-  const totalRows = db.exec(`SELECT COUNT(*) as total FROM ip_definitions d${where}`, values);
+  const totalRows = db.exec(`${shopCatalogCountSql()}${where}`, values);
   const total = totalRows.length > 0 ? totalRows[0].values[0][0] : 0;
   const paging = shouldPaginate ? ' LIMIT ? OFFSET ?' : '';
   const rows = resultToObjects(db.exec(
@@ -100,8 +112,5 @@ export function getShopIpDefinition(db, ipDefinitionId) {
     [ipDefinitionId]
   ));
   if (rows.length === 0) return null;
-  return {
-    ...enrichShopIpDefinition(rows[0]),
-    relations: getIpDefinitionRelations(db, ipDefinitionId),
-  };
+  return enrichShopIpDefinition(rows[0]);
 }

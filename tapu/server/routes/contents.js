@@ -25,6 +25,7 @@ import {
   inferContentRenderer,
 } from '../services/contentRenderingProtocol.js';
 import { buildOsEntryPrompt } from '../services/osEntryPrompt.js';
+import { isApplicationRowSurfaceEnabled } from '../services/applicationLifecycle.js';
 import { resultToObjects } from '../services/tokens.js';
 
 const router = Router();
@@ -156,6 +157,16 @@ async function resolvePlayableContentByToken(req, res) {
     const db = req.permission.db;
     const ipInstance = getIpInstanceByToken(db, key);
     if (!ipInstance) return res.status(404).json({ error: serverMessages.permissions.entityNotFound, code: 'IP_INSTANCE_NOT_FOUND' });
+    if (!isApplicationRowSurfaceEnabled({
+      status: ipInstance.application_status || 'active',
+      version_no: '1.0.0',
+      extra_json: ipInstance.application_extra_json || '{}',
+    }, 'nfc')) {
+      return res.status(404).json({
+        error: serverMessages.routes.common.contentUnavailable,
+        code: 'APPLICATION_NOT_SERVING',
+      });
+    }
 
     const linkedContent = resolveDefaultContentForIpInstance(db, ipInstance);
     if (!linkedContent) {
@@ -173,13 +184,21 @@ async function resolvePlayableContentByToken(req, res) {
       });
     }
 
+    const appCode = ipInstance.application_code || content.application_code || '';
+    if (!appCode) {
+      return res.status(404).json({
+        error: serverMessages.routes.common.contentUnavailable,
+        code: 'APPLICATION_NOT_CONFIGURED',
+      });
+    }
+
     const operationId = recordObjectOperation(db, {
       operationType: 'object.touch',
       objectType: ipInstance.instance_type === 'official_demo' ? 'official-demo' : 'mint-entity',
       objectId: ipInstance.id,
       tokenId: ipInstance.id,
       token: ipInstance.token || ipInstance.entity_key || key,
-      appCode: ipInstance.application_code || content.application_code || 'emotion-ip',
+      appCode,
       contentId: content.id,
       userId: ipInstance.owner_user_id || req.user?.id || null,
       userAgent: req.headers['user-agent'] || null,
@@ -190,7 +209,6 @@ async function resolvePlayableContentByToken(req, res) {
       },
     });
     runOperationPipeline(db, { operationIds: [operationId] });
-    const appCode = ipInstance.application_code || content.application_code || 'emotion-ip';
     const runtimeContext = buildAppRuntimeContext(db, {
       object: {
         type: ipInstance.instance_type === 'official_demo' ? 'official-demo' : 'mint-entity',

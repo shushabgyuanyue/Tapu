@@ -20,36 +20,13 @@ const navModules = [
     ],
   },
   {
-    key: 'light-apps',
-    label: '轻应用运营',
-    description: '每个已实现场景应用都有独立工作台。',
-    accent: '#d98fb7',
-    items: [
-      { path: '/official/answer-book', label: '答案之书' },
-      { path: '/official/moments', label: '纪念瞬间' },
-      { path: '/official/travel-trails', label: '旅行轨迹' },
-      { path: '/official/checks', label: 'Check 检查' },
-    ],
-  },
-  {
-    key: 'creation',
-    label: '内容创作',
-    description: '内容集合、媒介块和应用绑定。',
-    accent: '#9a6a2f',
-    items: [
-      { path: '/official/works', label: '作品中心' },
-      { path: '/official/content-collections', label: '内容集合' },
-    ],
-  },
-  {
     key: 'os',
     label: 'WhatMint OS',
-    description: '应用目录、协议边界和全局系统开关。',
+    description: '内部应用范式、协议边界和全局系统开关。',
     accent: '#26324a',
     items: [
-      { path: '/official/applications', label: '应用目录' },
+      { path: '/official/applications', label: '内部应用范式' },
       { path: '/official/app-intake', label: '接入清单' },
-      { path: '/official/stats', label: '数据观察' },
       { path: '/official/settings', label: '全局开关' },
     ],
   },

@@ -64,23 +64,15 @@ type ContentRenderContext = {
 };
 ```
 
-## 已接入应用
+## 已接入方向
 
-答案之书已经作为第一条验证接入：
+当前新核心内容渲染以 `/play` 和内容定义协议为主入口，纸巾小狗与桌面秘境会按 `content_definitions.template.renderer` 选择 `video.fullscreen`、`ar.camera-overlay` 或基础内容块渲染。
 
-`tapu/src/views/AnswerBookPage.vue`
-
-答案之书把一张答案卡转换成三个内容块：
-
-- `heading`：主答案。
-- `text`：回应解释。
-- `action`：小动作。
-
-页面仍保留自己的触碰仪式感和交互按钮，内容展示交给 `ContentRenderer`。
+已删除旧应用页面不再作为内容容器样本。后续若恢复即时回应型、纪念型或清单型应用，应声明为内容定义和内容块，而不是恢复旧应用私有页面和私有业务表。
 
 ## 后续迁移顺序建议
 
-1. 耳机小姐：把插画、文字、语音和联动入口转换成内容块。
+1. 桌面秘境：继续把 AR 图片、marker、阴影和渲染参数收敛到 `ar.camera-overlay` 内容协议。
 2. 内容详情页：把视频详情页接入 `video` block。
 3. NFC 播放器：保留专用沉浸播放器，但把视频兼容策略逐步抽到 video renderer 或共享 media helper。
 4. 传信类应用：用内容块验证文字、图片、音频和私密状态。

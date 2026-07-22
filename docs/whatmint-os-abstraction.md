@@ -2,14 +2,14 @@
 
 ## 背景
 
-WhatMint 不是先做一个完整平台，再让应用迁入；当前策略是先做有代表性的爆款轻应用，再把共性沉淀成平台能力。
+WhatMint 不是先做一个开放平台，再让应用迁入；当前策略是先做有代表性的自营轻应用，再把共性沉淀成 OS 能力。
 
-本轮 OS 抽象只处理已经被三个轻应用共同证明的底层事实：
+本轮 OS 抽象只处理已经被新核心样本证明的底层事实：
 
 - 现实物体需要稳定身份。
 - NFC 触碰需要统一运行时。
 - 内容需要以块协议进入容器。
-- 内容集合需要能被不同轻应用绑定。
+- 内容定义和资源绑定需要能支撑不同轻应用。
 - 触碰和内容消费需要进入统一事件账本。
 
 ## 五个核心层
@@ -35,10 +35,10 @@ WhatMint 不是先做一个完整平台，再让应用迁入；当前策略是�
 
 已接入：
 
-- `answer-book`：答案之书贴纸。
-- `earphone-girl`：耳机小姐故事空间。
+- `tissue-puppy`：纸巾小狗实体入口。
+- `desktop-secret`：桌面秘境 AR 贴纸。
 
-后续再接入情绪 IP 实体和收藏作品。
+后续再接入新的自营轻应用时，必须按新核心范式重新实现，不从已删除旧应用恢复代码路径。
 
 ### 2. Tap Runtime
 
@@ -67,8 +67,7 @@ WhatMint 不是先做一个完整平台，再让应用迁入；当前策略是�
 
 当前后端接入：
 
-- `answer-book /resolve` 已返回 `content.blocks`，前端优先使用协议块，缺失时回退到旧的 `card` 拼装逻辑。
-- `earphone-girl /resolve` 返回 `content.blocks`，前端保留耳机小姐的声音空间外壳，故事内容区交给 `ContentRenderer`。
+- `/play?key=<token>` 已按内容定义选择 `video.fullscreen`、`ar.camera-overlay` 或内容块渲染，纸巾小狗和桌面秘境都走同一套 OS 内容协议。
 
 ### 4. Object Events
 
@@ -87,57 +86,38 @@ WhatMint 不是先做一个完整平台，再让应用迁入；当前策略是�
 
 当前接入：
 
-- 答案之书抽卡会继续写入 `answer_book_draw_events`，同时写入 `object_events`。
-- 耳机小姐触碰会写入统一事件账本，并可继续被提炼为有意义状态。
+- 纸巾小狗和桌面秘境触碰会写入统一操作 / 事件链路，并可继续被提炼为有意义状态。
 
 事件命名规范见：[object-event-taxonomy.md](object-event-taxonomy.md)
 
-### 5. Content Collection / App Binding
+### 5. Content Definition / Resource Binding
 
-内容集合是内容创作中心和轻应用之间的最小稳定边界。
+内容定义和资源绑定是内容创作中心与轻应用之间的最小稳定边界。
 
-它解决的问题不是“现在就做 CMS”，而是先让多媒介内容拥有一个可被复用、绑定、迁移的容器：
-
-```js
-{
-  collection: {
-    id: '<collection-id>',
-    name: '<collection-name>',
-    slug: '<collection-slug>',
-    primaryModality: 'mixed',
-    blocks: []
-  },
-  binding: {
-    appCode: 'earphone-girl',
-    scopeType: 'token',
-    scopeId: '<token>',
-    collectionId: '<collection-id>',
-    role: 'primary'
-  }
-}
-```
+当前不再保留独立 `content_collections`、`app_bindings`、`works` 这一套官方 CMS 表。它们会让官方后台出现第二套“内容集合/作品”真相，和 `content_instances + resources + content_definitions` 重叠。
 
 当前实现：
 
-- `content_collections`：内容集合元信息。
-- `content_collection_blocks`：集合内的 `ContentBlock` 协议块。
-- `app_bindings`：通过 `scope_type + scope_id` 把应用、物体或 token 与内容集合关联。
-- `tapu/server/services/contentCollections.js`：集合读取、块转换和 active binding 查询。
-- `tapu/server/routes/contentCollections.js`：官方 API，不做完整 CMS 页面。
+- `content_definitions`：声明应用需要的内容形态、资源 slot 和渲染模板。
+- `content_instances`：官方创作和用户创作统一进入内容实例。
+- `resources`：上传、转码、压缩和预览资源。
+- `content_instance_resource_links`：把资源按内容定义 slot 绑定到内容实例。
+- `ip_instance_content_instance_links`：把内容实例绑定到实体 IP，承担 owner default / official default。
+- Mint Studio：统一承载官方内容和用户内容的创建、修改、资源替换流程。
 
 ## 当前不做
 
 - 不做统一前端 `/tap/:token` 总路由。
 - 不迁移所有旧应用数据。
 - 不把内容创作中心改造成完整 CMS。
-- 不把内容集合强制接管所有轻应用的既有业务表；新应用优先按核心对象和适配器范式接入。
+- 不保留第二套官方 CMS/作品中心；新应用优先按核心对象、内容定义、资源协议和适配器范式接入。
 - 不提前定义复杂权限矩阵。
-- 不为了平台感牺牲轻应用的克制体验。
+- 不为了开放平台感牺牲自营轻应用的克制体验。
 
 ## 下一步建议
 
-1. 把情绪 IP 实体的触碰播放事件也映射到 `object_events`。
-2. 用耳机小姐故事空间试用 `Content Collection / App Binding`，验证它是否真的减少重复劳动。
+1. 把更多新核心 IP 的触碰播放事件映射到统一操作和事件链路。
+2. 用纸巾小狗和桌面秘境继续验证 `Content Definition / Resource / Renderer` 是否真的减少重复劳动。
 3. 观察多个核心 IP 应用的协议差异，再决定是否需要统一 `/tap/:token` 总路由。
 4. 在内容容器中继续攻坚 iOS Safari、微信内置浏览器和 Android WebView 的媒体兼容。
 
@@ -145,4 +125,4 @@ WhatMint 不是先做一个完整平台，再让应用迁入；当前策略是�
 
 一次 OS 抽象只有在它减少后续轻应用重复劳动时才成立。
 
-WhatMint 的平台能力应该像水印一样存在：用户看到的是贴纸、摆件、纸巾小狗和一本会回应的书；复杂的路由、权限、内容协议和事件账本留在后端安静工作。
+WhatMint 的 OS 能力应该像水印一样存在：用户看到的是贴纸、摆件、纸巾小狗和桌面秘境；复杂的路由、权限、内容协议和事件账本留在后端安静工作。

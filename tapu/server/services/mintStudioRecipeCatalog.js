@@ -2,7 +2,6 @@ import { mintStudioProfiles } from '../copy/studio.js';
 import { getRegisteredAppAdapters } from './appAdapters.js';
 
 const FALLBACK_LABELS = {
-  'emotion-ip': '情绪 IP',
   content: '内容',
 };
 

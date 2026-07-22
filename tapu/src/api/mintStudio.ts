@@ -33,7 +33,6 @@ export type MintStudioRecipe = {
       requiresAuth?: boolean;
       accept?: string;
       action?: string;
-      legacy?: boolean;
     }>;
     preview?: any;
     requirements?: any;
