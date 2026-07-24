@@ -33,9 +33,12 @@ WhatMint 的设计语言以 [docs/product-manifesto.md](docs/product-manifesto.m
 
 核心调性：
 
+- 现实世界多一点点微童话，让被匆匆略过的小瞬间值得被轻轻认真对待。
 - 有灵气，有个性，歌颂美好，同时成熟克制，兼具商业性。
 - 让现实物体拥有克制而有灵气的数字生命。
 - 碰一下，让物体以自己的方式回应你。
+
+WhatMint 不创造一个逃离现实的幻想世界，也不负责解决人生的大问题。它通过一个现实物、一个简单动作和一个刚刚好的数字回应，让普通生活里很小但真实的瞬间被看见。
 
 ## 当前非目标
 
@@ -49,6 +52,7 @@ WhatMint 的设计语言以 [docs/product-manifesto.md](docs/product-manifesto.m
 
 - 业务流程与权限规则：[docs/business-flow.md](docs/business-flow.md)
 - 对客体验与 Mint Space 规划：[docs/customer-facing-experience-plan.md](docs/customer-facing-experience-plan.md)
+- IP 体系探索与微童话感：[docs/ip-system-exploration.md](docs/ip-system-exploration.md)
 - OS 抽象雏形：[docs/whatmint-os-abstraction.md](docs/whatmint-os-abstraction.md)
 - 模块与分工：[DOMAINS.md](DOMAINS.md)
 - 阶段与验收：[develop.md](develop.md)

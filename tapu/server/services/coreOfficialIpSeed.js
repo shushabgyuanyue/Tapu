@@ -3,6 +3,7 @@ import {
   stringifyJson,
   upsertIpInstanceContentLink,
 } from './coreStore.js';
+import { ensureCheerNoteSeed } from './cheerNoteOfficialSeed.js';
 import { resultToObjects } from './tokens.js';
 
 function firstRow(db, sql, params = []) {
@@ -486,4 +487,5 @@ function ensureTissuePuppyArExampleUsesCurrentPlaceholder(db) {
 export function ensureCoreOfficialIpSeed(db) {
   ensureDesktopSecretSeed(db);
   ensureTissuePuppyArExampleUsesCurrentPlaceholder(db);
+  ensureCheerNoteSeed(db);
 }

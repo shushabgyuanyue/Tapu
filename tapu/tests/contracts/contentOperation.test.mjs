@@ -5,6 +5,7 @@ import {
   recordObjectOperation,
   runOperationPipeline,
 } from '../../server/services/contentOperation.js';
+import { getAppManifests } from '../../server/contracts/appManifests.js';
 import { getAppAdapter, getRegisteredAppAdapters } from '../../server/services/appAdapters.js';
 import { resultToObjects } from '../../server/services/tokens.js';
 
@@ -252,7 +253,7 @@ test('tissue puppy touch operations become a single meaningful event and project
 
 test('registered app adapters expose the onboarding contract shape', () => {
   const adapters = getRegisteredAppAdapters();
-  assert.equal(adapters.length, 2);
+  assert.equal(adapters.length, getAppManifests().length);
   for (const adapter of adapters) {
     assert.ok(adapter.appCode);
     assert.ok(adapter.manifest);

@@ -446,3 +446,25 @@ entrypoint: tapu/src/main.ts
 - post-mortem:
   - The important governance lesson is that obsolete IPs must be removed from seed/management truth, not hidden in customer pages.
   - Mint Space collage should move next to a small static resource manifest before an official management UI; the current document defines the contract without overbuilding.
+
+## 2026-07-25 Codex Increment 22
+
+- domain: frontend, app-manifest, shop, whatmint-os, copy-i18n, evo-closeout
+- ref: working-tree
+- branch_context: `tapu-master` direct closeout; no separate feature branch is active, so merge is represented by a validated mainline commit and push.
+- todo:
+  - [x] Create Cheer Note as a customer-facing light app at `/cheer-note`, with unified copy, local 24h task lifecycle, max 100 active items, and future AI copy-frame seams.
+  - [x] Replace CSS/fake animation with Lottie JSON assets for character, small confetti, and full-screen big confetti.
+  - [x] Refine the mobile-first Cheer Note UI: white page background, IP/speech outside the task panel, fixed-height scrollable task panel, bottom-in-card add action, pop-up task input, no red anxiety marker, no per-card status copy.
+  - [x] Register `cheer-note` through the OS app chain: manifest, built-in application registry, adapter, OS capability map, official IP seed, official route content, Shop catalog route exposure, and IP detail official example route.
+  - [x] Keep customer-facing copy in `tapu/src/copy/*`, route access in `tapu/src/api/*`, and seed/manifest behavior aligned with the core `IP + application + official demo` model.
+  - [x] Document IP system exploration and deferred database/security hardening rather than implementing premature anti-abuse mechanisms in the first local-storage prototype.
+- evidence:
+  - `npm run check:quality`
+  - `npm run build`
+  - Browser smoke: `/shop/ip/ipdef_cheer_note` shows the official experience action and routes to `/cheer-note`.
+  - Browser smoke: `/cheer-note` character JSON animates, small confetti triggers on add, task completion triggers full-screen big confetti, task card bursts/removes, and big confetti overlay measures viewport-sized rather than card-sized.
+- post-mortem:
+  - Cheer Note should stay a ritual app, not a task-management product. Task data exists only to give the IP a reason to cheer.
+  - The key UI lesson was separating the IP/speech layer from the task list layer; mixing speech and input in one box made the animation feel mechanical and cramped.
+  - Large Lottie JSON must remain URL-loaded and overlay-mounted. Inlining or card-scoped rendering quickly creates both performance and emotional-intensity problems.

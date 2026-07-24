@@ -12,5 +12,7 @@ export async function fetchShopIpDetail(ipDefinitionId: string) {
 }
 
 export function getShopExperienceRoute(content: ShopContentPreview | null | undefined) {
+  if (typeof content?.route === 'string' && content.route.startsWith('/')) return content.route;
+  if (content?.application_code === 'cheer-note') return '/cheer-note';
   return content?.id ? `/play/${content.id}` : '';
 }

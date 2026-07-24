@@ -11,6 +11,7 @@ function enrichShopIpDefinition(ipDefinition) {
   const displayTags = Array.isArray(parseJson(ipDefinition.display_tags_json, []))
     ? parseJson(ipDefinition.display_tags_json, [])
     : [];
+  const officialPayload = parseJson(ipDefinition.official_default_payload_json, {});
   return {
     ...ipDefinition,
     display_tags_list: displayTags,
@@ -20,6 +21,10 @@ function enrichShopIpDefinition(ipDefinition) {
         id: ipDefinition.official_default_video_id,
         title: ipDefinition.official_default_video_title,
         poster_url: ipDefinition.official_default_video_poster,
+        route: officialPayload?.route || null,
+        application_code: ipDefinition.application_code,
+        content_kind: ipDefinition.official_default_content_kind,
+        primary_modality: ipDefinition.official_default_primary_modality,
         role: 'official_default',
       }]
       : [],
@@ -38,6 +43,9 @@ function baseShopCatalogSql() {
             app.app_type as app_type,
             content.id as official_default_video_id,
             content.title as official_default_video_title,
+            content.content_kind as official_default_content_kind,
+            content.primary_modality as official_default_primary_modality,
+            content.payload_json as official_default_payload_json,
             resource.preview_url as official_default_video_poster,
             COUNT(DISTINCT owned.id) as entity_count
      FROM ip_definitions d

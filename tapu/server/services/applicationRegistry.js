@@ -20,6 +20,13 @@ const BUILT_IN_APPLICATIONS = [
     interaction_type: 'tap_to_reveal_desktop_realm',
     description: '触碰桌面贴纸，打开摄像头，在桌面锚点上召唤一处悬浮小秘境。',
   },
+  {
+    name: '喝彩便签',
+    code: 'cheer-note',
+    app_type: 'behavior',
+    interaction_type: 'open_to_cheer_small_actions',
+    description: '打开桌面上的小礼炮便签，让每一次写下、完成和回来都被认真喝彩。',
+  },
 ];
 
 const manifestByCode = new Map(getAppManifests().map(manifest => [manifest.code, manifest]));

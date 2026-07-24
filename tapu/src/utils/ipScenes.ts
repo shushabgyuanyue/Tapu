@@ -3,6 +3,7 @@ const SCENE_CATEGORIES = ['旅行', '工作学习', '送礼', '摆件'];
 const APP_SCENES: Record<string, string[]> = {
   'tissue-puppy': ['送礼', '摆件'],
   'desktop-secret': ['工作学习', '摆件'],
+  'cheer-note': ['工作学习', '摆件'],
 };
 
 function rawTagsFor(subject: any) {

@@ -282,6 +282,87 @@ export const APPLICATION_MANIFESTS = [
       },
     },
   },
+  {
+    code: 'cheer-note',
+    lifecycle: {
+      ...ACTIVE_APP_LIFECYCLE,
+      surfaces: {
+        shop: true,
+        nfc: false,
+        studio: false,
+        admin: true,
+      },
+    },
+    type: 'behavior',
+    objectPrinciple: 'A tiny desktop cheer icon lowers the pressure of starting and notices small everyday efforts.',
+    behavior: 'open_to_write_one_small_action_and_receive_confetti',
+    meaningQuestion: 'What small thing deserves to be seen and cheered today?',
+    defaultRoutes: {
+      open: '/cheer-note',
+      studio: '/mint-studio',
+      admin: '/official/applications',
+    },
+    mintStudio: {
+      profile: 'entity-recipe',
+      primaryActions: ['open_preview'],
+    },
+    permissionOperations: ['view:open', 'view:preview'],
+    operationDefinitions: [
+      {
+        key: 'app.open',
+        label: 'Open Cheer Note',
+        meaning: 'A user opened the cheer note and received a small welcome cannon.',
+      },
+    ],
+    contentDefinition: {
+      id: 'content-def-cheer-note-ritual',
+      code: 'cheer-note-ritual',
+      name: '喝彩便签互动示例',
+      description: '打开一个只负责为微小开始和完成放礼炮的互动便签。任务只是喝彩发生的理由。',
+      contentKind: 'interactive',
+      primaryModality: 'interactive',
+      authoringSchema: {
+        authoringProtocol: {
+          createFlow: 'app_route_demo',
+          unitLabel: '喝彩互动',
+          publishLabel: '保存喝彩示例',
+          publishDescription: '保存一个打开喝彩便签的官方互动体验。',
+        },
+        contentShape: {
+          unit: 'cheer_note_route',
+          slots: [],
+        },
+        resourceRequirements: [],
+      },
+      template: {
+        renderer: 'app.route',
+        route: '/cheer-note',
+        playback: {
+          autoplay: true,
+          confetti: true,
+        },
+      },
+      extra: {
+        toneRule: '高能量、亲密、一直等待和欣赏，但保持微童话式克制。',
+      },
+    },
+    contentContainer: {
+      capabilities: ['interactive', 'text'],
+      defaultModality: 'interactive',
+    },
+    entryPrompts: {
+      nfc_player: {
+        unbound: {
+          display: 'none',
+          frequency: 'never',
+        },
+        bound: {
+          display: 'none',
+          frequency: 'never',
+        },
+      },
+    },
+  },
 ];
 
 export function getAppManifests() {

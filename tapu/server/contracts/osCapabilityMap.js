@@ -10,6 +10,7 @@ import {
 export const APP_OPEN_ENDPOINTS = {
   'tissue-puppy': { method: 'get', path: '/api/contents/resolve-by-token' },
   'desktop-secret': { method: 'get', path: '/api/contents/resolve-by-token' },
+  'cheer-note': { method: 'get', path: '/api/contents/resolve-by-token' },
 };
 
 function routeKey(method, path) {

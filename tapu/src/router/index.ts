@@ -53,6 +53,11 @@ const routes = [
     component: () => import('../views/ShopIpDetailPage.vue'),
   },
   {
+    path: '/cheer-note',
+    name: 'cheer-note',
+    component: () => import('../views/CheerNotePage.vue'),
+  },
+  {
     path: '/play/:id',
     name: 'player-id',
     component: () => import('../views/PlayerView.vue'),

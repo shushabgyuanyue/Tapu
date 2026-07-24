@@ -29,6 +29,7 @@ function createBaseAdapter(appCode, overrides = {}) {
 export const APP_ADAPTERS = Object.freeze({
   'tissue-puppy': createBaseAdapter('tissue-puppy'),
   'desktop-secret': createBaseAdapter('desktop-secret'),
+  'cheer-note': createBaseAdapter('cheer-note'),
 });
 
 export function getAppAdapter(appCode) {
